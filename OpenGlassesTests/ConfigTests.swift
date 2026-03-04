@@ -1,0 +1,217 @@
+import XCTest
+@testable import OpenGlasses
+
+final class ConfigTests: XCTestCase {
+
+    // Keys used by Config that we need to clean up
+    private let testKeys = [
+        "appMode",
+        "openClawEnabled",
+        "openClawConnectionMode",
+        "openClawLanHost",
+        "openClawPort",
+        "openClawTunnelHost",
+        "openClawGatewayToken",
+        "geminiLiveAPIKey",
+        "geminiLiveModel",
+    ]
+
+    override func setUp() {
+        super.setUp()
+        // Clear all test keys before each test
+        for key in testKeys {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    override func tearDown() {
+        // Clean up after each test
+        for key in testKeys {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        super.tearDown()
+    }
+
+    // MARK: - AppMode
+
+    func testAppModeDefaultIsDirect() {
+        XCTAssertEqual(Config.appMode, .direct)
+    }
+
+    func testAppModeSetAndGet() {
+        Config.setAppMode(.geminiLive)
+        XCTAssertEqual(Config.appMode, .geminiLive)
+
+        Config.setAppMode(.direct)
+        XCTAssertEqual(Config.appMode, .direct)
+    }
+
+    func testAppModeEnum() {
+        XCTAssertEqual(AppMode.direct.rawValue, "direct")
+        XCTAssertEqual(AppMode.geminiLive.rawValue, "geminiLive")
+        XCTAssertEqual(AppMode.allCases.count, 2)
+    }
+
+    func testAppModeDisplayName() {
+        XCTAssertEqual(AppMode.direct.displayName, "Direct Mode")
+        XCTAssertEqual(AppMode.geminiLive.displayName, "Gemini Live")
+    }
+
+    func testAppModeDescription() {
+        XCTAssertFalse(AppMode.direct.description.isEmpty)
+        XCTAssertFalse(AppMode.geminiLive.description.isEmpty)
+    }
+
+    // MARK: - OpenClaw Configuration
+
+    func testOpenClawEnabledDefault() {
+        XCTAssertFalse(Config.openClawEnabled)
+    }
+
+    func testOpenClawEnabledSetAndGet() {
+        Config.setOpenClawEnabled(true)
+        XCTAssertTrue(Config.openClawEnabled)
+
+        Config.setOpenClawEnabled(false)
+        XCTAssertFalse(Config.openClawEnabled)
+    }
+
+    func testOpenClawConnectionModeDefault() {
+        XCTAssertEqual(Config.openClawConnectionMode, .auto)
+    }
+
+    func testOpenClawConnectionModeSetAndGet() {
+        Config.setOpenClawConnectionMode(.lan)
+        XCTAssertEqual(Config.openClawConnectionMode, .lan)
+
+        Config.setOpenClawConnectionMode(.tunnel)
+        XCTAssertEqual(Config.openClawConnectionMode, .tunnel)
+
+        Config.setOpenClawConnectionMode(.auto)
+        XCTAssertEqual(Config.openClawConnectionMode, .auto)
+    }
+
+    func testOpenClawLanHostDefault() {
+        XCTAssertEqual(Config.openClawLanHost, "http://macbook.local")
+    }
+
+    func testOpenClawLanHostSetAndGet() {
+        Config.setOpenClawLanHost("http://192.168.1.100")
+        XCTAssertEqual(Config.openClawLanHost, "http://192.168.1.100")
+    }
+
+    func testOpenClawPortDefault() {
+        XCTAssertEqual(Config.openClawPort, 18789)
+    }
+
+    func testOpenClawPortSetAndGet() {
+        Config.setOpenClawPort(9999)
+        XCTAssertEqual(Config.openClawPort, 9999)
+    }
+
+    func testOpenClawTunnelHostDefault() {
+        XCTAssertEqual(Config.openClawTunnelHost, "")
+    }
+
+    func testOpenClawTunnelHostSetAndGet() {
+        Config.setOpenClawTunnelHost("https://my-tunnel.trycloudflare.com")
+        XCTAssertEqual(Config.openClawTunnelHost, "https://my-tunnel.trycloudflare.com")
+    }
+
+    func testOpenClawGatewayTokenDefault() {
+        XCTAssertEqual(Config.openClawGatewayToken, "")
+    }
+
+    func testOpenClawGatewayTokenSetAndGet() {
+        Config.setOpenClawGatewayToken("my-secret-token")
+        XCTAssertEqual(Config.openClawGatewayToken, "my-secret-token")
+    }
+
+    func testIsOpenClawConfiguredWhenDisabled() {
+        Config.setOpenClawEnabled(false)
+        Config.setOpenClawGatewayToken("token")
+        XCTAssertFalse(Config.isOpenClawConfigured, "Should be false when disabled even with token")
+    }
+
+    func testIsOpenClawConfiguredWhenEnabledNoToken() {
+        Config.setOpenClawEnabled(true)
+        // Token is empty by default
+        XCTAssertFalse(Config.isOpenClawConfigured, "Should be false with empty token")
+    }
+
+    func testIsOpenClawConfiguredWhenEnabledWithToken() {
+        Config.setOpenClawEnabled(true)
+        Config.setOpenClawGatewayToken("my-token")
+        XCTAssertTrue(Config.isOpenClawConfigured)
+    }
+
+    // MARK: - Gemini Live Configuration
+
+    func testGeminiLiveAPIKeyDefault() {
+        XCTAssertEqual(Config.geminiLiveAPIKey, "")
+    }
+
+    func testGeminiLiveAPIKeySetAndGet() {
+        Config.setGeminiLiveAPIKey("AIza-test-key")
+        XCTAssertEqual(Config.geminiLiveAPIKey, "AIza-test-key")
+    }
+
+    func testGeminiLiveModelDefault() {
+        XCTAssertEqual(Config.geminiLiveModel, "models/gemini-2.5-flash-native-audio-preview-12-2025")
+    }
+
+    func testGeminiLiveModelSetAndGet() {
+        Config.setGeminiLiveModel("models/gemini-2.0-flash-exp")
+        XCTAssertEqual(Config.geminiLiveModel, "models/gemini-2.0-flash-exp")
+    }
+
+    func testIsGeminiLiveConfiguredWhenNoKey() {
+        XCTAssertFalse(Config.isGeminiLiveConfigured)
+    }
+
+    func testIsGeminiLiveConfiguredWithKey() {
+        Config.setGeminiLiveAPIKey("test-key")
+        XCTAssertTrue(Config.isGeminiLiveConfigured)
+    }
+
+    func testGeminiLiveWebSocketURLNilWhenNoKey() {
+        XCTAssertNil(Config.geminiLiveWebSocketURL)
+    }
+
+    func testGeminiLiveWebSocketURLWithKey() {
+        Config.setGeminiLiveAPIKey("my-api-key")
+        let url = Config.geminiLiveWebSocketURL
+        XCTAssertNotNil(url)
+        XCTAssertTrue(url!.absoluteString.contains("key=my-api-key"))
+        XCTAssertTrue(url!.absoluteString.hasPrefix("wss://"))
+    }
+
+    // MARK: - Gemini Live Constants
+
+    func testGeminiLiveAudioConstants() {
+        XCTAssertEqual(Config.geminiLiveInputSampleRate, 16000)
+        XCTAssertEqual(Config.geminiLiveOutputSampleRate, 24000)
+        XCTAssertEqual(Config.geminiLiveAudioChannels, 1)
+        XCTAssertEqual(Config.geminiLiveAudioBitsPerSample, 16)
+        XCTAssertEqual(Config.geminiLiveVideoFrameInterval, 1.0)
+        XCTAssertEqual(Config.geminiLiveVideoJPEGQuality, 0.5)
+    }
+
+    // MARK: - OpenClawConnectionMode Enum
+
+    func testOpenClawConnectionModeRawValues() {
+        XCTAssertEqual(OpenClawConnectionMode.lan.rawValue, "lan")
+        XCTAssertEqual(OpenClawConnectionMode.tunnel.rawValue, "tunnel")
+        XCTAssertEqual(OpenClawConnectionMode.auto.rawValue, "auto")
+    }
+
+    func testOpenClawConnectionModeDisplayNames() {
+        XCTAssertEqual(OpenClawConnectionMode.lan.displayName, "LAN (Local Network)")
+        XCTAssertEqual(OpenClawConnectionMode.tunnel.displayName, "Cloudflare Tunnel")
+        XCTAssertEqual(OpenClawConnectionMode.auto.displayName, "Auto (try LAN first)")
+    }
+
+    func testOpenClawConnectionModeAllCases() {
+        XCTAssertEqual(OpenClawConnectionMode.allCases.count, 3)
+    }
+}

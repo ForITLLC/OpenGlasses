@@ -49,9 +49,12 @@ class GlassesConnectionService: ObservableObject {
 
         do {
             try await Wearables.shared.startRegistration()
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
             let stateAfter = Wearables.shared.registrationState
             print("✅ startRegistration() succeeded, state: \(stateAfter)")
-            connectionStatus = "Waiting for device..."
+            connectionStatus = stateAfter.rawValue >= 3
+                ? "Waiting for device..."
+                : "Complete authorization in Meta AI app"
         } catch {
             print("❌ startRegistration() failed: \(error)")
             connectionStatus = "Connection failed: \(error.localizedDescription)"

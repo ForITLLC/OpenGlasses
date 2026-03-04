@@ -38,11 +38,11 @@
 	<key>MWDAT</key>
 	<dict>
 		<key>AppLinkURLScheme</key>
-		<string>mwdat-688603774243722</string>
-		<key>ClientToken</key>
-		<string>AR|688603774243722|906db0d1b28450fdb718401ca16b9d60</string>
+		<string>https://straff2002.github.io/OpenGlasses</string>
 		<key>MetaAppID</key>
 		<string>688603774243722</string>
+		<key>ClientToken</key>
+		<string>AR|688603774243722|906db0d1b28450fdb718401ca16b9d60</string>
 		<key>TeamID</key>
 		<string>$(DEVELOPMENT_TEAM)</string>
 	</dict>
@@ -50,6 +50,10 @@
 	<string>OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>OpenGlasses needs camera access to capture photos and video for the AI to analyze.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>OpenGlasses uses your location to provide contextually relevant answers based on where you are.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>OpenGlasses needs microphone access to listen for wake words and transcribe your voice commands.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
@@ -66,6 +70,9 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 </dict>
 </plist>

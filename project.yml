@@ -28,18 +28,23 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NSMicrophoneUsageDescription: "OpenGlasses needs microphone access to listen for wake words and transcribe your voice commands."
         NSSpeechRecognitionUsageDescription: "OpenGlasses uses speech recognition to detect the wake word and transcribe your questions for Claude."
         NSPhotoLibraryAddUsageDescription: "OpenGlasses saves photos taken with your Ray-Ban Meta glasses to your photo library."
+        NSCameraUsageDescription: "OpenGlasses needs camera access to capture photos and video for the AI to analyze."
         NSBluetoothAlwaysUsageDescription: "OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
         NSBluetoothPeripheralUsageDescription: "OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
+        NSLocationWhenInUseUsageDescription: "OpenGlasses uses your location to provide contextually relevant answers based on where you are."
         UIBackgroundModes:
           - audio
           - bluetooth-central
         LSApplicationQueriesSchemes:
           - "fb-viewapp"
         MWDAT:
-          AppLinkURLScheme: "mwdat-688603774243722"
+          AppLinkURLScheme: "https://straff2002.github.io/OpenGlasses"
           MetaAppID: "688603774243722"
           ClientToken: "AR|688603774243722|906db0d1b28450fdb718401ca16b9d60"
           TeamID: "$(DEVELOPMENT_TEAM)"
@@ -48,15 +53,13 @@ targets:
               - "mwdat-688603774243722"
     entitlements:
       path: OpenGlasses/OpenGlasses.entitlements
-      properties:
-        com.apple.developer.associated-domains:
-          - applinks:straff2002.github.io/OpenGlasses
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.openglasses.OpenGlasses
-        MARKETING_VERSION: "1.2"
-        CURRENT_PROJECT_VERSION: "3"
+        PRODUCT_BUNDLE_IDENTIFIER: com.openglasses.OpenGlasses.skunk0
+        MARKETING_VERSION: "1.3.1"
+        CURRENT_PROJECT_VERSION: "5"
         SWIFT_VERSION: "5.9"
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
     dependencies:
       - package: meta-wearables-dat-ios
         product: MWDATCore

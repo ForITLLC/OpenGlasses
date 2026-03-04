@@ -5,7 +5,7 @@ struct RootView: View {
     
     var body: some View {
         ZStack {
-            ContentView()
+            MainView()
             
             if showLaunchScreen {
                 LaunchScreen()

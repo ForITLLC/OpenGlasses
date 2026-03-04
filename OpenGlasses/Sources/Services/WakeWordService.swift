@@ -49,7 +49,7 @@ class WakeWordService: NSObject, ObservableObject {
         guard !audioSessionConfigured else { return }
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .allowBluetooth, .defaultToSpeaker])
+            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .allowBluetoothHFP, .defaultToSpeaker])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             audioSessionConfigured = true
 
