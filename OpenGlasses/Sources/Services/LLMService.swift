@@ -2,6 +2,7 @@ import Foundation
 
 /// Supported LLM providers
 enum LLMProvider: String, CaseIterable {
+    case dolores = "dolores"
     case anthropic = "anthropic"
     case openai = "openai"
     case gemini = "gemini"
@@ -10,6 +11,7 @@ enum LLMProvider: String, CaseIterable {
 
     var displayName: String {
         switch self {
+        case .dolores: return "Dolores (ForIT AI)"
         case .anthropic: return "Anthropic (Claude)"
         case .openai: return "OpenAI (GPT)"
         case .gemini: return "Google (Gemini)"
@@ -21,7 +23,7 @@ enum LLMProvider: String, CaseIterable {
     /// Whether this provider uses the OpenAI-compatible API format
     var isOpenAICompatible: Bool {
         switch self {
-        case .anthropic, .gemini: return false
+        case .dolores, .anthropic, .gemini: return false
         case .openai, .groq, .custom: return true
         }
     }
@@ -29,6 +31,7 @@ enum LLMProvider: String, CaseIterable {
     /// Default base URL for the provider
     var defaultBaseURL: String {
         switch self {
+        case .dolores: return "https://forit-ai-engine.azurewebsites.net/api/voice"
         case .anthropic: return "https://api.anthropic.com/v1/messages"
         case .openai: return "https://api.openai.com/v1/chat/completions"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
@@ -40,6 +43,7 @@ enum LLMProvider: String, CaseIterable {
     /// Default model for the provider
     var defaultModel: String {
         switch self {
+        case .dolores: return "dolores"
         case .anthropic: return "claude-sonnet-4-20250514"
         case .openai: return "gpt-4o"
         case .gemini: return "gemini-2.0-flash"
@@ -106,6 +110,8 @@ class LLMService: ObservableObject {
         print("🤖 Using model: \(modelConfig.name) (\(modelConfig.model) via \(provider.displayName))\(includeTools ? " [OpenClaw enabled]" : "")")
 
         switch provider {
+        case .dolores:
+            return try await sendDolores(text, config: modelConfig, imageData: imageData)
         case .anthropic:
             return try await sendAnthropic(text, systemPrompt: fullPrompt, config: modelConfig, includeTools: includeTools, imageData: imageData)
         case .gemini:
@@ -123,6 +129,65 @@ class LLMService: ObservableObject {
     /// Refresh the published model name from Config
     func refreshActiveModel() {
         activeModelName = Config.activeModel?.name ?? "No Model"
+    }
+
+    // MARK: - Dolores (ForIT AI Engine)
+
+    private func sendDolores(_ text: String, config: ModelConfig, imageData: Data?) async throws -> String {
+        let apiKey = config.apiKey
+        guard !apiKey.isEmpty else {
+            throw LLMError.missingAPIKey("Dolores API key not configured")
+        }
+
+        let baseURL = config.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: baseURL) else {
+            throw LLMError.invalidConfiguration("Invalid Dolores URL: \(baseURL)")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.timeoutInterval = 120 // Dolores agent loop can take time
+
+        var body: [String: Any] = [
+            "text": text,
+            "userEmail": "b.thomas@forit.io"  // TODO: make configurable
+        ]
+
+        if let imageData = imageData {
+            body["imageBase64"] = imageData.base64EncodedString()
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        print("🤖 [Dolores] Sending: \(text.prefix(100))...")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorMsg = errorJson["error"] as? String {
+                print("❌ Dolores error \(statusCode): \(errorMsg)")
+                throw LLMError.apiError(provider: "Dolores", statusCode: statusCode, message: errorMsg)
+            }
+            throw LLMError.apiError(provider: "Dolores", statusCode: statusCode, message: nil)
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let responseText = json["response"] as? String else {
+            throw LLMError.invalidResponse("Dolores")
+        }
+
+        let toolsUsed = json["toolsUsed"] as? [String] ?? []
+        if !toolsUsed.isEmpty {
+            print("🔧 [Dolores] Tools used: \(toolsUsed.joined(separator: ", "))")
+        }
+
+        // No conversation history management needed — Dolores handles it server-side
+        return responseText
     }
 
     // MARK: - Anthropic Claude

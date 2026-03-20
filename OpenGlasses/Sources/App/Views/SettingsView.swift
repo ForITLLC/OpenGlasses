@@ -31,7 +31,7 @@ struct SettingsView: View {
     private let mutedGreen = Color(red: 0.35, green: 0.62, blue: 0.45)
 
     private let wakeWordPresets = [
-        "hey claude", "hey jarvis", "hey rayban", "hey computer", "hey assistant"
+        "hey dolores", "hey claude", "hey jarvis", "hey rayban", "hey computer", "hey assistant"
     ]
 
     var body: some View {
@@ -40,6 +40,7 @@ struct SettingsView: View {
                 // MARK: Wake Word
                 Section("Wake Word") {
                     Picker("Preset", selection: $selectedPreset) {
+                        Text("Hey Dolores").tag("hey dolores")
                         Text("Hey Claude").tag("hey claude")
                         Text("Hey Jarvis").tag("hey jarvis")
                         Text("Hey Rayban").tag("hey rayban")

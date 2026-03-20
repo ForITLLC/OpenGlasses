@@ -49,7 +49,7 @@ struct Config {
         if let phrase = UserDefaults.standard.string(forKey: "wakePhrase"), !phrase.isEmpty {
             return phrase.lowercased()
         }
-        return "hey claude"
+        return "hey dolores"
     }
 
     static func setWakePhrase(_ phrase: String) {
@@ -71,6 +71,8 @@ struct Config {
     /// Default alternative spellings for common wake phrases
     static func defaultAlternativesForPhrase(_ phrase: String) -> [String] {
         switch phrase.lowercased() {
+        case "hey dolores":
+            return ["hey dolorus", "hey delores", "hey dolorus", "hey de lores", "hey the lores"]
         case "hey claude":
             return ["hey cloud", "hey claud", "hey clod", "hey clawed", "hey claudia"]
         case "hey jarvis":
