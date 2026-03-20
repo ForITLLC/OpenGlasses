@@ -22,8 +22,8 @@ targets:
     info:
       path: OpenGlasses/Info.plist
       properties:
-        CFBundleName: "OpenGlasses"
-        CFBundleDisplayName: "OpenGlasses"
+        CFBundleName: "Dolores"
+        CFBundleDisplayName: "Dolores"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -55,10 +55,12 @@ targets:
       path: OpenGlasses/OpenGlasses.entitlements
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.openglasses.OpenGlasses.skunk0
+        PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.bwt
+        DEVELOPMENT_TEAM: BJQXT5H782
         MARKETING_VERSION: "1.3.1"
         CURRENT_PROJECT_VERSION: "5"
         SWIFT_VERSION: "5.9"
+        CODE_SIGN_STYLE: "Automatic"
         CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
     dependencies:
       - package: meta-wearables-dat-ios
