@@ -57,7 +57,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Dolores needs microphone access to listen for wake words and transcribe your voice commands.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Dolores saves photos taken with your Ray-Ban Meta glasses to your photo library.</string>
+	<string>Glasses saves photos taken with your Ray-Ban Meta glasses to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Glasses saves photos to a dedicated album in your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Dolores uses speech recognition to detect the wake word and transcribe your questions.</string>
 	<key>UIBackgroundModes</key>

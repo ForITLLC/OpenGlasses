@@ -3,6 +3,7 @@ import AVFoundation
 import MWDATCore
 import MWDATCamera
 import UIKit
+import Photos
 
 /// Camera service modeled after Meta's official CameraAccess sample app.
 ///
@@ -248,14 +249,64 @@ class CameraService: ObservableObject {
             }
         }
 
-        ErrorReporter.shared.report("Photo captured: \(photoData.count) bytes", source: "camera", level: "info")
+        // Stop streaming immediately after capture to save battery/bandwidth
+        await stopStreaming()
+
+        ErrorReporter.shared.report("Photo captured: \(photoData.count) bytes, stream stopped", source: "camera", level: "info")
         return photoData
     }
 
+    /// Save photo to a dedicated "Glasses" album in Photos
     func saveToPhotoLibrary(_ data: Data) {
         guard let image = UIImage(data: data) else { return }
-        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+        saveToGlassesAlbum(image)
     }
+
+    private nonisolated func saveToGlassesAlbum(_ image: UIImage) {
+        let albumName = "Glasses"
+
+        // Find or create the album, then save
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.predicate = NSPredicate(format: "title = %@", albumName)
+        let albums = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
+
+        if let album = albums.firstObject {
+            addImage(image, to: album)
+        } else {
+            var albumPlaceholder: PHObjectPlaceholder?
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: albumName)
+                albumPlaceholder = request.placeholderForCreatedAssetCollection
+            }) { success, error in
+                if success, let placeholder = albumPlaceholder {
+                    let fetchResult = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [placeholder.localIdentifier], options: nil)
+                    if let album = fetchResult.firstObject {
+                        self.addImage(image, to: album)
+                    }
+                } else {
+                    NSLog("[Camera] Failed to create Glasses album: \(error?.localizedDescription ?? "unknown")")
+                    UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+                }
+            }
+        }
+    }
+
+    private nonisolated func addImage(_ image: UIImage, to album: PHAssetCollection) {
+        PHPhotoLibrary.shared().performChanges({
+            let assetRequest = PHAssetChangeRequest.creationRequestForAsset(from: image)
+            guard let placeholder = assetRequest.placeholderForCreatedAsset,
+                  let albumChangeRequest = PHAssetCollectionChangeRequest(for: album) else { return }
+            albumChangeRequest.addAssets([placeholder] as NSFastEnumeration)
+        }) { success, error in
+            if success {
+                NSLog("[Camera] Photo saved to Glasses album")
+            } else {
+                NSLog("[Camera] Failed to save to Glasses album: \(error?.localizedDescription ?? "unknown")")
+                UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+            }
+        }
+    }
+
 
     // MARK: - State Management
 

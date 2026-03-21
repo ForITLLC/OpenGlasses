@@ -37,7 +37,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSMicrophoneUsageDescription: "Dolores needs microphone access to listen for wake words and transcribe your voice commands."
         NSSpeechRecognitionUsageDescription: "Dolores uses speech recognition to detect the wake word and transcribe your questions."
-        NSPhotoLibraryAddUsageDescription: "Dolores saves photos taken with your Ray-Ban Meta glasses to your photo library."
+        NSPhotoLibraryUsageDescription: "Glasses saves photos to a dedicated album in your photo library."
+        NSPhotoLibraryAddUsageDescription: "Glasses saves photos taken with your Ray-Ban Meta glasses to your photo library."
         NSCameraUsageDescription: "Dolores needs camera access to capture photos and video for the AI to analyze."
         NSBluetoothAlwaysUsageDescription: "Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
         NSBluetoothPeripheralUsageDescription: "Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
