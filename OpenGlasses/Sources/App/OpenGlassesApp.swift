@@ -97,8 +97,7 @@ struct OpenGlassesApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:
-                print("App moved to background — keeping audio alive")
-                appState.liveActivity.end()
+                print("App moved to background — keeping audio + Live Activity alive")
             case .active:
                 print("App became active")
                 Task {
