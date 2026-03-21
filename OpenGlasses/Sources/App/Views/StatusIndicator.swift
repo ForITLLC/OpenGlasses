@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Large central ambient status indicator — the visual heartbeat of the app.
-/// Display-only — not tappable. Shows connection state and active mode.
+/// Dolores avatar with pulsing ring. ForIT logo underneath (replaces text).
+/// Only shows text status during active states (Listening/Speaking/Thinking).
 struct StatusIndicator: View {
     @EnvironmentObject var appState: AppState
 
@@ -10,7 +11,7 @@ struct StatusIndicator: View {
     @State private var ringOpacity: Double = 0.3
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             ZStack {
                 // Ambient ring — pulses when active
                 Circle()
@@ -39,34 +40,28 @@ struct StatusIndicator: View {
                     .overlay(
                         Circle().stroke(Color(hex: "8EDCEF").opacity(0.5), lineWidth: 1.5)
                     )
-
-                // Small status badge (bottom-right)
-                Image(systemName: iconName)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "E1EFF3"))
-                    .frame(width: 24, height: 24)
-                    .background(Color(hex: "142F43"))
-                    .clipShape(Circle())
-                    .offset(x: 28, y: 28)
             }
-            .animation(.easeInOut(duration: 0.4), value: iconName)
+            .animation(.easeInOut(duration: 0.4), value: isActive)
             .onAppear { startRingAnimation() }
             .onChange(of: isPulsing) { _, active in
                 if active { startRingAnimation() } else { stopRingAnimation() }
             }
 
+            // ForIT logo — centered under avatar (replaces "Ready" / "ForIT AI" text)
+            Image("ForITLogo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(Color(hex: "E1EFF3"))
+                .frame(height: 24)
+                .opacity(isActive ? 0.4 : 0.9)
 
-            // Status text
-            VStack(spacing: 4) {
+            // Status text — ONLY during active states
+            if isActive {
                 Text(statusLabel)
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundColor(Color(hex: "E1EFF3").opacity(0.9))
-
-                Text(modeLabel)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(Color(hex: "8EDCEF").opacity(0.5))
-
-
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(Color(hex: "8EDCEF"))
+                    .transition(.opacity)
             }
 
             // Tool call status
@@ -78,13 +73,8 @@ struct StatusIndicator: View {
 
     // MARK: - Computed Properties
 
-    private var iconName: String {
-        if !appState.isConnected {
-            return "eyeglasses"
-        }
-        if appState.isListening { return "waveform.circle.fill" }
-        if appState.speechService.isSpeaking { return "speaker.wave.3.fill" }
-        return "mic.circle"
+    private var isActive: Bool {
+        appState.isListening || appState.speechService.isSpeaking || appState.isProcessing
     }
 
     private var ringColor: Color {
@@ -103,13 +93,7 @@ struct StatusIndicator: View {
         if appState.isListening { return "Listening..." }
         if appState.speechService.isSpeaking { return "Speaking..." }
         if appState.isProcessing { return "Thinking..." }
-        if !appState.isConnected { return "Dolores" }
-        return "Ready"
-    }
-
-    private var modeLabel: String {
-        if !appState.isConnected { return "Connect glasses to begin" }
-        return "ForIT AI"
+        return ""
     }
 
     // MARK: - Helpers

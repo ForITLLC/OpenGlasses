@@ -2,11 +2,10 @@ import SwiftUI
 
 /// Primary interaction view — Dolores-branded with ForIT colors.
 /// Layout (top to bottom):
-///   1. ForIT logo watermark (top-left)
-///   2. Connection pill (top-left, below logo)
-///   3. Dolores avatar + quick actions (TRUE CENTER of screen)
-///   4. Transcript overlay (above mic button)
-///   5. Mic button (bottom center)
+///   1. Mic + Camera status pills (top corners)
+///   2. Dolores avatar + ForIT logo + quick actions (TRUE CENTER)
+///   3. Transcript overlay (above mic button)
+///   4. Mic button (bottom center)
 struct MainView: View {
     @EnvironmentObject var appState: AppState
 
@@ -33,36 +32,20 @@ struct MainView: View {
                 endPoint: .bottom
             ).ignoresSafeArea()
 
-            // Layer 1: ForIT logo (top-left)
-            VStack {
-                HStack {
-                    Image("ForITLogo")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(Color(hex: "E1EFF3"))
-                        .frame(height: 30)
-                        .opacity(0.9)
-                        .padding(.leading, 16)
-                        .padding(.top, 8)
-                    Spacer()
-                }
-                Spacer()
-            }
-
-            // Layer 2: Main content stack
+            // Main content stack
             VStack(spacing: 0) {
-                // Connection status (below safe area)
+                // Top: Mic + Camera connection status pills
                 ConnectionBanner()
                     .padding(.top, 4)
 
                 Spacer()
 
-                // CENTER: Dolores avatar + quick action ring
+                // CENTER: Dolores avatar + ForIT logo + quick action ring
                 ZStack {
                     StatusIndicator()
 
                     // Quick action ring — hidden during processing/listening
+                    // Ring is 340pt wide to push icons further from avatar
                     if !appState.isProcessing && !appState.isListening {
                         RadialLayout() {
                             ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
@@ -76,7 +59,7 @@ struct MainView: View {
                                 }
                             }
                         }
-                        .frame(width: 280, height: 280)
+                        .frame(width: 340, height: 340)
                         .transition(.opacity.combined(with: .scale))
                     }
                 }

@@ -184,6 +184,7 @@ class AppState: ObservableObject {
     @Published var currentTranscription: String = ""
     @Published var lastResponse: String = ""
     @Published var errorMessage: String?
+    @Published var showSettings: Bool = false
 
     let glassesService = GlassesConnectionService()
     let wakeWordService = WakeWordService()
