@@ -5,11 +5,49 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @State private var fastMode: Bool = UserDefaults.standard.bool(forKey: "fastMode")
     @State private var wakePhrase: String = Config.wakePhrase
-    
+    @State private var apiKey: String = UserDefaults.standard.string(forKey: "doloresAPIKey") ?? ""
+    @State private var userEmail: String = Config.userEmail
+
     var body: some View {
         NavigationView {
             List {
-                // Connection Status
+                // Account
+                Section {
+                    HStack {
+                        Image(systemName: "person.circle")
+                            .foregroundColor(Color(hex: "8EDCEF"))
+                        TextField("Email", text: $userEmail)
+                            .foregroundColor(Color(hex: "E1EFF3"))
+                            .keyboardType(.emailAddress)
+                            .textContentType(.emailAddress)
+                            .autocapitalization(.none)
+                            .onSubmit { Config.setUserEmail(userEmail) }
+                    }
+                    HStack {
+                        Image(systemName: "key")
+                            .foregroundColor(Color(hex: "8EDCEF"))
+                        SecureField("API Key", text: $apiKey)
+                            .foregroundColor(Color(hex: "E1EFF3"))
+                            .onSubmit { Config.setAPIKey(apiKey) }
+                    }
+                    if apiKey.isEmpty && Config.doloresAPIKey.isEmpty {
+                        Text("No API key configured. Get one from your admin.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    } else if !apiKey.isEmpty {
+                        Text("Using custom API key")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    } else {
+                        Text("Using default API key")
+                            .font(.caption)
+                            .foregroundColor(Color(hex: "8EDCEF").opacity(0.6))
+                    }
+                } header: {
+                    Text("Account")
+                }
+
+                // Glasses
                 Section("Glasses") {
                     HStack {
                         Image(systemName: appState.isConnected ? "checkmark.circle.fill" : "xmark.circle")
@@ -26,14 +64,14 @@ struct SettingsView: View {
                         }
                     }
                 }
-                
-                // Speed Toggle
+
+                // Response Speed
                 Section("Response Speed") {
                     Toggle(isOn: $fastMode) {
                         VStack(alignment: .leading) {
                             Text("Fast Mode")
                                 .foregroundColor(Color(hex: "E1EFF3"))
-                            Text(fastMode ? "Sonnet — faster, good for simple questions" : "Opus — slower, best for complex tasks")
+                            Text(fastMode ? "Sonnet — faster" : "Opus — smarter")
                                 .font(.caption)
                                 .foregroundColor(Color(hex: "8EDCEF"))
                         }
@@ -43,16 +81,14 @@ struct SettingsView: View {
                         UserDefaults.standard.set(newValue, forKey: "fastMode")
                     }
                 }
-                
+
                 // Wake Word
                 Section("Wake Word") {
                     TextField("Wake phrase", text: $wakePhrase)
                         .foregroundColor(Color(hex: "E1EFF3"))
-                        .onSubmit {
-                            Config.setWakePhrase(wakePhrase)
-                        }
+                        .onSubmit { Config.setWakePhrase(wakePhrase) }
                 }
-                
+
                 // About
                 Section("About") {
                     HStack {
@@ -77,8 +113,13 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundColor(Color(hex: "8EDCEF"))
+                    Button("Done") {
+                        // Save on dismiss
+                        if !apiKey.isEmpty { Config.setAPIKey(apiKey) }
+                        Config.setUserEmail(userEmail)
+                        dismiss()
+                    }
+                    .foregroundColor(Color(hex: "8EDCEF"))
                 }
             }
         }

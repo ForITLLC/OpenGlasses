@@ -6,19 +6,38 @@ struct Config {
     // MARK: - Dolores API
 
     /// API key for the ForIT AI Engine voice endpoint.
-    /// Loaded from Secrets.plist (not committed to git) at build time.
-    static let doloresAPIKey: String = {
+    /// Priority: UserDefaults (Settings) > Secrets.plist (build-time)
+    static var doloresAPIKey: String {
+        // User-configured key takes priority (for multi-user support)
+        if let userKey = UserDefaults.standard.string(forKey: "doloresAPIKey"), !userKey.isEmpty {
+            return userKey
+        }
+        // Fall back to Secrets.plist
         guard let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
               let dict = NSDictionary(contentsOfFile: path),
               let key = dict["DOLORES_API_KEY"] as? String, !key.isEmpty else {
-            NSLog("[Config] WARNING: Missing DOLORES_API_KEY in Secrets.plist")
             return ""
         }
         return key
-    }()
+    }
 
-    /// Hardcoded base URL for the ForIT AI Engine voice endpoint
-    static let doloresBaseURL = "https://forit-ai-engine.azurewebsites.net/api/voice"
+    static func setAPIKey(_ key: String) {
+        UserDefaults.standard.set(key, forKey: "doloresAPIKey")
+    }
+
+    /// User email for the ForIT AI Engine (identifies the user)
+    static var userEmail: String {
+        UserDefaults.standard.string(forKey: "userEmail") ?? "b.thomas@forit.io"
+    }
+
+    static func setUserEmail(_ email: String) {
+        UserDefaults.standard.set(email, forKey: "userEmail")
+    }
+
+    /// Base URL for the ForIT AI Engine voice endpoint
+    static var doloresBaseURL: String {
+        UserDefaults.standard.string(forKey: "doloresBaseURL") ?? "https://forit-ai-engine.azurewebsites.net/api/voice"
+    }
 
     // MARK: - Wake Word
 

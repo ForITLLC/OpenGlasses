@@ -98,6 +98,7 @@ struct OpenGlassesApp: App {
             switch newPhase {
             case .background:
                 print("App moved to background — keeping audio alive")
+                appState.liveActivity.end()
             case .active:
                 print("App became active")
                 Task {
@@ -212,20 +213,20 @@ class AppState: ObservableObject {
         ErrorReporter.shared.report(message, source: "app", level: "debug")
     }
 
-    /// Sync current state to the Live Activity
+    /// Sync current state to the Live Activity.
+    /// Activity starts on first connection and persists even during brief disconnects.
+    /// Only ends when app goes to background (handled in scenePhase onChange).
     func syncLiveActivity() {
         let status: String
         if isListening { status = "Listening..." }
         else if speechService.isSpeaking { status = "Speaking..." }
         else if isProcessing { status = "Thinking..." }
-        else if !isConnected { status = "Disconnected" }
+        else if !isConnected { status = "Waiting for glasses..." }
         else { status = "Ready" }
 
-        if isConnected && !liveActivity.isActive {
-            liveActivity.start(glassesName: glassesService.deviceName ?? "Ray-Ban Meta")
-        } else if !isConnected && liveActivity.isActive {
-            liveActivity.end()
-            return
+        // Start activity on first connection (or if not yet started)
+        if !liveActivity.isActive {
+            liveActivity.start(glassesName: glassesService.deviceName ?? "Glasses")
         }
 
         liveActivity.update(

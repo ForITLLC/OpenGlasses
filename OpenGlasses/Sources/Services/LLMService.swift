@@ -30,7 +30,7 @@ class LLMService: ObservableObject {
 
         var body: [String: Any] = [
             "text": text,
-            "userEmail": "b.thomas@forit.io",
+            "userEmail": Config.userEmail,
             "fast": UserDefaults.standard.bool(forKey: "fastMode")
         ]
         if let imageData = imageData {
