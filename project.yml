@@ -42,9 +42,13 @@ targets:
         NSBluetoothAlwaysUsageDescription: "Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
         NSBluetoothPeripheralUsageDescription: "Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
         NSLocationWhenInUseUsageDescription: "Dolores uses your location to provide contextually relevant answers based on where you are."
+        UISupportedExternalAccessoryProtocols:
+          - "com.meta.ar.wearable"
         UIBackgroundModes:
           - audio
           - bluetooth-central
+          - bluetooth-peripheral
+          - external-accessory
         LSApplicationQueriesSchemes:
           - "fb-viewapp"
         MWDAT:
