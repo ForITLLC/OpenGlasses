@@ -2,23 +2,64 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// Live Activity widget for Glasses — shows on Lock Screen and Dynamic Island.
+@main
+struct GlassesActivityWidgetBundle: WidgetBundle {
+    var body: some Widget {
+        GlassesActivityWidget()
+    }
+}
+
 struct GlassesActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: GlassesActivityAttributes.self) { context in
-            // Lock Screen banner
-            lockScreenView(context: context)
+            // Lock Screen banner — the rectangle widget on the Lock Screen
+            HStack(spacing: 12) {
+                // Glasses icon with connection dot
+                ZStack(alignment: .bottomTrailing) {
+                    Image(systemName: "eyeglasses")
+                        .font(.system(size: 28))
+                        .foregroundColor(.white)
+                    Circle()
+                        .fill(context.state.isConnected ? Color.green : Color.gray)
+                        .frame(width: 10, height: 10)
+                        .offset(x: 3, y: 3)
+                }
+                .frame(width: 40)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(context.state.status)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    if !context.state.lastResponse.isEmpty {
+                        Text(context.state.lastResponse)
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer()
+
+                statusIcon(state: context.state)
+                    .font(.system(size: 24))
+                    .foregroundColor(statusColor(state: context.state))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .activityBackgroundTint(Color(red: 0.04, green: 0.10, blue: 0.15))
+
         } dynamicIsland: { context in
             DynamicIsland {
-                // Expanded view (long press on Dynamic Island)
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: context.state.isConnected ? "eyeglasses" : "eyeglasses")
+                    Image(systemName: "eyeglasses")
                         .font(.system(size: 20))
                         .foregroundColor(context.state.isConnected ? .green : .gray)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     statusIcon(state: context.state)
                         .font(.system(size: 20))
+                        .foregroundColor(statusColor(state: context.state))
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.state.status)
@@ -34,64 +75,20 @@ struct GlassesActivityWidget: Widget {
                     }
                 }
             } compactLeading: {
-                // Compact left pill (Dynamic Island)
                 Image(systemName: "eyeglasses")
                     .foregroundColor(context.state.isConnected ? .green : .gray)
                     .font(.system(size: 14))
             } compactTrailing: {
-                // Compact right pill
                 statusIcon(state: context.state)
                     .foregroundColor(statusColor(state: context.state))
                     .font(.system(size: 14))
             } minimal: {
-                // Minimal (when another Live Activity is competing)
                 Image(systemName: "eyeglasses")
                     .foregroundColor(context.state.isConnected ? .green : .gray)
                     .font(.system(size: 12))
             }
         }
     }
-
-    // MARK: - Lock Screen View
-
-    @ViewBuilder
-    private func lockScreenView(context: ActivityViewContext<GlassesActivityAttributes>) -> some View {
-        HStack(spacing: 12) {
-            // Glasses icon with connection dot
-            ZStack(alignment: .bottomTrailing) {
-                Image(systemName: "eyeglasses")
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
-                Circle()
-                    .fill(context.state.isConnected ? Color.green : Color.gray)
-                    .frame(width: 8, height: 8)
-                    .offset(x: 2, y: 2)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(context.state.status)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-
-                if !context.state.lastResponse.isEmpty {
-                    Text(context.state.lastResponse)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            statusIcon(state: context.state)
-                .font(.system(size: 20))
-                .foregroundColor(statusColor(state: context.state))
-        }
-        .padding(16)
-        .background(Color(red: 0.04, green: 0.10, blue: 0.15)) // ForIT dark navy
-    }
-
-    // MARK: - Helpers
 
     private func statusIcon(state: GlassesActivityAttributes.ContentState) -> Image {
         if state.isListening { return Image(systemName: "waveform") }

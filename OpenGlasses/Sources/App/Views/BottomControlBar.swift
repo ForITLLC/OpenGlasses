@@ -9,11 +9,14 @@ struct BottomControlBar: View {
         VStack(spacing: 8) {
             // Mic button — the ONLY bottom control
             CircleButton(
-                icon: appState.isListening ? "mic.fill" : "mic",
+                icon: micIcon,
                 size: 64,
-                isActive: appState.isListening
+                isActive: appState.isListening || appState.isProcessing || appState.speechService.isSpeaking
             ) {
-                if appState.isListening || appState.inConversation {
+                if appState.isProcessing || appState.speechService.isSpeaking {
+                    // Interrupt — cancel current response
+                    appState.cancelCurrentResponse()
+                } else if appState.isListening || appState.inConversation {
                     appState.isListening = false
                     appState.inConversation = false
                     appState.transcriptionService.stopRecording()
@@ -23,9 +26,9 @@ struct BottomControlBar: View {
             }
 
             // Status text below mic
-            Text(appState.isListening ? "Listening" : "Ready")
+            Text(micLabel)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(appState.isListening ? .green : Color(hex: "E1EFF3").opacity(0.6))
+                .foregroundColor(micLabelColor)
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 16)
@@ -33,5 +36,25 @@ struct BottomControlBar: View {
             SettingsView()
                 .environmentObject(appState)
         }
+    }
+
+    private var micIcon: String {
+        if appState.isProcessing { return "stop.fill" }
+        if appState.speechService.isSpeaking { return "stop.fill" }
+        if appState.isListening { return "mic.fill" }
+        return "mic"
+    }
+
+    private var micLabel: String {
+        if appState.isProcessing { return "Tap to cancel" }
+        if appState.speechService.isSpeaking { return "Tap to stop" }
+        if appState.isListening { return "Listening" }
+        return "Ready"
+    }
+
+    private var micLabelColor: Color {
+        if appState.isProcessing || appState.speechService.isSpeaking { return .orange }
+        if appState.isListening { return .green }
+        return Color(hex: "E1EFF3").opacity(0.6)
     }
 }
