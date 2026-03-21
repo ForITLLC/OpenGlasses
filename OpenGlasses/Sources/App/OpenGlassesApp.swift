@@ -96,38 +96,31 @@ struct OpenGlassesApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:
-                print("📱 App moved to background — keeping audio alive")
-                // Audio session stays active thanks to UIBackgroundModes: audio
-                // The wake word listener keeps running because AVAudioEngine
-                // continues in background with an active audio session
+                print("App moved to background — keeping audio alive")
             case .active:
-                print("📱 App became active")
+                print("App became active")
                 Task {
                     // Give onOpenURL time to process any pending Meta Auth callbacks
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     
                     let state = Wearables.shared.registrationState
                     if state.rawValue < 3 {
-                        print("📋 Registration dropped to \(state.rawValue) after background — waiting for natural reconnect...")
+                        print("Registration dropped to \(state.rawValue) after background — waiting for natural reconnect...")
                     }
                 }
-                // Only restart wake word listener in Direct Mode
-                if appState.currentMode == .direct {
-                    Task {
-                        let regState = appState.registrationStateRaw
-                        guard regState >= 3 else {
-                            appState.addDebugEvent("Skipping wake word restart on foreground: registration state=\(regState)")
-                            return
-                        }
+                // Restart wake word listener on foreground
+                Task {
+                    let regState = appState.registrationStateRaw
+                    guard regState >= 3 else {
+                        appState.addDebugEvent("Skipping wake word restart on foreground: registration state=\(regState)")
+                        return
+                    }
 
-                        if !appState.wakeWordService.isListening && !appState.isListening {
-                            print("🎤 Restarting wake word listener after foreground...")
-                            // Re-configure audio session in case Bluetooth route changed
-                            appState.wakeWordService.reconfigureAudioSessionIfNeeded()
-                            // Small delay for route to stabilize after foregrounding
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            try? await appState.wakeWordService.startListening()
-                        }
+                    if !appState.wakeWordService.isListening && !appState.isListening {
+                        print("Restarting wake word listener after foreground...")
+                        appState.wakeWordService.reconfigureAudioSessionIfNeeded()
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        try? await appState.wakeWordService.startListening()
                     }
                 }
             case .inactive:
@@ -190,7 +183,6 @@ class AppState: ObservableObject {
     @Published var currentTranscription: String = ""
     @Published var lastResponse: String = ""
     @Published var errorMessage: String?
-    @Published var currentMode: AppMode = Config.appMode
 
     let glassesService = GlassesConnectionService()
     let wakeWordService = WakeWordService()
@@ -199,10 +191,6 @@ class AppState: ObservableObject {
     let speechService = TextToSpeechService()
     let cameraService = CameraService()
     let locationService = LocationService()
-
-    // OpenClaw + Gemini Live
-    let openClawBridge = OpenClawBridge()
-    let geminiLiveSession = GeminiLiveSessionManager()
 
     private var cancellables: [Any] = []
     private var isProcessing: Bool = false
@@ -238,113 +226,21 @@ class AppState: ObservableObject {
 
     init() {
         addDebugEvent("AppState initialized")
-        // Share the audio engine so transcription works in background
         transcriptionService.sharedAudioEngineProvider = wakeWordService
-
-        // Wire OpenClaw bridge to both Direct Mode and Gemini Live
-        llmService.openClawBridge = openClawBridge
-        geminiLiveSession.openClawBridge = openClawBridge
-
-        // Wire camera frames for Gemini Live:
-        // 1. Direct push: CameraService streams frames directly to session manager (low latency)
-        cameraService.onVideoFrame = { [weak self] image in
-            self?.geminiLiveSession.submitVideoFrame(image)
-        }
-        // 2. Polling fallback: session manager can also poll the latest frame
-        geminiLiveSession.onRequestVideoFrame = { [weak self] in
-            return self?.cameraService.latestFrame
-        }
-
-        // Wire location context for Gemini Live — returns current location string
-        geminiLiveSession.locationContext = { [weak self] in
-            return self?.locationService.locationContext
-        }
-
-        // Wire camera start request — session manager can trigger camera streaming on session start
-        geminiLiveSession.onRequestStartCamera = { [weak self] in
-            guard let self else { return false }
-            if self.cameraService.isStreaming {
-                NSLog("[App] Camera already streaming")
-                return true
-            }
-            do {
-                try await self.cameraService.startStreaming()
-                NSLog("[App] Camera streaming started on session request")
-                return true
-            } catch {
-                NSLog("[App] Camera streaming failed: %@", error.localizedDescription)
-                return false
-            }
-        }
-
+        llmService.speechService = speechService
         setupServiceCallbacks()
         observeGlassesConnection()
         autoConnectGlasses()
-
-        // Mode-specific auto-start
-        if currentMode == .direct {
-            autoStartListening()
-        } else if currentMode == .geminiLive {
-            // Pre-start camera streaming so frames are ready when user taps "Start Session"
-            Task {
-                try? await Task.sleep(nanoseconds: 1_500_000_000) // Wait for glasses connection
-                do {
-                    try await cameraService.startStreaming()
-                } catch {
-                    print("📹 Camera streaming auto-start failed: \(error.localizedDescription)")
-                }
-            }
-        }
+        autoStartListening()
         locationService.startTracking()
-    }
-
-    /// Switch between Direct Mode and Gemini Live mode.
-    /// Tears down the current mode's audio and starts the new one.
-    func switchMode(to mode: AppMode) {
-        guard mode != currentMode else { return }
-        let oldMode = currentMode
-        currentMode = mode
-        Config.setAppMode(mode)
-
-        Task {
-            // Tear down old mode
-            switch oldMode {
-            case .direct:
-                wakeWordService.stopListening()
-                speechService.stopSpeaking()
-                inConversation = false
-                isListening = false
-            case .geminiLive:
-                geminiLiveSession.stopSession()
-                await cameraService.tearDown()
-            }
-
-            // Brief delay for audio session to release
-            try? await Task.sleep(nanoseconds: 500_000_000)
-
-            // Start new mode
-            switch mode {
-            case .direct:
-                try? await wakeWordService.startListening()
-            case .geminiLive:
-                // Start camera streaming so frames are available when session starts
-                do {
-                    try await cameraService.startStreaming()
-                } catch {
-                    print("📹 Camera streaming failed to start: \(error.localizedDescription)")
-                    // Non-fatal — Gemini Live can still work with audio only
-                }
-            }
-        }
     }
 
     private func setupServiceCallbacks() {
         wakeWordService.onWakeWordDetected = { [weak self] in
             Task { @MainActor in
                 guard let self = self else { return }
-                // Prevent double-triggering if already in conversation
                 guard !self.inConversation && !self.isProcessing else {
-                    print("⚠️ Wake word ignored - already in conversation")
+                    print("Wake word ignored - already in conversation")
                     return
                 }
                 await self.handleWakeWordDetected()
@@ -360,31 +256,28 @@ class AppState: ObservableObject {
         transcriptionService.onTranscriptionComplete = { [weak self] text in
             Task { @MainActor in
                 guard let self = self else { return }
-                // Prevent processing if already handling a response
                 guard !self.isProcessing else {
-                    print("⚠️ Transcription ignored - already processing")
+                    print("Transcription ignored - already processing")
                     return
                 }
                 await self.handleTranscription(text)
             }
         }
 
-        // When user doesn't say anything after Claude responds, end conversation
         transcriptionService.onSilenceTimeout = { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
-                print("💤 User silent — ending conversation, back to wake word")
+                print("User silent — ending conversation, back to wake word")
                 await self.returnToWakeWord()
             }
         }
     }
 
     private func observeGlassesConnection() {
-        // Monitor devices list
         let deviceToken = Wearables.shared.addDevicesListener { [weak self] deviceIds in
             Task { @MainActor in
                 guard let self else { return }
-                print("📋 Devices changed: \(deviceIds)")
+                print("Devices changed: \(deviceIds)")
                 self.addDebugEvent("Devices changed: \(deviceIds.count)")
                 if !deviceIds.isEmpty {
                     self.hasEverRegistered = true
@@ -394,17 +287,13 @@ class AppState: ObservableObject {
         }
         cancellables.append(deviceToken)
 
-        // Monitor registration state
-        // Registration bounces between states 0-3, so once we see state 3,
-        // consider connected for the session (don't disconnect on state changes)
         let regToken = Wearables.shared.addRegistrationStateListener { [weak self] newState in
             Task { @MainActor in
                 guard let self else { return }
-                print("📋 Registration state changed: \(newState.rawValue)")
+                print("Registration state changed: \(newState.rawValue)")
                 self.addDebugEvent("Registration state -> \(newState.rawValue)")
                 self.registrationStateRaw = newState.rawValue
                 if newState.rawValue >= 3 {
-                    // State 3 = fully registered
                     self.hasEverRegistered = true
                     self.isConnected = true
                     UserDefaults.standard.set(true, forKey: "hasRegisteredWithMeta")
@@ -413,38 +302,31 @@ class AppState: ObservableObject {
         }
         cancellables.append(regToken)
 
-        // Check initial state
         let initialState = Wearables.shared.registrationState
-        print("📋 Initial registration state: \(initialState.rawValue)")
+        print("Initial registration state: \(initialState.rawValue)")
         addDebugEvent("Initial registration state: \(initialState.rawValue)")
         registrationStateRaw = initialState.rawValue
         if initialState.rawValue >= 3 {
             hasEverRegistered = true
             isConnected = true
-            print("📋 Already registered on launch")
+            print("Already registered on launch")
         }
     }
 
-    /// Observe SDK registration state on launch.
-    /// NEVER auto-calls startRegistration() — that must be user-initiated only.
-    /// The SDK may auto-reconnect via Bluetooth if previously registered.
     private func autoConnectGlasses() {
         Task {
-            // Small delay to let SDK initialize
-            try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5s
+            try? await Task.sleep(nanoseconds: 500_000_000)
             let state = Wearables.shared.registrationState
             self.registrationStateRaw = state.rawValue
-            print("📋 Launch state check: state=\(state.rawValue)")
+            print("Launch state check: state=\(state.rawValue)")
             self.addDebugEvent("Launch state check: state=\(state.rawValue)")
 
             if state.rawValue >= 3 {
-                // Already registered this session
                 self.hasEverRegistered = true
                 self.isConnected = true
                 self.addDebugEvent("Already registered on launch")
             } else {
-                // Wait briefly for SDK to auto-reconnect via Bluetooth
-                try? await Task.sleep(nanoseconds: 3_000_000_000)  // 3s
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
                 let settledState = Wearables.shared.registrationState
                 self.registrationStateRaw = settledState.rawValue
                 if settledState.rawValue >= 3 {
@@ -464,7 +346,7 @@ class AppState: ObservableObject {
         do {
             try await Wearables.shared.startRegistration()
         } catch {
-            print("📋 Manual registration start failed: \(error)")
+            print("Manual registration start failed: \(error)")
             addDebugEvent("Manual registration start failed: \(error.localizedDescription)")
         }
 
@@ -506,14 +388,10 @@ class AppState: ObservableObject {
         }
     }
 
-    /// Auto-start wake word listener on app launch (don't wait for "Connect" or "Test Mic")
     private func autoStartListening() {
         Task {
-            // Small delay to let the app finish initializing
-            try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1s
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
 
-            // Avoid starting audio capture while registration is still negotiating,
-            // as Bluetooth route churn can destabilize registration state transitions.
             if registrationStateRaw < 3 {
                 addDebugEvent("Wake word auto-start deferred: registration state=\(registrationStateRaw)")
                 let settled = await waitForRegistration(minState: 3, timeoutSeconds: 20)
@@ -526,25 +404,23 @@ class AppState: ObservableObject {
             }
 
             if !wakeWordService.isListening {
-                print("🎤 Auto-starting wake word listener...")
+                print("Auto-starting wake word listener...")
                 do {
                     try await wakeWordService.startListening()
-                    print("✅ Wake word listener auto-started")
+                    print("Wake word listener auto-started")
                 } catch {
-                    print("⚠️ Auto-start failed: \(error.localizedDescription)")
-                    // Not fatal — user can still use Test Microphone button
+                    print("Auto-start failed: \(error.localizedDescription)")
                 }
             }
         }
     }
 
     func stopSpeakingAndResume() {
-        print("🛑 User tapped stop")
+        print("User tapped stop")
         speechService.stopSpeaking()
         isProcessing = false
-        // Stay in conversation — listen for follow-up right away
         if inConversation {
-            print("💬 Listening for follow-up after stop...")
+            print("Listening for follow-up after stop...")
             isListening = true
             transcriptionService.startRecording()
         } else {
@@ -552,8 +428,6 @@ class AppState: ObservableObject {
         }
     }
 
-    /// Capture a photo from the glasses camera and save to camera roll.
-    /// Called by the camera button in the UI (mirrors the "take a picture" voice command).
     func capturePhotoFromGlasses() async {
         guard isConnected else {
             errorMessage = "Connect glasses first"
@@ -573,7 +447,7 @@ class AppState: ObservableObject {
     }
 
     func handleWakeWordDetected() async {
-        print("🎤 Wake word detected! Starting conversation...")
+        print("Wake word detected! Starting conversation...")
         inConversation = true
         isListening = true
         speechService.playAcknowledgmentTone()
@@ -606,7 +480,7 @@ class AppState: ObservableObject {
 
     func handleTranscription(_ text: String) async {
         guard !isProcessing else {
-            print("⚠️ Already processing, ignoring: \(text)")
+            print("Already processing, ignoring: \(text)")
             return
         }
 
@@ -614,14 +488,13 @@ class AppState: ObservableObject {
         isListening = false
         errorMessage = nil
         speechService.playEndListeningTone()
-        print("📝 Transcription: \(text)")
+        print("Transcription: \(text)")
 
-        // Voice command: "stop" — interrupt TTS, stay in conversation
         if isStopCommand(text) {
-            print("🛑 Voice command: stop")
+            print("Voice command: stop")
             speechService.stopSpeaking()
             if inConversation {
-                print("💬 Stopped — listening for next question...")
+                print("Stopped — listening for next question...")
                 isListening = true
                 transcriptionService.startRecording()
             } else {
@@ -630,9 +503,8 @@ class AppState: ObservableObject {
             return
         }
 
-        // Voice command: "goodbye" — end conversation, back to wake word
         if isGoodbyeCommand(text) {
-            print("👋 Voice command: goodbye")
+            print("Voice command: goodbye")
             speechService.stopSpeaking()
             inConversation = false
             lastResponse = "Goodbye!"
@@ -641,27 +513,25 @@ class AppState: ObservableObject {
             return
         }
 
-        // Voice command: "take a picture" — capture photo from glasses camera
         if isPhotoCommand(text) {
-            print("📸 Voice command: take a picture")
+            print("Voice command: take a picture")
             isProcessing = true
             await speechService.speak("Taking a picture.")
             do {
                 let photoData = try await cameraService.capturePhoto()
                 cameraService.saveToPhotoLibrary(photoData)
-                print("📸 Photo saved, sending to LLM with prompt: \(text)")
+                print("Photo saved, sending to LLM with prompt: \(text)")
 
                 let response = try await llmService.sendMessage(text, locationContext: locationService.locationContext, imageData: photoData)
                 lastResponse = response
-                print("🤖 \(llmService.activeModelName) (vision): \(response)")
+                print("Dolores (vision): \(response)")
 
-                // Start wake word listener during TTS so user can say "stop"
                 startStopListener()
                 await speechService.speak(response)
                 stopStopListener()
 
             } catch {
-                print("📸 Photo capture failed: \(error)")
+                print("Photo capture failed: \(error)")
                 lastResponse = "Photo failed: \(error.localizedDescription)"
                 await speechService.speak("Sorry, I couldn't take a photo or process the image. \(error.localizedDescription)")
             }
@@ -681,9 +551,8 @@ class AppState: ObservableObject {
         do {
             let response = try await llmService.sendMessage(text, locationContext: locationService.locationContext)
             lastResponse = response
-            print("🤖 \(llmService.activeModelName): \(response)")
+            print("Dolores: \(response)")
 
-            // Start wake word listener during TTS so user can say "stop"
             startStopListener()
             await speechService.speak(response)
             stopStopListener()
@@ -692,10 +561,9 @@ class AppState: ObservableObject {
             await speechService.speak("Sorry, I encountered an error.")
         }
 
-        // After responding, stay in conversation — listen for follow-up
         isProcessing = false
         if inConversation {
-            print("💬 Continuing conversation — listening for follow-up...")
+            print("Continuing conversation — listening for follow-up...")
             isListening = true
             transcriptionService.startRecording()
         } else {
@@ -703,27 +571,22 @@ class AppState: ObservableObject {
         }
     }
 
-    /// Start wake word listener in "stop detection" mode during TTS playback
-    /// Only starts if the audio engine is already running (don't create a new one during TTS)
     private func startStopListener() {
         wakeWordService.listenForStop = true
-        // Only try if the engine is already alive — don't create a new one during playback
         if wakeWordService.getAudioEngine()?.isRunning == true {
             Task {
                 do {
                     try await wakeWordService.startListening()
-                    print("🎤 Stop listener active during TTS")
+                    print("Stop listener active during TTS")
                 } catch {
-                    print("⚠️ Could not start stop listener: \(error)")
+                    print("Could not start stop listener: \(error)")
                 }
             }
         } else {
-            print("🎤 No running engine for stop listener — skipping")
+            print("No running engine for stop listener — skipping")
         }
     }
 
-    /// Stop the stop-detection listener before resuming normal flow
-    /// Uses pauseRecognition to keep the engine alive
     private func stopStopListener() {
         wakeWordService.listenForStop = false
         wakeWordService.pauseRecognitionPublic()
@@ -736,9 +599,9 @@ class AppState: ObservableObject {
         speechService.playDisconnectTone()
         do {
             try await wakeWordService.startListening()
-            print("✅ Wake word restarted")
+            print("Wake word restarted")
         } catch {
-            print("❌ Failed to restart listener: \(error)")
+            print("Failed to restart listener: \(error)")
             errorMessage = "Tap Test Microphone to restart"
         }
     }

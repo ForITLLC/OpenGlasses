@@ -1,17 +1,13 @@
 import SwiftUI
 
 /// Large central ambient status indicator — the visual heartbeat of the app.
-/// Adapts to both Direct and Gemini Live modes.
 /// When glasses aren't connected, acts as a connect button.
 struct StatusIndicator: View {
     @EnvironmentObject var appState: AppState
-    @ObservedObject var session: GeminiLiveSessionManager
 
     /// Outer ring pulse
     @State private var ringScale: CGFloat = 1.0
     @State private var ringOpacity: Double = 0.3
-
-    private var isGemini: Bool { appState.currentMode == .geminiLive }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -39,16 +35,6 @@ struct StatusIndicator: View {
                     .font(.system(size: 52, weight: .light))
                     .foregroundStyle(ringColor)
                     .symbolEffect(.pulse, isActive: isPulsing)
-
-                // Camera streaming badge (Gemini Live)
-                if isGemini && appState.cameraService.isStreaming {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 10, height: 10)
-                        .overlay(Circle().stroke(Color.black, lineWidth: 1.5))
-                        .offset(x: 50, y: -50)
-                        .transition(.scale.combined(with: .opacity))
-                }
             }
             .animation(.easeInOut(duration: 0.4), value: iconName)
             .onAppear { startRingAnimation() }
@@ -82,17 +68,8 @@ struct StatusIndicator: View {
             }
 
             // Tool call status
-            if isGemini && session.toolCallStatus.isActive {
-                toolCallPill(session.toolCallStatus.displayText, color: .purple)
-            } else if !isGemini && appState.llmService.toolCallStatus.isActive {
+            if appState.llmService.toolCallStatus.isActive {
                 toolCallPill(appState.llmService.toolCallStatus.displayText, color: .purple)
-            }
-
-            // Reconnecting
-            if isGemini && session.reconnecting {
-                Text("Reconnecting...")
-                    .font(.system(size: 12))
-                    .foregroundColor(.orange.opacity(0.8))
             }
         }
     }
@@ -100,52 +77,24 @@ struct StatusIndicator: View {
     // MARK: - Computed Properties
 
     private var iconName: String {
-        // Not connected — show glasses icon
         if !appState.isConnected {
             return "eyeglasses"
         }
-
-        if isGemini {
-            switch session.connectionState {
-            case .ready where session.isModelSpeaking: return "speaker.wave.3.fill"
-            case .ready: return "waveform.circle.fill"
-            case .connecting, .settingUp: return "antenna.radiowaves.left.and.right"
-            case .error: return "exclamationmark.triangle.fill"
-            case .disconnected: return "waveform.circle"
-            }
-        } else {
-            if appState.isListening { return "waveform.circle.fill" }
-            if appState.speechService.isSpeaking { return "speaker.wave.3.fill" }
-            return "mic.circle"
-        }
+        if appState.isListening { return "waveform.circle.fill" }
+        if appState.speechService.isSpeaking { return "speaker.wave.3.fill" }
+        return "mic.circle"
     }
 
     private var ringColor: Color {
         if !appState.isConnected { return .gray }
-
-        if isGemini {
-            switch session.connectionState {
-            case .ready where session.isModelSpeaking: return .orange
-            case .ready: return .cyan
-            case .connecting, .settingUp: return .orange
-            case .error: return .red
-            case .disconnected: return .gray
-            }
-        } else {
-            if appState.isListening { return .cyan }
-            if appState.speechService.isSpeaking { return .orange }
-            return .gray
-        }
+        if appState.isListening { return .cyan }
+        if appState.speechService.isSpeaking { return .orange }
+        return .gray
     }
 
     private var isPulsing: Bool {
         if !appState.isConnected { return false }
-
-        if isGemini {
-            return session.isActive && session.connectionState == .ready
-        } else {
-            return appState.isListening
-        }
+        return appState.isListening
     }
 
     private var statusLabel: String {
@@ -154,30 +103,13 @@ struct StatusIndicator: View {
             if status == "Not connected" { return "No Glasses" }
             return status
         }
-
-        if isGemini {
-            if !session.isActive { return "Ready" }
-            switch session.connectionState {
-            case .ready where session.isModelSpeaking: return "Speaking..."
-            case .ready: return "Listening..."
-            case .connecting: return "Connecting..."
-            case .settingUp: return "Setting up..."
-            case .error(let msg): return "Error: \(msg)"
-            case .disconnected: return session.reconnecting ? "Reconnecting..." : "Disconnected"
-            }
-        } else {
-            if appState.isListening { return "Listening..." }
-            if appState.speechService.isSpeaking { return "Speaking..." }
-            return "Ready"
-        }
+        if appState.isListening { return "Listening..." }
+        if appState.speechService.isSpeaking { return "Speaking..." }
+        return "Ready"
     }
 
     private var modeLabel: String {
-        if isGemini {
-            return "Gemini Live"
-        } else {
-            return "Direct \u{2022} \(appState.llmService.activeModelName)"
-        }
+        return "Direct \u{2022} \(appState.llmService.activeModelName)"
     }
 
     // MARK: - Helpers

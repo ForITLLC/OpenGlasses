@@ -4,25 +4,22 @@ import SwiftUI
 /// Positioned above the bottom control bar, fading in/out as content arrives.
 struct TranscriptOverlay: View {
     @EnvironmentObject var appState: AppState
-    @ObservedObject var session: GeminiLiveSessionManager
-
-    private var isGemini: Bool { appState.currentMode == .geminiLive }
 
     private var userText: String {
-        isGemini ? session.userTranscript : appState.currentTranscription
+        appState.currentTranscription
     }
 
     private var aiText: String {
-        isGemini ? session.aiTranscript : appState.lastResponse
+        appState.lastResponse
     }
 
     private var aiLabel: String {
-        isGemini ? "Gemini" : appState.llmService.activeModelName
+        appState.llmService.activeModelName
     }
 
     var body: some View {
         VStack(spacing: 8) {
-            if let error = isGemini ? session.errorMessage : appState.errorMessage {
+            if let error = appState.errorMessage {
                 transcriptCard(label: "Error", text: error, accent: .red)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }

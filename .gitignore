@@ -31,5 +31,9 @@ Pods/
 # Carthage
 Carthage/Build/
 
+# Secrets (API keys — not committed)
+Secrets.plist
+**/Secrets.plist
+
 # Claude settings
 .claude/

@@ -15,6 +15,9 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
     /// Track if ElevenLabs quota is exhausted to skip future attempts
     private var elevenLabsDisabled: Bool = false
 
+    /// Pre-fetched audio from server (set by LLMService when server returns audio)
+    var preloadedAudio: Data? = nil
+
     override init() {
         super.init()
         synthesizer.delegate = self
@@ -30,6 +33,20 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
         try? await Task.sleep(nanoseconds: 50_000_000)
 
         isSpeaking = true
+
+        // Check for server-provided audio first (fastest — no extra API call)
+        if let audioData = preloadedAudio {
+            preloadedAudio = nil
+            print("🔊 TTS: Using server-provided audio (\(audioData.count) bytes)")
+            do {
+                try await playAudioData(audioData)
+                isSpeaking = false
+                print("🔊 TTS: Finished speaking")
+                return
+            } catch {
+                print("🔊 TTS: Server audio playback failed (\(error)), falling back")
+            }
+        }
 
         let elevenLabsKey = Config.elevenLabsAPIKey
         if !elevenLabsKey.isEmpty && !elevenLabsDisabled {

@@ -47,19 +47,19 @@
 		<string>$(DEVELOPMENT_TEAM)</string>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
+	<string>Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
+	<string>Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>OpenGlasses needs camera access to capture photos and video for the AI to analyze.</string>
+	<string>Dolores needs camera access to capture photos and video for the AI to analyze.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>OpenGlasses uses your location to provide contextually relevant answers based on where you are.</string>
+	<string>Dolores uses your location to provide contextually relevant answers based on where you are.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>OpenGlasses needs microphone access to listen for wake words and transcribe your voice commands.</string>
+	<string>Dolores needs microphone access to listen for wake words and transcribe your voice commands.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>OpenGlasses saves photos taken with your Ray-Ban Meta glasses to your photo library.</string>
+	<string>Dolores saves photos taken with your Ray-Ban Meta glasses to your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>OpenGlasses uses speech recognition to detect the wake word and transcribe your questions for Claude.</string>
+	<string>Dolores uses speech recognition to detect the wake word and transcribe your questions.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

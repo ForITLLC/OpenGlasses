@@ -1,17 +1,15 @@
 import SwiftUI
 import UIKit
 
-/// Top-of-screen status pills showing glasses, Gemini, and OpenClaw connection state.
+/// Top-of-screen status pills showing glasses connection state.
 /// Each pill is tappable — expands to show details and actions.
 struct ConnectionBanner: View {
     @EnvironmentObject var appState: AppState
-    @ObservedObject var session: GeminiLiveSessionManager
-    @ObservedObject var openClawBridge: OpenClawBridge
 
     @State private var expandedPill: PillType? = nil
     @State private var cameraPermissionStatus: String?
 
-    enum PillType { case glasses, gemini, openClaw }
+    enum PillType { case glasses, model }
 
     private var registrationStateLabel: String {
         switch appState.registrationStateRaw {
@@ -35,14 +33,7 @@ struct ConnectionBanner: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 glassesPill
-                if appState.currentMode == .geminiLive {
-                    geminiPill
-                } else {
-                    activeModelPill
-                }
-                if Config.isOpenClawConfigured {
-                    openClawPill
-                }
+                activeModelPill
                 Spacer()
             }
 
@@ -82,46 +73,6 @@ struct ConnectionBanner: View {
             isExpanded: expandedPill == .glasses
         ) {
             withAnimation { expandedPill = expandedPill == .glasses ? nil : .glasses }
-        }
-    }
-
-    private var geminiPill: some View {
-        let (color, label): (Color, String) = {
-            switch session.connectionState {
-            case .ready: return (.green, "Gemini")
-            case .connecting, .settingUp: return (.orange, "Connecting")
-            case .error: return (.red, "Error")
-            case .disconnected: return (.gray, "Gemini")
-            }
-        }()
-
-        return iconPill(
-            systemIcon: "sparkles",
-            color: color,
-            label: label,
-            isExpanded: expandedPill == .gemini
-        ) {
-            withAnimation { expandedPill = expandedPill == .gemini ? nil : .gemini }
-        }
-    }
-
-    private var openClawPill: some View {
-        let (color, label): (Color, String) = {
-            switch openClawBridge.connectionState {
-            case .connected: return (.green, "OpenClaw")
-            case .checking: return (.orange, "Checking")
-            case .unreachable: return (.red, "Unreachable")
-            case .notConfigured: return (.gray, "No Claw")
-            }
-        }()
-
-        return iconPill(
-            systemIcon: "hand.point.up.braille.fill",
-            color: color,
-            label: label,
-            isExpanded: expandedPill == .openClaw
-        ) {
-            withAnimation { expandedPill = expandedPill == .openClaw ? nil : .openClaw }
         }
     }
 
@@ -180,10 +131,8 @@ struct ConnectionBanner: View {
         switch type {
         case .glasses:
             glassesCard
-        case .gemini:
-            geminiCard
-        case .openClaw:
-            openClawCard
+        case .model:
+            EmptyView()
         }
     }
 
@@ -197,7 +146,7 @@ struct ConnectionBanner: View {
                 Circle()
                     .fill(registrationStateColor)
                     .frame(width: 7, height: 7)
-                Text("Registration: \(appState.registrationStateRaw) — \(registrationStateLabel)")
+                Text("Registration: \(appState.registrationStateRaw) \u{2014} \(registrationStateLabel)")
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.75))
             }
@@ -292,15 +241,13 @@ struct ConnectionBanner: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
 
-                // Camera permission — checks/requests Meta camera access
                 Button {
                     cameraPermissionStatus = "checking"
                     appState.cameraService.onRegistrationProgress = { state in
                         Task { @MainActor in
                             if state < 2 {
-                                cameraPermissionStatus = "SDK \(state)…"
+                                cameraPermissionStatus = "SDK \(state)..."
                             }
-                            // Once at state 2+, the permission check is running
                         }
                     }
                     Task {
@@ -328,7 +275,7 @@ struct ConnectionBanner: View {
                                     .font(.system(size: 13, weight: .semibold))
                             default:
                                 ProgressView().scaleEffect(0.7).tint(.white)
-                                Text("Checking…")
+                                Text("Checking...")
                                     .font(.system(size: 13, weight: .semibold))
                             }
                         } else {
@@ -344,132 +291,6 @@ struct ConnectionBanner: View {
                     )
                 }
                 .disabled(cameraPermissionStatus != nil && cameraPermissionStatus != "granted" && cameraPermissionStatus != "error")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
-    }
-
-    private var geminiCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if session.isActive {
-                HStack(spacing: 8) {
-                    Circle().fill(.green).frame(width: 6, height: 6)
-                    Text("Session active")
-                        .font(.system(size: 12))
-                        .foregroundColor(.green.opacity(0.8))
-                }
-
-                if appState.cameraService.isStreaming {
-                    HStack(spacing: 8) {
-                        Circle().fill(.blue).frame(width: 6, height: 6)
-                        Text("Camera streaming")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                }
-
-                if session.isModelSpeaking {
-                    HStack(spacing: 8) {
-                        Circle().fill(.orange).frame(width: 6, height: 6)
-                        Text("Speaking…")
-                            .font(.system(size: 12))
-                            .foregroundColor(.orange.opacity(0.8))
-                    }
-                }
-
-                Button {
-                    session.stopSession()
-                    withAnimation { expandedPill = nil }
-                } label: {
-                    Text("Stop Session")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.red.opacity(0.8))
-                }
-            } else {
-                switch session.connectionState {
-                case .error(let msg):
-                    Text(msg)
-                        .font(.system(size: 12))
-                        .foregroundColor(.red.opacity(0.7))
-                default:
-                    Text("No active session")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-
-                Button {
-                    Task { await session.startSession() }
-                    withAnimation { expandedPill = nil }
-                } label: {
-                    Text("Start Session")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.cyan)
-                }
-            }
-
-            if let error = session.errorMessage {
-                Text(error)
-                    .font(.system(size: 11))
-                    .foregroundColor(.red.opacity(0.7))
-                    .lineLimit(2)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
-    }
-
-    private var openClawCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("OpenClaw Bridge")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.7))
-
-            switch openClawBridge.connectionState {
-            case .connected:
-                HStack(spacing: 6) {
-                    Text("Connected")
-                        .font(.system(size: 12))
-                        .foregroundColor(.green.opacity(0.8))
-                    if let via = openClawBridge.resolvedConnection {
-                        Text("via \(via.label)")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.4))
-                    }
-                }
-            case .unreachable(let reason):
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Server unreachable")
-                        .font(.system(size: 12))
-                        .foregroundColor(.red.opacity(0.7))
-                    Text(reason)
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.4))
-                        .lineLimit(2)
-                }
-
-                Button {
-                    Task { await openClawBridge.checkConnection() }
-                } label: {
-                    Text("Retry")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.cyan)
-                }
-            case .checking:
-                HStack(spacing: 6) {
-                    ProgressView().scaleEffect(0.7).tint(.white)
-                    Text("Checking connection...")
-                        .font(.system(size: 12))
-                        .foregroundColor(.orange.opacity(0.8))
-                }
-            case .notConfigured:
-                Text("Not configured — add URL in settings")
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.5))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

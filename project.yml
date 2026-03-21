@@ -31,13 +31,13 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSMicrophoneUsageDescription: "OpenGlasses needs microphone access to listen for wake words and transcribe your voice commands."
-        NSSpeechRecognitionUsageDescription: "OpenGlasses uses speech recognition to detect the wake word and transcribe your questions for Claude."
-        NSPhotoLibraryAddUsageDescription: "OpenGlasses saves photos taken with your Ray-Ban Meta glasses to your photo library."
-        NSCameraUsageDescription: "OpenGlasses needs camera access to capture photos and video for the AI to analyze."
-        NSBluetoothAlwaysUsageDescription: "OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
-        NSBluetoothPeripheralUsageDescription: "OpenGlasses uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
-        NSLocationWhenInUseUsageDescription: "OpenGlasses uses your location to provide contextually relevant answers based on where you are."
+        NSMicrophoneUsageDescription: "Dolores needs microphone access to listen for wake words and transcribe your voice commands."
+        NSSpeechRecognitionUsageDescription: "Dolores uses speech recognition to detect the wake word and transcribe your questions."
+        NSPhotoLibraryAddUsageDescription: "Dolores saves photos taken with your Ray-Ban Meta glasses to your photo library."
+        NSCameraUsageDescription: "Dolores needs camera access to capture photos and video for the AI to analyze."
+        NSBluetoothAlwaysUsageDescription: "Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
+        NSBluetoothPeripheralUsageDescription: "Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses."
+        NSLocationWhenInUseUsageDescription: "Dolores uses your location to provide contextually relevant answers based on where you are."
         UIBackgroundModes:
           - audio
           - bluetooth-central
@@ -55,8 +55,8 @@ targets:
       path: OpenGlasses/OpenGlasses.entitlements
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.bwt
-        DEVELOPMENT_TEAM: BJQXT5H782
+        PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores
+        DEVELOPMENT_TEAM: YSK4U56F2F
         MARKETING_VERSION: "1.3.1"
         CURRENT_PROJECT_VERSION: "5"
         SWIFT_VERSION: "5.9"

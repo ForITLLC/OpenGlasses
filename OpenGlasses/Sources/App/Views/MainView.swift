@@ -1,53 +1,57 @@
 import SwiftUI
 
-/// Primary interaction view — replaces the old ContentView.
-/// Full-screen dark canvas with layered components:
+/// Primary interaction view — Dolores-branded, minimal.
+/// Full-screen dark canvas with:
 ///   1. ConnectionBanner (top)
-///   2. StatusIndicator (center, ambient)
-///   3. TranscriptOverlay (floating cards above controls)
-///   4. BottomControlBar (bottom edge)
+///   2. StatusIndicator (center)
+///   3. TranscriptOverlay (floating cards)
+///   4. BottomControlBar (bottom)
 struct MainView: View {
     @EnvironmentObject var appState: AppState
-    @State private var showSettings = false
-    @State private var showModelPicker = false
 
     var body: some View {
-        let session = appState.geminiLiveSession
-
         ZStack {
-            // Full-screen dark background
-            Color.black.ignoresSafeArea()
+            // Dark background with subtle gradient
+            LinearGradient(
+                colors: [Color(hex: "1a1a2e"), Color.black],
+                startPoint: .top,
+                endPoint: .bottom
+            ).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 Spacer()
 
                 // Center: ambient status indicator
-                StatusIndicator(session: session)
+                StatusIndicator()
 
                 Spacer()
 
                 // Transcript cards floating above the control bar
-                TranscriptOverlay(session: session)
+                TranscriptOverlay()
                     .padding(.bottom, 8)
 
-                // Connection status pills — above the control bar for easy reach
-                ConnectionBanner(session: session, openClawBridge: appState.openClawBridge)
+                // Connection status pills
+                ConnectionBanner()
                     .padding(.bottom, 4)
 
-                // Bottom: action buttons
-                BottomControlBar(
-                    session: session,
-                    showSettings: $showSettings,
-                    showModelPicker: $showModelPicker
-                )
+                // Bottom: mic + camera buttons
+                BottomControlBar()
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showSettings) {
-            SettingsView(appState: appState)
-        }
-        .sheet(isPresented: $showModelPicker) {
-            ModelPickerSheet(appState: appState)
-        }
+    }
+}
+
+// MARK: - Color hex extension
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r, g, b: Double
+        r = Double((int >> 16) & 0xFF) / 255.0
+        g = Double((int >> 8) & 0xFF) / 255.0
+        b = Double(int & 0xFF) / 255.0
+        self.init(red: r, green: g, blue: b)
     }
 }
