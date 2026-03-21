@@ -15,8 +15,8 @@ struct MainView: View {
         ("calendar", "Meetings", .prompt("Give me a summary of my meetings today")),
         ("checklist", "Tasks", .prompt("Give me a summary of my tasks today")),
         ("camera.fill", "Photo → Task", .photoThen("Turn this photo into a task")),
+        ("calendar.badge.plus", "Photo → Event", .photoThen("Create a calendar event from this photo")),
         ("camera.viewfinder", "Photo → Lead", .photoThen("Create a lead from this business card")),
-        ("person.badge.plus", "New Lead", .prompt("Create a new lead")),
         ("envelope", "Emails", .prompt("Summarize my unread emails")),
     ]
 
