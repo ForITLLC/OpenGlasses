@@ -1,12 +1,11 @@
 import SwiftUI
 
 /// Two separate connection status pills — Mic and Camera.
-/// Each pill is tappable and triggers its own permission flow:
-///   - Mic pill: tapping when disconnected triggers device pairing + mic permissions
-///   - Camera pill: tapping when mic is connected triggers camera permission request
+///   - Mic pill: tapping when disconnected triggers device pairing
+///   - Camera pill: tapping when not granted triggers camera permission (one-time)
+/// Uses CameraService.isCameraPermissionGranted (published) so the green state persists.
 struct ConnectionBanner: View {
     @EnvironmentObject var appState: AppState
-    @State private var cameraPermissionGranted: Bool = false
     @State private var cameraPermissionChecking: Bool = false
 
     var body: some View {
@@ -14,7 +13,6 @@ struct ConnectionBanner: View {
             micPill
             cameraPill
             Spacer()
-            // Settings gear in top-right
             Button {
                 appState.showSettings = true
             } label: {
@@ -31,10 +29,8 @@ struct ConnectionBanner: View {
 
     private var micPill: some View {
         let connected = appState.isConnected
-
         return Button {
             if !connected {
-                // Trigger device pairing + mic permissions
                 Task { await appState.completeAuthorizationInMetaAI() }
             }
         } label: {
@@ -49,31 +45,26 @@ struct ConnectionBanner: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Color(hex: "142F43").opacity(0.8), in: Capsule())
-            .overlay(
-                Capsule().strokeBorder(
-                    (connected ? Color.green : Color(hex: "E1EFF3")).opacity(0.15),
-                    lineWidth: 0.5
-                )
-            )
+            .overlay(Capsule().strokeBorder((connected ? Color.green : Color(hex: "E1EFF3")).opacity(0.15), lineWidth: 0.5))
         }
-        .disabled(connected) // Only tappable when disconnected
+        .disabled(connected)
     }
 
     // MARK: - Camera Pill
 
     private var cameraPill: some View {
         let micConnected = appState.isConnected
+        // Read from CameraService's published property — persists across captures
+        let cameraGranted = appState.cameraService.isCameraPermissionGranted
 
         return Button {
-            guard micConnected else { return }
-            // Trigger camera permission request
+            guard micConnected, !cameraGranted else { return }
             cameraPermissionChecking = true
             Task {
                 do {
                     try await appState.cameraService.ensurePermission()
-                    cameraPermissionGranted = true
                 } catch {
-                    cameraPermissionGranted = false
+                    ErrorReporter.shared.report("Camera permission denied from banner: \(error)", source: "camera", level: "warning")
                 }
                 cameraPermissionChecking = false
             }
@@ -82,25 +73,20 @@ struct ConnectionBanner: View {
                 if cameraPermissionChecking {
                     ProgressView().scaleEffect(0.5).tint(Color(hex: "E1EFF3"))
                 } else {
-                    Image(systemName: cameraPermissionGranted ? "camera.fill" : "camera")
+                    Image(systemName: cameraGranted ? "camera.fill" : "camera")
                         .font(.system(size: 10))
-                        .foregroundColor(cameraPermissionGranted ? .green : Color(hex: "E1EFF3").opacity(0.5))
+                        .foregroundColor(cameraGranted ? .green : Color(hex: "E1EFF3").opacity(0.5))
                 }
                 Circle()
-                    .fill(cameraPermissionGranted ? Color.green : Color.gray)
+                    .fill(cameraGranted ? Color.green : Color.gray)
                     .frame(width: 6, height: 6)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Color(hex: "142F43").opacity(0.8), in: Capsule())
-            .overlay(
-                Capsule().strokeBorder(
-                    (cameraPermissionGranted ? Color.green : Color(hex: "E1EFF3")).opacity(0.15),
-                    lineWidth: 0.5
-                )
-            )
+            .overlay(Capsule().strokeBorder((cameraGranted ? Color.green : Color(hex: "E1EFF3")).opacity(0.15), lineWidth: 0.5))
         }
-        .disabled(!micConnected || cameraPermissionChecking)
-        .opacity(micConnected ? 1.0 : 0.4) // Dimmed until mic is connected
+        .disabled(!micConnected || cameraPermissionChecking || cameraGranted)
+        .opacity(micConnected ? 1.0 : 0.4)
     }
 }
