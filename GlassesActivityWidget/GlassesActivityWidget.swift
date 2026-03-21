@@ -19,9 +19,9 @@ struct GlassesActivityWidget: Widget {
                     ZStack(alignment: .bottomTrailing) {
                         Image(systemName: "eyeglasses")
                             .font(.system(size: 24, weight: .medium))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.black)
                         Circle()
-                            .fill(context.state.isConnected ? Color.green : Color.gray)
+                            .fill(context.state.isConnected ? Color.green : Color.red)
                             .frame(width: 8, height: 8)
                             .offset(x: 2, y: 2)
                     }
@@ -30,11 +30,11 @@ struct GlassesActivityWidget: Widget {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(context.state.status)
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.black)
 
                         Text(context.state.lastResponse.isEmpty ? "Dolores AI" : context.state.lastResponse)
                             .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(.black.opacity(0.6))
                             .lineLimit(1)
                     }
 
@@ -44,12 +44,11 @@ struct GlassesActivityWidget: Widget {
                     Image(systemName: statusIconName(state: context.state))
                         .font(.system(size: 20))
                         .foregroundStyle(statusColor(state: context.state))
-                        .symbolEffect(.pulse, isActive: context.state.isListening || context.state.isProcessing)
                 }
             }
             .padding(16)
-            .activityBackgroundTint(Color.black.opacity(0.4))
-            .activitySystemActionForegroundColor(.white)
+            .activityBackgroundTint(Color.cyan)
+            .activitySystemActionForegroundColor(.black)
 
         } dynamicIsland: { context in
             DynamicIsland {
