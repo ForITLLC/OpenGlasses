@@ -141,7 +141,38 @@ class CameraService: ObservableObject {
             ErrorReporter.shared.report("Camera permission failed: \(error.localizedDescription)", source: "camera", level: "error")
             throw error
         }
-        print("[CAMERA] Permission OK, creating photo session")
+        print("[CAMERA] Permission OK, checking device availability...")
+
+        // Per Meta docs: "A device will not appear in the devicesStream until the user
+        // has granted at least one permission (e.g., camera) through the Meta AI app."
+        // Check if we actually have a device available before creating a session.
+        let activeDevice = deviceSelector.activeDevice
+        ErrorReporter.shared.report("Device check: activeDevice=\(String(describing: activeDevice)), regState=\(Wearables.shared.registrationState.rawValue)", source: "camera", level: "info")
+
+        if activeDevice == nil {
+            // No device available yet — this is the "waitingForDevice" root cause.
+            // Try re-requesting camera permission to trigger Meta AI device discovery.
+            ErrorReporter.shared.report("No active device! Re-requesting camera permission to trigger device discovery...", source: "camera", level: "warning")
+            do {
+                let status = try await Wearables.shared.requestPermission(.camera)
+                ErrorReporter.shared.report("Re-request permission result: \(status)", source: "camera", level: "info")
+                // Wait for device to become available (up to 10s)
+                let deviceWaitStart = ContinuousClock.now
+                while deviceSelector.activeDevice == nil {
+                    if ContinuousClock.now - deviceWaitStart > .seconds(10) {
+                        ErrorReporter.shared.report("Device still nil after 10s wait + permission re-request", source: "camera", level: "error")
+                        throw CameraError.captureFailed
+                    }
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                }
+                ErrorReporter.shared.report("Device appeared after permission re-request!", source: "camera", level: "info")
+            } catch {
+                ErrorReporter.shared.report("Permission re-request failed: \(error)", source: "camera", level: "error")
+                throw CameraError.captureFailed
+            }
+        }
+
+        print("[CAMERA] Device available, creating photo session")
 
         // Create a temporary stream session for photo capture (needs .high resolution)
         let photoSession = StreamSession(
@@ -172,11 +203,11 @@ class CameraService: ObservableObject {
         ErrorReporter.shared.report("Starting photo stream session...", source: "camera", level: "info")
         await photoSession.start()
 
-        // Wait for the session to reach .streaming state (up to 5s)
-        // The old code just waited 0.5s blindly — capturePhoto() returns false if not streaming yet
+        // Wait for the session to reach .streaming state (up to 15s)
+        // Bluetooth Classic connection can be slow, especially first time
         let waitStart = ContinuousClock.now
         while photoSession.state != .streaming {
-            if ContinuousClock.now - waitStart > .seconds(5) {
+            if ContinuousClock.now - waitStart > .seconds(15) {
                 let state = photoSession.state
                 ErrorReporter.shared.report("Session failed to reach .streaming state (stuck at \(state), error: \(String(describing: sessionError)))", source: "camera", level: "error")
                 await photoSession.stop()
