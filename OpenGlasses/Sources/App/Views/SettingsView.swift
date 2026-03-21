@@ -84,9 +84,15 @@ struct SettingsView: View {
 
                 // Wake Word
                 Section("Wake Word") {
-                    TextField("Wake phrase", text: $wakePhrase)
-                        .foregroundColor(Color(hex: "E1EFF3"))
-                        .onSubmit { Config.setWakePhrase(wakePhrase) }
+                    Picker("Wake phrase", selection: $wakePhrase) {
+                        Text("Hey Dolores").tag("hey dolores")
+                        Text("Hey Assistant").tag("hey assistant")
+                    }
+                    .pickerStyle(.menu)
+                    .foregroundColor(Color(hex: "8EDCEF"))
+                    .onChange(of: wakePhrase) { _, newValue in
+                        Config.setWakePhrase(newValue)
+                    }
                 }
 
                 // About
