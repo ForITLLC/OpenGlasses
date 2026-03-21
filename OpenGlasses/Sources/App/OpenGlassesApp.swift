@@ -449,7 +449,6 @@ class AppState: ObservableObject {
         }
     }
 
-    func stopSpeakingAndResume() {
     /// Cancel current processing or speaking — called by mic button tap during active response
     func cancelCurrentResponse() {
         print("[MIC] cancelCurrentResponse called. isProcessing=\(isProcessing) isSpeaking=\(speechService.isSpeaking)")
