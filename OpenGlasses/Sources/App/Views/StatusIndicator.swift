@@ -107,7 +107,7 @@ struct StatusIndicator: View {
         }
         if appState.isListening { return "Listening..." }
         if appState.speechService.isSpeaking { return "Speaking..." }
-        return "Dolores"
+        return "Ready"
     }
 
     private var modeLabel: String {

@@ -8,49 +8,27 @@ struct BottomControlBar: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            // Floating buttons centered at bottom
-            HStack(spacing: 40) {
-                // Camera button with status dot
-                ZStack(alignment: .topTrailing) {
-                    CircleButton(
-                        icon: "camera",
-                        size: 48
-                    ) {
-                        Task { await appState.capturePhotoFromGlasses() }
+            // Single mic button centered at bottom
+            VStack(spacing: 8) {
+                // Mic button — the ONLY control
+                CircleButton(
+                    icon: appState.isListening ? "mic.fill" : "mic",
+                    size: 64,
+                    isActive: appState.isListening
+                ) {
+                    if appState.isListening || appState.inConversation {
+                        appState.isListening = false
+                        appState.inConversation = false
+                        appState.transcriptionService.stopRecording()
+                    } else {
+                        Task { await appState.handleWakeWordDetected(manualActivation: true) }
                     }
-                    // Status dot — green when glasses connected
-                    Circle()
-                        .fill(appState.isConnected ? Color.green : Color(hex: "E1EFF3").opacity(0.3))
-                        .frame(width: 8, height: 8)
-                        .offset(x: 2, y: -2)
                 }
 
-                // Mic button with status dot
-                ZStack(alignment: .topTrailing) {
-                    CircleButton(
-                        icon: appState.isListening ? "mic.fill" : "mic",
-                        size: 64,
-                        isActive: appState.isListening
-                    ) {
-                        print("[MIC] Button tapped. isListening=\(appState.isListening) inConversation=\(appState.inConversation) isProcessing=\(appState.isProcessing) isRecording=\(appState.transcriptionService.isRecording) wakeWordListening=\(appState.wakeWordService.isListening)")
-                        if appState.isListening || appState.inConversation {
-                            // Stop listening
-                            print("[MIC] Stopping: setting isListening=false, inConversation=false, calling stopRecording")
-                            appState.isListening = false
-                            appState.inConversation = false
-                            appState.transcriptionService.stopRecording()
-                        } else {
-                            // Start listening — manual activation gets longer no-speech timeout
-                            print("[MIC] Starting listening via mic button (manual)")
-                            Task { await appState.handleWakeWordDetected(manualActivation: true) }
-                        }
-                    }
-                    // Status dot — green when listening
-                    Circle()
-                        .fill(appState.isListening ? Color.green : Color(hex: "E1EFF3").opacity(0.3))
-                        .frame(width: 8, height: 8)
-                        .offset(x: 2, y: -2)
-                }
+                // Status text below mic
+                Text(appState.isListening ? "Listening" : "Ready")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(appState.isListening ? .green : Color(hex: "E1EFF3").opacity(0.6))
             }
             .frame(maxWidth: .infinity)
             .padding(.bottom, 16)

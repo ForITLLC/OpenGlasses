@@ -23,16 +23,16 @@ struct ConnectionBanner: View {
 
     private var glassesPill: some View {
         let connected = appState.isConnected
-        let color = connected ? Color(hex: "8EDCEF") : Color(hex: "E1EFF3").opacity(0.4)
-        let label = connected ? (appState.glassesService.deviceName ?? "Connected") : "Disconnected"
+        let dotColor = connected ? Color.green : Color.gray
+        let label = connected ? "Connected" : "Disconnected"
 
         return HStack(spacing: 5) {
             Circle()
-                .fill(color)
+                .fill(dotColor)
                 .frame(width: 7, height: 7)
             Text(label)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(hex: "E1EFF3").opacity(0.85))
+                .foregroundColor(connected ? .green : Color(hex: "E1EFF3").opacity(0.6))
                 .lineLimit(1)
         }
         .fixedSize()

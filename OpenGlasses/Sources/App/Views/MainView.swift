@@ -12,13 +12,9 @@ struct MainView: View {
     // Quick actions arranged in a circle around the avatar — ONLY actions
     private let quickActions: [(icon: String, label: String, prompt: String)] = [
         ("checklist", "Tasks", "What are my tasks today?"),
-        ("plus.circle", "New Task", "Create a task called"),
         ("calendar", "Calendar", "What's on my calendar today?"),
-        ("calendar.badge.plus", "New Event", "Schedule a meeting"),
         ("envelope", "Emails", "Check my latest emails"),
-        ("envelope.badge.plus", "New Email", "Compose an email"),
-        ("camera", "Photo", "take a picture"),
-        ("person.badge.plus", "New Lead", "Create a new lead"),
+        ("note.text", "Notes", "Create a note"),
     ]
 
     var body: some View {
@@ -86,7 +82,7 @@ struct MainView: View {
                 ConnectionBanner()
                     .padding(.bottom, 4)
 
-                // Bottom: mic + camera buttons
+                // Bottom: mic button
                 BottomControlBar()
             }
         }
