@@ -498,7 +498,7 @@ class AppState: ObservableObject {
             return
         }
         isProcessing = true
-        await speechService.speak("Taking a picture.")
+        speechService.playAcknowledgmentTone()  // Tone instead of spoken "Taking a picture" (avoids iOS voice)
         do {
             let photoData = try await cameraService.capturePhoto()
             cameraService.saveToPhotoLibrary(photoData)
@@ -635,7 +635,7 @@ class AppState: ObservableObject {
             print("Voice command: take a picture")
             ErrorReporter.shared.report("Photo voice command detected: \(text). isConnected=\(isConnected), regState=\(registrationStateRaw)", source: "camera", level: "info")
             isProcessing = true
-            await speechService.speak("Taking a picture.")
+            speechService.playAcknowledgmentTone()  // Tone instead of spoken "Taking a picture" (avoids iOS voice)
             do {
                 let photoData = try await cameraService.capturePhoto()
                 cameraService.saveToPhotoLibrary(photoData)
