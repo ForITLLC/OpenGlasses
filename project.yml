@@ -48,7 +48,7 @@ targets:
         LSApplicationQueriesSchemes:
           - "fb-viewapp"
         MWDAT:
-          AppLinkURLScheme: "https://straff2002.github.io/OpenGlasses"
+          AppLinkURLScheme: "mwdat-688603774243722://"
           MetaAppID: "688603774243722"
           ClientToken: "AR|688603774243722|906db0d1b28450fdb718401ca16b9d60"
           TeamID: "$(DEVELOPMENT_TEAM)"

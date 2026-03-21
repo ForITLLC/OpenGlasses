@@ -38,7 +38,7 @@
 	<key>MWDAT</key>
 	<dict>
 		<key>AppLinkURLScheme</key>
-		<string>https://straff2002.github.io/OpenGlasses</string>
+		<string>mwdat-688603774243722://</string>
 		<key>ClientToken</key>
 		<string>AR|688603774243722|906db0d1b28450fdb718401ca16b9d60</string>
 		<key>MetaAppID</key>
