@@ -10,13 +10,19 @@ import SwiftUI
 struct MainView: View {
     @EnvironmentObject var appState: AppState
 
-    // 4 quick actions arranged in a circle around the avatar
-    private let quickActions: [(icon: String, label: String, prompt: String)] = [
-        ("checklist", "Tasks", "What are my tasks today?"),
-        ("calendar", "Calendar", "What's on my calendar today?"),
-        ("envelope", "Emails", "Check my latest emails"),
-        ("note.text", "Notes", "Create a note"),
+    // 5 quick actions arranged in a circle around the avatar
+    private let quickActions: [(icon: String, label: String, action: QuickActionType)] = [
+        ("checklist", "Tasks", .prompt("What are my tasks today?")),
+        ("calendar", "Calendar", .prompt("What's on my calendar today?")),
+        ("camera.fill", "Photo", .photo),
+        ("envelope", "Emails", .prompt("Check my latest emails")),
+        ("note.text", "Notes", .prompt("Create a note")),
     ]
+
+    enum QuickActionType {
+        case prompt(String)
+        case photo
+    }
 
     var body: some View {
         ZStack {
@@ -61,7 +67,12 @@ struct MainView: View {
                         RadialLayout() {
                             ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
                                 quickActionButton(icon: action.icon, label: action.label) {
-                                    await appState.handleTranscription(action.prompt)
+                                    switch action.action {
+                                    case .prompt(let text):
+                                        await appState.handleTranscription(text)
+                                    case .photo:
+                                        await appState.capturePhotoFromGlasses()
+                                    }
                                 }
                             }
                         }

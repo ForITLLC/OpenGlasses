@@ -130,11 +130,17 @@ class CameraService: ObservableObject {
     /// Returns JPEG data of the captured photo.
     func capturePhoto() async throws -> Data {
         print("[CAMERA] capturePhoto() called")
+        ErrorReporter.shared.report("capturePhoto() called", source: "camera", level: "info")
         isCaptureInProgress = true
         defer { isCaptureInProgress = false }
 
         print("[CAMERA] Ensuring camera permission...")
-        try await ensurePermission()
+        do {
+            try await ensurePermission()
+        } catch {
+            ErrorReporter.shared.report("Camera permission failed: \(error.localizedDescription)", source: "camera", level: "error")
+            throw error
+        }
         print("[CAMERA] Permission OK, creating photo session")
 
         // Create a temporary stream session for photo capture (needs .high resolution)
@@ -154,27 +160,68 @@ class CameraService: ObservableObject {
             }
         }
 
+        // Listen for errors from the session
+        var sessionError: StreamSessionError?
+        let errorToken = photoSession.errorPublisher.listen { error in
+            NSLog("[Camera] Session error: %@", String(describing: error))
+            ErrorReporter.shared.report("StreamSession error: \(error)", source: "camera", level: "error")
+            sessionError = error
+        }
+
         // Start the stream (required before capture)
+        ErrorReporter.shared.report("Starting photo stream session...", source: "camera", level: "info")
         await photoSession.start()
 
-        // Wait briefly for streaming to stabilize
-        try await Task.sleep(nanoseconds: 500_000_000)  // 0.5s
+        // Wait for the session to reach .streaming state (up to 5s)
+        // The old code just waited 0.5s blindly — capturePhoto() returns false if not streaming yet
+        let waitStart = ContinuousClock.now
+        while photoSession.state != .streaming {
+            if ContinuousClock.now - waitStart > .seconds(5) {
+                let state = photoSession.state
+                ErrorReporter.shared.report("Session failed to reach .streaming state (stuck at \(state), error: \(String(describing: sessionError)))", source: "camera", level: "error")
+                await photoSession.stop()
+                photoListenerToken = nil
+                throw CameraError.captureFailed
+            }
+            try await Task.sleep(nanoseconds: 200_000_000)  // check every 0.2s
+        }
+        let elapsed = ContinuousClock.now - waitStart
+        NSLog("[Camera] Session reached .streaming state in %@", String(describing: elapsed))
+        ErrorReporter.shared.report("Session reached .streaming state after waiting", source: "camera", level: "info")
 
-        // Capture the photo
+        // Small extra stabilization delay after reaching streaming
+        try await Task.sleep(nanoseconds: 300_000_000)  // 0.3s
+
+        // Capture the photo (with retry — first attempt can fail if device is still settling)
+        ErrorReporter.shared.report("Calling capturePhoto(format: .jpeg)...", source: "camera", level: "info")
         let photoData: Data = try await withCheckedThrowingContinuation { continuation in
             self.photoContinuation = continuation
 
+            // Try capturePhoto, retry once after a short delay if it returns false
             let success = photoSession.capturePhoto(format: .jpeg)
             if !success {
-                self.photoContinuation = nil
-                continuation.resume(throwing: CameraError.captureFailed)
+                NSLog("[Camera] First capturePhoto attempt returned false — retrying in 0.5s")
+                ErrorReporter.shared.report("capturePhoto returned false on first try, retrying...", source: "camera", level: "warning")
+                Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    let retrySuccess = photoSession.capturePhoto(format: .jpeg)
+                    if !retrySuccess {
+                        self.photoContinuation = nil
+                        ErrorReporter.shared.report("capturePhoto returned false on retry — capture failed (state=\(photoSession.state))", source: "camera", level: "error")
+                        continuation.resume(throwing: CameraError.captureFailed)
+                    } else {
+                        NSLog("[Camera] Retry capturePhoto succeeded")
+                        ErrorReporter.shared.report("capturePhoto retry succeeded", source: "camera", level: "info")
+                    }
+                }
             }
 
-            // Timeout after 5 seconds
+            // Timeout after 8 seconds
             Task {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
                 if let cont = self.photoContinuation {
                     self.photoContinuation = nil
+                    ErrorReporter.shared.report("Photo capture timed out after 8s", source: "camera", level: "error")
                     cont.resume(throwing: CameraError.timeout)
                 }
             }
@@ -183,13 +230,15 @@ class CameraService: ObservableObject {
         // Stop the photo session
         await photoSession.stop()
         photoListenerToken = nil
+        _ = errorToken  // keep alive until here
 
         // Store the image for display
         if let image = UIImage(data: photoData) {
             lastPhoto = image
         }
 
-        print("📸 Photo captured: \(photoData.count) bytes")
+        print("[CAMERA] Photo captured: \(photoData.count) bytes")
+        ErrorReporter.shared.report("Photo captured: \(photoData.count) bytes", source: "camera", level: "info")
         return photoData
     }
 
@@ -290,6 +339,7 @@ enum CameraError: LocalizedError {
     case timeout
     case notConnected
     case sdkNotRegistered
+    case streamNotReady
 
     var errorDescription: String? {
         switch self {
@@ -298,6 +348,7 @@ enum CameraError: LocalizedError {
         case .timeout: return "Photo capture timed out"
         case .notConnected: return "Glasses not connected"
         case .sdkNotRegistered: return "Meta SDK not registered — open Meta app first"
+        case .streamNotReady: return "Camera stream not ready — try again"
         }
     }
 }

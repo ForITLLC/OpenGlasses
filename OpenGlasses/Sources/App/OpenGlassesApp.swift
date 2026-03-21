@@ -433,10 +433,12 @@ class AppState: ObservableObject {
     }
 
     func capturePhotoFromGlasses() async {
-        print("[CAMERA] capturePhotoFromGlasses called. isConnected=\(isConnected)")
+        print("[CAMERA] capturePhotoFromGlasses called. isConnected=\(isConnected), regState=\(registrationStateRaw)")
+        ErrorReporter.shared.report("capturePhotoFromGlasses called. isConnected=\(isConnected), regState=\(registrationStateRaw)", source: "camera", level: "info")
         guard isConnected else {
             print("[CAMERA] Not connected — aborting capture")
             errorMessage = "Connect glasses first"
+            ErrorReporter.shared.report("Photo aborted: glasses not connected (regState=\(registrationStateRaw))", source: "camera", level: "warning")
             return
         }
         do {
@@ -448,9 +450,11 @@ class AppState: ObservableObject {
             generator.notificationOccurred(.success)
             lastResponse = "Photo saved to camera roll"
             print("[CAMERA] Photo saved to camera roll")
+            ErrorReporter.shared.report("Photo captured successfully: \(photoData.count) bytes", source: "camera", level: "info")
         } catch {
             print("[CAMERA] Photo capture failed: \(error.localizedDescription)")
             errorMessage = "Photo failed: \(error.localizedDescription)"
+            ErrorReporter.shared.report("Photo capture failed: \(error.localizedDescription)", source: "camera", level: "error")
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.error)
         }
@@ -566,12 +570,14 @@ class AppState: ObservableObject {
 
         if isPhotoCommand(text) {
             print("Voice command: take a picture")
+            ErrorReporter.shared.report("Photo voice command detected: \(text). isConnected=\(isConnected), regState=\(registrationStateRaw)", source: "camera", level: "info")
             isProcessing = true
             await speechService.speak("Taking a picture.")
             do {
                 let photoData = try await cameraService.capturePhoto()
                 cameraService.saveToPhotoLibrary(photoData)
                 print("Photo saved, sending to LLM with prompt: \(text)")
+                ErrorReporter.shared.report("Photo captured via voice: \(photoData.count) bytes, sending to LLM", source: "camera", level: "info")
 
                 let response = try await llmService.sendMessage(text, locationContext: locationService.locationContext, imageData: photoData)
                 lastResponse = response
@@ -583,6 +589,7 @@ class AppState: ObservableObject {
 
             } catch {
                 print("Photo capture failed: \(error)")
+                ErrorReporter.shared.report("Photo voice command failed: \(error.localizedDescription)", source: "camera", level: "error")
                 lastResponse = "Photo failed: \(error.localizedDescription)"
                 await speechService.speak("Sorry, I couldn't take a photo or process the image. \(error.localizedDescription)")
             }
