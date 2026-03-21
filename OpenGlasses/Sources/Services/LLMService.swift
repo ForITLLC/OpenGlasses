@@ -28,10 +28,14 @@ class LLMService: ObservableObject {
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         request.timeoutInterval = 120
 
+        // Speed mode: "fastest" (Haiku), "fast"/true (Sonnet), false (Opus)
+        let speedMode = UserDefaults.standard.string(forKey: "speedMode") ?? "fast"
+        let fastValue: Any = speedMode == "opus" ? false : speedMode  // "fastest" or "fast" as string, false for Opus
+
         var body: [String: Any] = [
             "text": text,
             "userEmail": Config.userEmail,
-            "fast": UserDefaults.standard.bool(forKey: "fastMode")
+            "fast": fastValue
         ]
         if let imageData = imageData {
             body["imageBase64"] = imageData.base64EncodedString()

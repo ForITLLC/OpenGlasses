@@ -3,7 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
-    @State private var fastMode: Bool = UserDefaults.standard.bool(forKey: "fastMode")
+    @State private var speedMode: String = UserDefaults.standard.string(forKey: "speedMode") ?? "fast"
     @State private var wakePhrase: String = Config.wakePhrase
     @State private var apiKey: String = UserDefaults.standard.string(forKey: "doloresAPIKey") ?? ""
     @State private var userEmail: String = Config.userEmail
@@ -66,20 +66,19 @@ struct SettingsView: View {
                 }
 
                 // Response Speed
-                Section("Response Speed") {
-                    Toggle(isOn: $fastMode) {
-                        VStack(alignment: .leading) {
-                            Text("Fast Mode")
-                                .foregroundColor(Color(hex: "E1EFF3"))
-                            Text(fastMode ? "Sonnet — faster" : "Opus — smarter")
-                                .font(.caption)
-                                .foregroundColor(Color(hex: "8EDCEF"))
-                        }
+                Section {
+                    Picker("Speed", selection: $speedMode) {
+                        Text("Haiku — fastest").tag("fastest")
+                        Text("Sonnet — balanced").tag("fast")
+                        Text("Opus — smartest").tag("opus")
                     }
-                    .tint(Color(hex: "8EDCEF"))
-                    .onChange(of: fastMode) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: "fastMode")
+                    .pickerStyle(.menu)
+                    .foregroundColor(Color(hex: "8EDCEF"))
+                    .onChange(of: speedMode) { _, newValue in
+                        UserDefaults.standard.set(newValue, forKey: "speedMode")
                     }
+                } header: {
+                    Text("Response Speed")
                 }
 
                 // Wake Word
