@@ -11,7 +11,8 @@ struct Config {
         guard let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
               let dict = NSDictionary(contentsOfFile: path),
               let key = dict["DOLORES_API_KEY"] as? String, !key.isEmpty else {
-            fatalError("Missing DOLORES_API_KEY in Secrets.plist — see README for setup")
+            NSLog("[Config] WARNING: Missing DOLORES_API_KEY in Secrets.plist")
+            return ""
         }
         return key
     }()

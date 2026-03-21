@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import MWDATCore
 import AppIntents
 import UIKit
@@ -193,9 +194,9 @@ class AppState: ObservableObject {
     let locationService = LocationService()
 
     private var cancellables: [Any] = []
-    private var isProcessing: Bool = false
+    @Published var isProcessing: Bool = false
     private var hasEverRegistered: Bool = false
-    private var inConversation: Bool = false
+    @Published var inConversation: Bool = false
 
     func addDebugEvent(_ message: String) {
         let formatter = DateFormatter()
@@ -205,6 +206,8 @@ class AppState: ObservableObject {
         if debugEvents.count > 80 {
             debugEvents.removeFirst(debugEvents.count - 80)
         }
+        // Send all debug events to App Insights via ErrorReporter
+        ErrorReporter.shared.report(message, source: "app", level: "debug")
     }
 
     func recordCallback(url: URL, source: String) {
@@ -226,6 +229,7 @@ class AppState: ObservableObject {
 
     init() {
         addDebugEvent("AppState initialized")
+        AppStateProvider.shared = self  // Set immediately so callbacks can record
         transcriptionService.sharedAudioEngineProvider = wakeWordService
         llmService.speechService = speechService
         setupServiceCallbacks()
@@ -267,8 +271,8 @@ class AppState: ObservableObject {
         transcriptionService.onSilenceTimeout = { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
-                print("User silent — ending conversation, back to wake word")
-                await self.returnToWakeWord()
+                print("[MIC] User silent - ending conversation, back to wake word")
+                await self.safeReturnToWakeWord()
             }
         }
     }
@@ -416,7 +420,7 @@ class AppState: ObservableObject {
     }
 
     func stopSpeakingAndResume() {
-        print("User tapped stop")
+        print("[MIC] stopSpeakingAndResume called. inConversation=\(inConversation) isListening=\(isListening)")
         speechService.stopSpeaking()
         isProcessing = false
         if inConversation {
@@ -424,34 +428,80 @@ class AppState: ObservableObject {
             isListening = true
             transcriptionService.startRecording()
         } else {
-            Task { await returnToWakeWord() }
+            Task { await safeReturnToWakeWord() }
         }
     }
 
     func capturePhotoFromGlasses() async {
+        print("[CAMERA] capturePhotoFromGlasses called. isConnected=\(isConnected)")
         guard isConnected else {
+            print("[CAMERA] Not connected — aborting capture")
             errorMessage = "Connect glasses first"
             return
         }
         do {
+            print("[CAMERA] Starting photo capture...")
             let photoData = try await cameraService.capturePhoto()
+            print("[CAMERA] Photo captured: \(photoData.count) bytes")
             cameraService.saveToPhotoLibrary(photoData)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
             lastResponse = "Photo saved to camera roll"
+            print("[CAMERA] Photo saved to camera roll")
         } catch {
+            print("[CAMERA] Photo capture failed: \(error.localizedDescription)")
             errorMessage = "Photo failed: \(error.localizedDescription)"
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.error)
         }
     }
 
-    func handleWakeWordDetected() async {
-        print("Wake word detected! Starting conversation...")
+    /// Start listening for user speech.
+    /// - Parameter manualActivation: true when triggered by mic button (longer timeout), false for wake word
+    func handleWakeWordDetected(manualActivation: Bool = false) async {
+        print("[MIC] handleWakeWordDetected called. manual=\(manualActivation) isListening=\(isListening) inConversation=\(inConversation) isProcessing=\(isProcessing)")
+
+        // Pause wake word recognition BEFORE starting transcription.
+        // Two speech recognizers cannot share the same audio engine —
+        // the wake word task steals buffers and can cause the transcription
+        // recognizer to receive no audio, failing silently.
+        if wakeWordService.isListening {
+            print("[MIC] Pausing wake word service before starting transcription")
+            wakeWordService.pauseRecognitionPublic()
+        }
+
         inConversation = true
         isListening = true
+        print("[MIC] Set inConversation=true, isListening=true")
+
         speechService.playAcknowledgmentTone()
-        transcriptionService.startRecording()
+
+        // Small delay to let the wake word recognition task fully release
+        // the speech recognizer before we start a new one
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        // Manual mic button press gets 15s to start speaking (user may need time)
+        // Wake word trigger gets 5s (user already spoke, so they're ready)
+        let timeout: TimeInterval? = manualActivation ? 15.0 : nil
+        print("[MIC] Calling transcriptionService.startRecording(noSpeechTimeout: \(String(describing: timeout)))")
+        transcriptionService.startRecording(noSpeechTimeout: timeout)
+
+        // Verify recording started
+        print("[MIC] After startRecording: isRecording=\(transcriptionService.isRecording)")
+        if !transcriptionService.isRecording {
+            print("[MIC] WARNING: Recording failed to start!")
+            ErrorReporter.shared.report("Recording failed to start after handleWakeWordDetected", source: "mic")
+            isListening = false
+            inConversation = false
+            print("[MIC] Reset isListening=false, inConversation=false due to recording failure")
+            // Try to restart wake word listener since we paused it
+            do {
+                try await wakeWordService.startListening()
+                print("[MIC] Wake word listener restarted after recording failure")
+            } catch {
+                print("[MIC] Failed to restart wake word after recording failure: \(error)")
+            }
+        }
     }
 
     // MARK: - Voice Commands
@@ -486,6 +536,7 @@ class AppState: ObservableObject {
 
         currentTranscription = text
         isListening = false
+        print("[MIC] handleTranscription: set isListening=false, processing: \(text.prefix(50))")
         errorMessage = nil
         speechService.playEndListeningTone()
         print("Transcription: \(text)")
@@ -509,7 +560,7 @@ class AppState: ObservableObject {
             inConversation = false
             lastResponse = "Goodbye!"
             await speechService.speak("Goodbye!")
-            await returnToWakeWord()
+            await safeReturnToWakeWord()
             return
         }
 
@@ -540,7 +591,7 @@ class AppState: ObservableObject {
                 isListening = true
                 transcriptionService.startRecording()
             } else {
-                await returnToWakeWord()
+                await safeReturnToWakeWord()
             }
             return
         }
@@ -557,17 +608,24 @@ class AppState: ObservableObject {
             await speechService.speak(response)
             stopStopListener()
         } catch {
+            print("[CRASH] LLM request failed: \(error)")
+            ErrorReporter.shared.report("[CRASH] LLM failed: \(error.localizedDescription)", source: "llm")
             errorMessage = "Failed to get response: \(error.localizedDescription)"
             await speechService.speak("Sorry, I encountered an error.")
         }
 
         isProcessing = false
-        if inConversation {
-            print("Continuing conversation — listening for follow-up...")
-            isListening = true
-            transcriptionService.startRecording()
-        } else {
-            await returnToWakeWord()
+        do {
+            if inConversation {
+                print("[MIC] Continuing conversation - listening for follow-up...")
+                isListening = true
+                transcriptionService.startRecording()
+            } else {
+                await safeReturnToWakeWord()
+            }
+        } catch {
+            print("[CRASH] Post-speech flow failed: \(error)")
+            ErrorReporter.shared.report("[CRASH] Post-speech flow: \(error.localizedDescription)", source: "voice")
         }
     }
 
@@ -592,17 +650,62 @@ class AppState: ObservableObject {
         wakeWordService.pauseRecognitionPublic()
     }
 
+    /// Dump all state to ErrorReporter (App Insights) for remote diagnostics.
+    /// Kept as a single consolidated log entry rather than many individual events.
+    func snapshotDebugState() {
+        let route = AVAudioSession.sharedInstance().currentRoute
+        let inputs = route.inputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ",")
+        let outputs = route.outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ",")
+        var parts = [
+            "isConnected=\(isConnected)",
+            "regState=\(registrationStateRaw)",
+            "isListening=\(isListening)",
+            "inConversation=\(inConversation)",
+            "isProcessing=\(isProcessing)",
+            "wakeWord=\(wakeWordService.isListening)",
+            "transcribing=\(transcriptionService.isRecording)",
+            "audioIn=\(inputs.isEmpty ? "none" : inputs)",
+            "audioOut=\(outputs.isEmpty ? "none" : outputs)"
+        ]
+        if let err = errorMessage { parts.append("lastError=\(err)") }
+        let snapshot = parts.joined(separator: ", ")
+        addDebugEvent("[DEBUG] Snapshot: \(snapshot)")
+    }
+
     private func returnToWakeWord() async {
+        print("[MIC] returnToWakeWord called")
         isListening = false
         inConversation = false
         wakeWordService.listenForStop = false
         speechService.playDisconnectTone()
         do {
+            // Small delay to let audio session settle after TTS playback
+            try? await Task.sleep(nanoseconds: 200_000_000)
             try await wakeWordService.startListening()
-            print("Wake word restarted")
+            print("[MIC] Wake word restarted")
         } catch {
-            print("Failed to restart listener: \(error)")
-            errorMessage = "Tap Test Microphone to restart"
+            print("[CRASH] Failed to restart wake word listener: \(error)")
+            ErrorReporter.shared.report("[CRASH] returnToWakeWord failed: \(error.localizedDescription)", source: "mic")
+            errorMessage = "Tap mic button to restart"
+        }
+    }
+
+    /// Crash-safe wrapper for returnToWakeWord - catches all errors
+    private func safeReturnToWakeWord() async {
+        print("[MIC] safeReturnToWakeWord called")
+        isListening = false
+        inConversation = false
+        wakeWordService.listenForStop = false
+        speechService.playDisconnectTone()
+        // Small delay to let audio session settle after TTS playback
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        do {
+            try await wakeWordService.startListening()
+            print("[MIC] Wake word restarted successfully")
+        } catch {
+            print("[CRASH] safeReturnToWakeWord - wake word restart failed: \(error)")
+            ErrorReporter.shared.report("[CRASH] safeReturnToWakeWord failed: \(error.localizedDescription)", source: "mic")
+            errorMessage = "Tap mic button to restart"
         }
     }
 }

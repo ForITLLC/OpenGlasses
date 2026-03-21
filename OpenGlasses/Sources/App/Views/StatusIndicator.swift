@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Large central ambient status indicator — the visual heartbeat of the app.
-/// When glasses aren't connected, acts as a connect button.
+/// Display-only — not tappable. Shows connection state and active mode.
 struct StatusIndicator: View {
     @EnvironmentObject var appState: AppState
 
@@ -15,7 +15,7 @@ struct StatusIndicator: View {
                 // Ambient ring — pulses when active
                 Circle()
                     .stroke(ringColor.opacity(ringOpacity), lineWidth: 2)
-                    .frame(width: 160, height: 160)
+                    .frame(width: 130, height: 130)
                     .scaleEffect(ringScale)
 
                 // Inner glow
@@ -28,48 +28,50 @@ struct StatusIndicator: View {
                             endRadius: 80
                         )
                     )
-                    .frame(width: 140, height: 140)
+                    .frame(width: 110, height: 110)
 
-                // Icon
+                // Dolores avatar — always visible
+                Image("DoloresAvatar")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 70, height: 70)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle().stroke(Color(hex: "8EDCEF").opacity(0.5), lineWidth: 1.5)
+                    )
+
+                // Small status badge (bottom-right)
                 Image(systemName: iconName)
-                    .font(.system(size: 52, weight: .light))
-                    .foregroundStyle(ringColor)
-                    .symbolEffect(.pulse, isActive: isPulsing)
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "E1EFF3"))
+                    .frame(width: 24, height: 24)
+                    .background(Color(hex: "142F43"))
+                    .clipShape(Circle())
+                    .offset(x: 28, y: 28)
             }
             .animation(.easeInOut(duration: 0.4), value: iconName)
             .onAppear { startRingAnimation() }
             .onChange(of: isPulsing) { _, active in
                 if active { startRingAnimation() } else { stopRingAnimation() }
             }
-            // Tap to connect when glasses aren't connected
-            .onTapGesture {
-                if !appState.isConnected {
-                    Task { await appState.glassesService.connect() }
-                }
-            }
+
 
             // Status text
             VStack(spacing: 4) {
                 Text(statusLabel)
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(Color(hex: "E1EFF3").opacity(0.9))
 
                 Text(modeLabel)
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(Color(hex: "8EDCEF").opacity(0.5))
 
-                // Connection hint when not connected
-                if !appState.isConnected {
-                    Text("Tap to connect glasses")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.cyan.opacity(0.7))
-                        .padding(.top, 4)
-                }
+
             }
 
             // Tool call status
             if appState.llmService.toolCallStatus.isActive {
-                toolCallPill(appState.llmService.toolCallStatus.displayText, color: .purple)
+                toolCallPill(appState.llmService.toolCallStatus.displayText, color: Color(hex: "8EDCEF"))
             }
         }
     }
@@ -86,10 +88,10 @@ struct StatusIndicator: View {
     }
 
     private var ringColor: Color {
-        if !appState.isConnected { return .gray }
-        if appState.isListening { return .cyan }
-        if appState.speechService.isSpeaking { return .orange }
-        return .gray
+        if !appState.isConnected { return Color(hex: "8EDCEF").opacity(0.4) }
+        if appState.isListening { return Color(hex: "8EDCEF") }
+        if appState.speechService.isSpeaking { return Color(hex: "8EDCEF") }
+        return Color(hex: "8EDCEF").opacity(0.5)
     }
 
     private var isPulsing: Bool {
@@ -105,21 +107,21 @@ struct StatusIndicator: View {
         }
         if appState.isListening { return "Listening..." }
         if appState.speechService.isSpeaking { return "Speaking..." }
-        return "Ready"
+        return "Dolores"
     }
 
     private var modeLabel: String {
-        return "Direct \u{2022} \(appState.llmService.activeModelName)"
+        return "ForIT AI"
     }
 
     // MARK: - Helpers
 
     private func toolCallPill(_ text: String, color: Color) -> some View {
         HStack(spacing: 6) {
-            ProgressView().scaleEffect(0.7).tint(.white)
+            ProgressView().scaleEffect(0.7).tint(Color(hex: "E1EFF3"))
             Text(text)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(Color(hex: "E1EFF3").opacity(0.9))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 6)

@@ -21,7 +21,9 @@ class TranscriptionService: ObservableObject {
     private var silenceTimer: Timer?
     private var noSpeechTimer: Timer?
     private let silenceThreshold: TimeInterval = 2.0
-    private let noSpeechTimeout: TimeInterval = 5.0
+    private let defaultNoSpeechTimeout: TimeInterval = 5.0
+    /// Override for the current recording session (reset on stop)
+    private var currentNoSpeechTimeout: TimeInterval?
     private var didReceiveSpeech: Bool = false
 
     /// Shared audio engine — set by AppState from WakeWordService
@@ -31,24 +33,35 @@ class TranscriptionService: ObservableObject {
         speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     }
 
-    func startRecording() {
-        guard !isRecording else { return }
+    /// Start recording. Pass a custom `noSpeechTimeout` to override the default 5s
+    /// (e.g. 15s when triggered by manual mic button press vs 5s for wake-word flow).
+    func startRecording(noSpeechTimeout: TimeInterval? = nil) {
+        print("[MIC] TranscriptionService.startRecording() called. isRecording=\(isRecording) customTimeout=\(String(describing: noSpeechTimeout))")
+        guard !isRecording else {
+            print("[MIC] startRecording: already recording, returning early")
+            return
+        }
 
+        currentNoSpeechTimeout = noSpeechTimeout
         didReceiveSpeech = false
         currentTranscription = ""
         do {
             try setupAndStartRecording()
             isRecording = true
-            print("🎙️ Recording started...")
+            print("[MIC] Recording started successfully. isRecording=\(isRecording)")
             startNoSpeechTimer()
         } catch {
-            print("🎙️ Recording setup failed: \(error)")
+            print("[MIC] Recording setup FAILED: \(error)")
             errorMessage = error.localizedDescription
         }
     }
 
     func stopRecording() {
-        guard isRecording else { return }
+        print("[MIC] TranscriptionService.stopRecording() called. isRecording=\(isRecording)")
+        guard isRecording else {
+            print("[MIC] stopRecording: not recording, returning early")
+            return
+        }
 
         silenceTimer?.invalidate()
         silenceTimer = nil
@@ -59,6 +72,7 @@ class TranscriptionService: ObservableObject {
         recognitionRequest?.endAudio()
         recognitionRequest = nil
         isRecording = false
+        currentNoSpeechTimeout = nil
 
         if !currentTranscription.isEmpty {
             let finalText = currentTranscription
@@ -71,12 +85,20 @@ class TranscriptionService: ObservableObject {
         }
     }
 
+    private var effectiveNoSpeechTimeout: TimeInterval {
+        currentNoSpeechTimeout ?? defaultNoSpeechTimeout
+    }
+
     private func startNoSpeechTimer() {
         noSpeechTimer?.invalidate()
-        noSpeechTimer = Timer.scheduledTimer(withTimeInterval: noSpeechTimeout, repeats: false) { [weak self] _ in
+        let timeout = effectiveNoSpeechTimeout
+        noSpeechTimer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.isRecording, !self.didReceiveSpeech else { return }
-                print("🤫 No speech after \(self.noSpeechTimeout)s, stopping")
+                guard let self, self.isRecording, !self.didReceiveSpeech else {
+                    print("[MIC] No-speech timer fired but guard failed: isRecording=\(self?.isRecording ?? false) didReceiveSpeech=\(self?.didReceiveSpeech ?? false)")
+                    return
+                }
+                print("[MIC] No speech after \(timeout)s — stopping recording")
                 self.stopRecording()
             }
         }
@@ -95,7 +117,8 @@ class TranscriptionService: ObservableObject {
         // Try to reuse the shared audio engine from WakeWordService
         // This avoids stopping/starting the engine which fails in background
         if let provider = sharedAudioEngineProvider, provider.getAudioEngine() != nil {
-            print("🎙️ Reusing shared audio engine via buffer forwarding")
+            let engine = provider.getAudioEngine()!
+            print("[MIC] Reusing shared audio engine. engineRunning=\(engine.isRunning)")
             // Capture request directly — the closure is @Sendable so can't access @MainActor self
             let request = recognitionRequest
             provider.setAudioBufferForwarder { buffer in
@@ -154,7 +177,7 @@ class TranscriptionService: ObservableObject {
         }
 
         if let error = error {
-            print("Transcription error: \(error.localizedDescription)")
+            print("[MIC] Transcription recognition error: \(error.localizedDescription)")
             cleanupEngine()
             stopRecording()
         }

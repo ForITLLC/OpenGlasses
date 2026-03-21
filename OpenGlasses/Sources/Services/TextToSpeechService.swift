@@ -25,8 +25,24 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
 
     // MARK: - Public API
 
+
+    /// Ensure audio session is active and log current route before playback
+    private func ensureAudioSessionForPlayback() {
+        let session = AVAudioSession.sharedInstance()
+        let route = session.currentRoute
+        let outputs = route.outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ",")
+        print("[TTS] Audio route: \(outputs)")
+        try? session.setActive(true, options: .notifyOthersOnDeactivation)
+    }
+
     func speak(_ text: String) async {
         guard !text.isEmpty else { return }
+
+        print("[TTS] speak() called with \(text.count) chars")
+
+        do {
+            ensureAudioSessionForPlayback()
+        }
 
         // Cancel any in-progress speech
         stopSpeaking()
@@ -37,34 +53,39 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
         // Check for server-provided audio first (fastest — no extra API call)
         if let audioData = preloadedAudio {
             preloadedAudio = nil
-            print("🔊 TTS: Using server-provided audio (\(audioData.count) bytes)")
+            print("[TTS] Using server-provided audio (\(audioData.count) bytes)")
             do {
                 try await playAudioData(audioData)
                 isSpeaking = false
-                print("🔊 TTS: Finished speaking")
+                print("[TTS] Finished speaking (server audio)")
                 return
             } catch {
-                print("🔊 TTS: Server audio playback failed (\(error)), falling back")
+                print("[TTS] Server audio playback failed: \(error)")
+                ErrorReporter.shared.report("TTS server audio crash: \(error.localizedDescription)", source: "tts")
             }
         }
 
         let elevenLabsKey = Config.elevenLabsAPIKey
         if !elevenLabsKey.isEmpty && !elevenLabsDisabled {
+            print("[TTS] Trying ElevenLabs...")
             do {
                 try await speakWithElevenLabs(text: text, apiKey: elevenLabsKey)
             } catch {
-                print("🔊 TTS: ElevenLabs failed (\(error)), falling back to iOS voice")
+                print("[TTS] ElevenLabs failed: \(error)")
+                ErrorReporter.shared.report("TTS ElevenLabs crash: \(error.localizedDescription)", source: "tts")
+                print("[TTS] Trying iOS TTS fallback...")
                 await speakWithiOS(text: text)
             }
         } else {
             if elevenLabsDisabled {
-                print("🔊 TTS: ElevenLabs disabled (quota exceeded), using iOS voice")
+                print("[TTS] ElevenLabs disabled (quota exceeded), using iOS voice")
             }
+            print("[TTS] Trying iOS TTS...")
             await speakWithiOS(text: text)
         }
 
         isSpeaking = false
-        print("🔊 TTS: Finished speaking")
+        print("[TTS] Finished speaking")
     }
 
     func stopSpeaking() {
@@ -72,8 +93,10 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
         audioPlayer = nil
         synthesizer.stopSpeaking(at: .immediate)
         isSpeaking = false
-        speechContinuation?.resume()
-        speechContinuation = nil
+        if let continuation = speechContinuation {
+            speechContinuation = nil
+            continuation.resume()
+        }
     }
 
     /// High tone — wake word heard, now listening
@@ -103,6 +126,7 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
     }
 
     private func playTone(frequency: Double, duration: Double) {
+        ensureAudioSessionForPlayback()
         do {
             let toneData = try Self.generateToneData(frequency: frequency, duration: duration, sampleRate: 44100)
             let player = try AVAudioPlayer(data: toneData)
@@ -291,15 +315,31 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
     }
 
     private func playAudioData(_ data: Data) async throws {
-        let player = try AVAudioPlayer(data: data)
+        print("[TTS] playAudioData called with \(data.count) bytes")
+        let player: AVAudioPlayer
+        do {
+            player = try AVAudioPlayer(data: data)
+        } catch {
+            print("[TTS] AVAudioPlayer init failed: \(error)")
+            ErrorReporter.shared.report("TTS AVAudioPlayer init crash: \(error.localizedDescription)", source: "tts")
+            throw TTSError.audioPlaybackFailed
+        }
         self.audioPlayer = player
         player.prepareToPlay()
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             self.speechContinuation = continuation
             player.delegate = self
-            player.play()
-            print("🔊 ElevenLabs: Playing audio (\(String(format: "%.1f", player.duration))s)")
+            let started = player.play()
+            if started {
+                print("[TTS] Playing audio (\(String(format: "%.1f", player.duration))s)")
+            } else {
+                print("[TTS] player.play() returned false - playback failed to start")
+                ErrorReporter.shared.report("TTS player.play() returned false", source: "tts")
+                self.audioPlayer = nil
+                self.speechContinuation = nil
+                continuation.resume()
+            }
         }
     }
 
@@ -357,8 +397,12 @@ extension TextToSpeechService: AVAudioPlayerDelegate {
         Task { @MainActor in
             print("🔊 ElevenLabs: Playback finished (success=\(flag))")
             self.audioPlayer = nil
-            self.speechContinuation?.resume()
-            self.speechContinuation = nil
+            if let continuation = self.speechContinuation {
+                self.speechContinuation = nil
+                continuation.resume()
+            } else {
+                print("[CRASH] audioPlayerDidFinishPlaying: no continuation to resume")
+            }
         }
     }
 
@@ -366,8 +410,12 @@ extension TextToSpeechService: AVAudioPlayerDelegate {
         Task { @MainActor in
             print("🔊 ElevenLabs: Decode error: \(error?.localizedDescription ?? "unknown")")
             self.audioPlayer = nil
-            self.speechContinuation?.resume()
-            self.speechContinuation = nil
+            if let continuation = self.speechContinuation {
+                self.speechContinuation = nil
+                continuation.resume()
+            } else {
+                print("[CRASH] audioPlayerDecodeErrorDidOccur: no continuation to resume")
+            }
         }
     }
 }

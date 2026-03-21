@@ -10,31 +10,31 @@ struct CircleButton: View {
     let action: () -> Void
 
     private var foreground: Color {
-        if isDisabled { return .white.opacity(0.25) }
-        if isActive { return .white }
-        return .white.opacity(0.85)
+        if isDisabled { return Color(hex: "E1EFF3").opacity(0.25) }
+        if isActive { return Color(hex: "8EDCEF") }
+        return Color(hex: "E1EFF3").opacity(0.85)
     }
 
     private var background: some ShapeStyle {
         if isActive {
-            return AnyShapeStyle(.ultraThinMaterial)
+            return AnyShapeStyle(Color(hex: "142F43").opacity(0.6))
         }
-        return AnyShapeStyle(.ultraThinMaterial)
+        return AnyShapeStyle(Color(hex: "142F43").opacity(0.6))
     }
 
     var body: some View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(.ultraThinMaterial)
+                    .fill(Color(hex: "142F43").opacity(0.6))
                     .overlay(
                         Circle()
-                            .fill(isActive ? Color.accentColor.opacity(0.25) : Color.clear)
+                            .fill(isActive ? Color(hex: "8EDCEF").opacity(0.25) : Color.clear)
                     )
                     .overlay(
                         Circle()
                             .strokeBorder(
-                                isActive ? Color.accentColor.opacity(0.6) : Color.white.opacity(0.12),
+                                isActive ? Color(hex: "8EDCEF").opacity(0.6) : Color(hex: "E1EFF3").opacity(0.12),
                                 lineWidth: 1
                             )
                     )
@@ -46,10 +46,10 @@ struct CircleButton: View {
                 if let badge {
                     Text(badge)
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(hex: "E1EFF3"))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(Color.accentColor, in: Capsule())
+                        .background(Color(hex: "8EDCEF"), in: Capsule())
                         .offset(x: size * 0.3, y: -size * 0.3)
                 }
             }

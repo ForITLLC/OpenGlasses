@@ -50,7 +50,11 @@ class CameraService: ObservableObject {
     }
 
     func ensurePermission() async throws {
-        if permissionGranted { return }
+        print("[CAMERA] ensurePermission() called. permissionGranted=\(permissionGranted)")
+        if permissionGranted {
+            print("[CAMERA] Permission already granted (cached)")
+            return
+        }
 
         // Camera permission requires SDK registration state 3 (.registered).
         // State 2 gives PermissionError error 0. After backgrounding the SDK
@@ -81,65 +85,42 @@ class CameraService: ObservableObject {
         }
         NSLog("[Camera] Registration settled at state: %d", settledState)
 
-        NSLog("[Camera] Checking permissions directly with the Meta SDK...")
-        
-        let maxAttempts = 3
-        for attempt in 0..<maxAttempts {
-            if attempt > 0 {
-                NSLog("[Camera] Permission retry %d/%d...", attempt + 1, maxAttempts)
-                try? await Task.sleep(nanoseconds: 4_000_000_000) // 4s retry wait to give Bluetooth time to spin up
+        // Skip checkPermissionStatus -- it fails when no devices have permission yet.
+        // Go straight to requestPermission which triggers the Meta AI permission dialog.
+        do {
+            NSLog("[Camera] Requesting camera permission from Meta SDK...")
+            let status = try await Wearables.shared.requestPermission(.camera)
+            NSLog("[Camera] requestPermission returned: %@", String(describing: status))
+
+            if status == .granted {
+                permissionGranted = true
+                NSLog("[Camera] Camera permission granted!")
+                return
+            } else {
+                NSLog("[Camera] Camera permission denied by user")
+                throw CameraError.permissionDenied
             }
+        } catch let error as CameraError {
+            throw error  // Re-throw our own errors
+        } catch {
+            NSLog("[Camera] Permission request failed: %@ -- error type: %@",
+                  error.localizedDescription, String(describing: type(of: error)))
 
+            // If it's a PermissionError, the Meta AI app might not have shown the dialog.
+            // Try checkPermissionStatus as fallback -- maybe permission was already granted.
             do {
-                // Wait for SDK to be ready before calling checkPermissionStatus.
-                // Camera permission checks need full registration state 3.
-                let readyState = await waitForRegistration(minState: 3, timeoutSeconds: 10)
-                if readyState < 3 {
-                    throw CameraError.sdkNotRegistered
-                }
-
-                // Rely on the SDK's internal connection state.
-                let status = try await Wearables.shared.checkPermissionStatus(.camera)
-                NSLog("[Camera] checkPermissionStatus returned: %@", String(describing: status))
-                if status == .granted {
-                    NSLog("[Camera] Permission already granted")
+                let fallbackStatus = try await Wearables.shared.checkPermissionStatus(.camera)
+                if fallbackStatus == .granted {
                     permissionGranted = true
+                    NSLog("[Camera] Permission was already granted (fallback check)")
                     return
                 }
-
-                NSLog("[Camera] Permission not yet granted, requesting...")
-
-                let requestStatus = try await Wearables.shared.requestPermission(.camera)
-                NSLog("[Camera] requestPermission returned: %@", String(describing: requestStatus))
-                
-                guard requestStatus == .granted else {
-                    throw CameraError.permissionDenied
-                }
-                
-                permissionGranted = true
-                NSLog("[Camera] Permission granted via request")
-                return
             } catch {
-                NSLog("[Camera] Permission attempt %d/%d failed: %@",
-                      attempt + 1, maxAttempts, error.localizedDescription)
-                
-                // Log registration state for diagnosis — but never call startRegistration() from here.
-                if let nsError = error as NSError?, nsError.domain == "MWDATCore.PermissionError" {
-                    let currentState = Wearables.shared.registrationState.rawValue
-                    NSLog("[Camera] PermissionError at registration state %d — user must complete registration first", currentState)
-                    if currentState < 3 {
-                        throw CameraError.sdkNotRegistered
-                    }
-                }
-                
-                if (error as? CameraError) == .permissionDenied {
-                    throw CameraError.permissionDenied
-                }
-
-                if attempt == maxAttempts - 1 {
-                    throw CameraError.sdkNotRegistered
-                }
+                NSLog("[Camera] Fallback checkPermissionStatus also failed: %@", error.localizedDescription)
             }
+
+            // Surface the real error to the user
+            throw CameraError.permissionDenied
         }
     }
 
@@ -148,10 +129,13 @@ class CameraService: ObservableObject {
     /// Capture a photo from the glasses camera.
     /// Returns JPEG data of the captured photo.
     func capturePhoto() async throws -> Data {
+        print("[CAMERA] capturePhoto() called")
         isCaptureInProgress = true
         defer { isCaptureInProgress = false }
 
+        print("[CAMERA] Ensuring camera permission...")
         try await ensurePermission()
+        print("[CAMERA] Permission OK, creating photo session")
 
         // Create a temporary stream session for photo capture (needs .high resolution)
         let photoSession = StreamSession(

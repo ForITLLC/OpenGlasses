@@ -30,7 +30,8 @@ class LLMService: ObservableObject {
 
         var body: [String: Any] = [
             "text": text,
-            "userEmail": "b.thomas@forit.io"
+            "userEmail": "b.thomas@forit.io",
+            "fast": UserDefaults.standard.bool(forKey: "fastMode")
         ]
         if let imageData = imageData {
             body["imageBase64"] = imageData.base64EncodedString()

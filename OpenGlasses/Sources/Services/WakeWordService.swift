@@ -49,7 +49,7 @@ class WakeWordService: NSObject, ObservableObject {
         guard !audioSessionConfigured else { return }
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .allowBluetoothHFP, .defaultToSpeaker])
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.duckOthers, .allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             audioSessionConfigured = true
 
@@ -60,7 +60,7 @@ class WakeWordService: NSObject, ObservableObject {
             for output in route.outputs {
                 print("🔊 Audio output: \(output.portName) (\(output.portType.rawValue))")
             }
-            print("🎤 Audio session configured: .playAndRecord with Bluetooth")
+            print("🎤 Audio session configured: .playAndRecord/.voiceChat with Bluetooth")
 
             // Handle audio interruptions (phone calls, Siri, etc.)
             NotificationCenter.default.addObserver(
