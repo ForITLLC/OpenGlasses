@@ -461,6 +461,39 @@ class AppState: ObservableObject {
         }
     }
 
+    /// Capture photo and send to LLM with a prompt (e.g. "Turn this photo into a task")
+    func capturePhotoAndSend(prompt: String) async {
+        print("[CAMERA] capturePhotoAndSend called. prompt=\(prompt.prefix(50))")
+        guard isConnected else {
+            errorMessage = "Connect glasses first"
+            return
+        }
+        isProcessing = true
+        await speechService.speak("Taking a picture.")
+        do {
+            let photoData = try await cameraService.capturePhoto()
+            cameraService.saveToPhotoLibrary(photoData)
+            print("[CAMERA] Photo captured, sending to LLM: \(prompt)")
+            let response = try await llmService.sendMessage(prompt, locationContext: locationService.locationContext, imageData: photoData)
+            lastResponse = response
+            startStopListener()
+            await speechService.speak(response)
+            stopStopListener()
+        } catch {
+            print("[CAMERA] Photo+send failed: \(error.localizedDescription)")
+            errorMessage = "Photo failed: \(error.localizedDescription)"
+            ErrorReporter.shared.report("capturePhotoAndSend failed: \(error.localizedDescription)", source: "camera", level: "error")
+            await speechService.speak("Sorry, I couldn't take a photo. \(error.localizedDescription)")
+        }
+        isProcessing = false
+        if inConversation {
+            isListening = true
+            transcriptionService.startRecording()
+        } else {
+            await safeReturnToWakeWord()
+        }
+    }
+
     /// Start listening for user speech.
     /// - Parameter manualActivation: true when triggered by mic button (longer timeout), false for wake word
     func handleWakeWordDetected(manualActivation: Bool = false) async {

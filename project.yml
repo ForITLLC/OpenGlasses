@@ -26,8 +26,8 @@ targets:
     info:
       path: OpenGlasses/Info.plist
       properties:
-        CFBundleName: "Dolores"
-        CFBundleDisplayName: "Dolores"
+        CFBundleName: "Dolores Glasses"
+        CFBundleDisplayName: "Dolores Glasses"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:

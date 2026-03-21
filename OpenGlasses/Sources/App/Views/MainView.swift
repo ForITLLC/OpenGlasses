@@ -10,17 +10,20 @@ struct MainView: View {
     @EnvironmentObject var appState: AppState
 
     // 5 quick actions arranged in a circle around the avatar
+    // Quick actions — voice-first starting prompts around the ring
     private let quickActions: [(icon: String, label: String, action: QuickActionType)] = [
-        ("checklist", "Tasks", .prompt("What are my tasks today?")),
-        ("calendar", "Calendar", .prompt("What's on my calendar today?")),
-        ("camera.fill", "Photo", .photo),
-        ("envelope", "Emails", .prompt("Check my latest emails")),
-        ("note.text", "Notes", .prompt("Create a note")),
+        ("calendar", "Meetings", .prompt("Give me a summary of my meetings today")),
+        ("checklist", "Tasks", .prompt("Give me a summary of my tasks today")),
+        ("camera.fill", "Photo → Task", .photoThen("Turn this photo into a task")),
+        ("camera.viewfinder", "Photo → Lead", .photoThen("Create a lead from this business card")),
+        ("person.badge.plus", "New Lead", .prompt("Create a new lead")),
+        ("envelope", "Emails", .prompt("Summarize my unread emails")),
     ]
 
     enum QuickActionType {
         case prompt(String)
         case photo
+        case photoThen(String)  // Take photo, then send prompt with image
     }
 
     var body: some View {
@@ -55,6 +58,8 @@ struct MainView: View {
                                         await appState.handleTranscription(text)
                                     case .photo:
                                         await appState.capturePhotoFromGlasses()
+                                    case .photoThen(let prompt):
+                                        await appState.capturePhotoAndSend(prompt: prompt)
                                     }
                                 }
                             }
