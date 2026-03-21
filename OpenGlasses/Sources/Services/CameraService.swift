@@ -90,7 +90,7 @@ class CameraService: ObservableObject {
 
         // CHECK permission first (synchronous, no UI) — avoids opening Meta AI app if already granted
         do {
-            let currentStatus = try Wearables.shared.checkPermissionStatus(.camera)
+            let currentStatus = try await Wearables.shared.checkPermissionStatus(.camera)
             NSLog("[Camera] checkPermissionStatus returned: %@", String(describing: currentStatus))
             if currentStatus == .granted {
                 isCameraPermissionGranted = true
@@ -120,7 +120,7 @@ class CameraService: ObservableObject {
             NSLog("[Camera] requestPermission failed: %@", error.localizedDescription)
             // One more check — maybe permission was granted but the callback errored
             do {
-                let fallback = try Wearables.shared.checkPermissionStatus(.camera)
+                let fallback = try await Wearables.shared.checkPermissionStatus(.camera)
                 if fallback == .granted {
                     isCameraPermissionGranted = true
                     NSLog("[Camera] Permission granted (post-error fallback check)")
