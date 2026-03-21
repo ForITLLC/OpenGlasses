@@ -36,8 +36,10 @@ class LiveActivityManager {
             )
             currentActivity = activity
             print("[LiveActivity] Started: \(activity.id)")
+            ErrorReporter.shared.report("LiveActivity started: \(activity.id)", source: "live-activity", level: "info")
         } catch {
             print("[LiveActivity] Failed to start: \(error)")
+            ErrorReporter.shared.report("LiveActivity failed to start: \(error)", source: "live-activity", level: "error")
         }
     }
 

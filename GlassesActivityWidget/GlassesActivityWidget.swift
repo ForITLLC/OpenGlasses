@@ -12,91 +12,95 @@ struct GlassesActivityWidgetBundle: WidgetBundle {
 struct GlassesActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: GlassesActivityAttributes.self) { context in
-            // Lock Screen banner — the rectangle widget on the Lock Screen
-            HStack(spacing: 12) {
-                // Glasses icon with connection dot
-                ZStack(alignment: .bottomTrailing) {
-                    Image(systemName: "eyeglasses")
-                        .font(.system(size: 28))
-                        .foregroundColor(.white)
-                    Circle()
-                        .fill(context.state.isConnected ? Color.green : Color.gray)
-                        .frame(width: 10, height: 10)
-                        .offset(x: 3, y: 3)
-                }
-                .frame(width: 40)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(context.state.status)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-
-                    if !context.state.lastResponse.isEmpty {
-                        Text(context.state.lastResponse)
-                            .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.7))
-                            .lineLimit(2)
+            // Lock Screen presentation
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    // Left: Glasses icon with status dot
+                    ZStack(alignment: .bottomTrailing) {
+                        Image(systemName: "eyeglasses")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundStyle(.white)
+                        Circle()
+                            .fill(context.state.isConnected ? Color.green : Color.gray)
+                            .frame(width: 8, height: 8)
+                            .offset(x: 2, y: 2)
                     }
+
+                    // Center: Status + response
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(context.state.status)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+
+                        Text(context.state.lastResponse.isEmpty ? "Dolores AI" : context.state.lastResponse)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    // Right: Status icon (mic/brain/speaker)
+                    Image(systemName: statusIconName(state: context.state))
+                        .font(.system(size: 20))
+                        .foregroundStyle(statusColor(state: context.state))
+                        .symbolEffect(.pulse, isActive: context.state.isListening || context.state.isProcessing)
                 }
-
-                Spacer()
-
-                statusIcon(state: context.state)
-                    .font(.system(size: 24))
-                    .foregroundColor(statusColor(state: context.state))
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .activityBackgroundTint(Color(red: 0.08, green: 0.18, blue: 0.26)) // ForIT navy — visible on Lock Screen
+            .padding(16)
+            .activityBackgroundTint(Color.black.opacity(0.4))
             .activitySystemActionForegroundColor(.white)
 
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: "eyeglasses")
-                        .font(.system(size: 20))
-                        .foregroundColor(context.state.isConnected ? .green : .gray)
+                    HStack(spacing: 6) {
+                        Image(systemName: "eyeglasses")
+                            .font(.system(size: 18))
+                            .foregroundStyle(context.state.isConnected ? .green : .gray)
+                        Text("Glasses")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    statusIcon(state: context.state)
-                        .font(.system(size: 20))
-                        .foregroundColor(statusColor(state: context.state))
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.status)
-                        .font(.headline)
-                        .foregroundColor(.white)
+                    Image(systemName: statusIconName(state: context.state))
+                        .font(.system(size: 18))
+                        .foregroundStyle(statusColor(state: context.state))
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if !context.state.lastResponse.isEmpty {
-                        Text(context.state.lastResponse)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(context.state.status)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                        if !context.state.lastResponse.isEmpty {
+                            Text(context.state.lastResponse)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
                 Image(systemName: "eyeglasses")
-                    .foregroundColor(context.state.isConnected ? .green : .gray)
-                    .font(.system(size: 14))
+                    .foregroundStyle(context.state.isConnected ? .green : .gray)
             } compactTrailing: {
-                statusIcon(state: context.state)
-                    .foregroundColor(statusColor(state: context.state))
-                    .font(.system(size: 14))
+                Image(systemName: statusIconName(state: context.state))
+                    .foregroundStyle(statusColor(state: context.state))
             } minimal: {
-                Image(systemName: "eyeglasses")
-                    .foregroundColor(context.state.isConnected ? .green : .gray)
-                    .font(.system(size: 12))
+                Image(systemName: statusIconName(state: context.state))
+                    .foregroundStyle(statusColor(state: context.state))
             }
         }
     }
 
-    private func statusIcon(state: GlassesActivityAttributes.ContentState) -> Image {
-        if state.isListening { return Image(systemName: "waveform") }
-        if state.isSpeaking { return Image(systemName: "speaker.wave.2.fill") }
-        if state.isProcessing { return Image(systemName: "brain") }
-        if state.isConnected { return Image(systemName: "checkmark.circle.fill") }
-        return Image(systemName: "circle")
+    private func statusIconName(state: GlassesActivityAttributes.ContentState) -> String {
+        if state.isListening { return "waveform" }
+        if state.isSpeaking { return "speaker.wave.2.fill" }
+        if state.isProcessing { return "brain" }
+        if state.isConnected { return "mic.fill" }
+        return "mic.slash"
     }
 
     private func statusColor(state: GlassesActivityAttributes.ContentState) -> Color {

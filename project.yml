@@ -111,6 +111,8 @@ targets:
     sources:
       - path: GlassesActivityWidget
       - path: OpenGlasses/Sources/Models/GlassesActivityAttributes.swift
+    resources:
+      - path: GlassesActivityWidget/Assets.xcassets
     info:
       path: GlassesActivityWidget/Info.plist
       properties:
