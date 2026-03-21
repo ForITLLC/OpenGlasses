@@ -62,6 +62,8 @@
 	<string>Glasses saves photos to a dedicated album in your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Dolores uses speech recognition to detect the wake word and transcribe your questions.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

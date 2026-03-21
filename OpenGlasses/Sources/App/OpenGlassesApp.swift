@@ -193,6 +193,7 @@ class AppState: ObservableObject {
     let speechService = TextToSpeechService()
     let cameraService = CameraService()
     let locationService = LocationService()
+    let liveActivity = LiveActivityManager()
 
     private var cancellables: [Any] = []
     @Published var isProcessing: Bool = false
@@ -209,6 +210,32 @@ class AppState: ObservableObject {
         }
         // Send all debug events to App Insights via ErrorReporter
         ErrorReporter.shared.report(message, source: "app", level: "debug")
+    }
+
+    /// Sync current state to the Live Activity
+    func syncLiveActivity() {
+        let status: String
+        if isListening { status = "Listening..." }
+        else if speechService.isSpeaking { status = "Speaking..." }
+        else if isProcessing { status = "Thinking..." }
+        else if !isConnected { status = "Disconnected" }
+        else { status = "Ready" }
+
+        if isConnected && !liveActivity.isActive {
+            liveActivity.start(glassesName: glassesService.deviceName ?? "Ray-Ban Meta")
+        } else if !isConnected && liveActivity.isActive {
+            liveActivity.end()
+            return
+        }
+
+        liveActivity.update(
+            status: status,
+            isConnected: isConnected,
+            lastResponse: lastResponse,
+            isListening: isListening,
+            isSpeaking: speechService.isSpeaking,
+            isProcessing: isProcessing
+        )
     }
 
     func recordCallback(url: URL, source: String) {
@@ -238,6 +265,7 @@ class AppState: ObservableObject {
         autoConnectGlasses()
         autoStartListening()
         locationService.startTracking()
+        observeLiveActivityState()
     }
 
     private func setupServiceCallbacks() {
@@ -747,6 +775,25 @@ class AppState: ObservableObject {
             print("[CRASH] safeReturnToWakeWord - wake word restart failed: \(error)")
             ErrorReporter.shared.report("[CRASH] safeReturnToWakeWord failed: \(error.localizedDescription)", source: "mic")
             errorMessage = "Tap mic button to restart"
+        }
+    }
+
+    // MARK: - Live Activity
+
+    private var lastLiveActivityState: String = ""
+
+    private func observeLiveActivityState() {
+        // Poll state every 0.5s and sync to Live Activity when changed
+        // This is simpler and more reliable than observing individual @Published properties
+        Task {
+            while true {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                let state = "\(isConnected)|\(isListening)|\(isProcessing)|\(speechService.isSpeaking)|\(lastResponse.prefix(80))"
+                if state != lastLiveActivityState {
+                    lastLiveActivityState = state
+                    syncLiveActivity()
+                }
+            }
         }
     }
 }
