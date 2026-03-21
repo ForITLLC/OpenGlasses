@@ -1,15 +1,16 @@
 import SwiftUI
 
 /// Primary interaction view — Dolores-branded with ForIT colors.
-/// Full-screen dark canvas with:
-///   1. ConnectionBanner (top)
-///   2. StatusIndicator (center) with circular ring of 7 quick-action buttons
-///   3. TranscriptOverlay (floating cards)
-///   4. BottomControlBar (bottom)
+/// Layout (top to bottom):
+///   1. ForIT logo watermark (top-left)
+///   2. Connection pill (top-left, below logo)
+///   3. Dolores avatar + quick actions (TRUE CENTER of screen)
+///   4. Transcript overlay (above mic button)
+///   5. Mic button (bottom center)
 struct MainView: View {
     @EnvironmentObject var appState: AppState
 
-    // Quick actions arranged in a circle around the avatar — ONLY actions
+    // 4 quick actions arranged in a circle around the avatar
     private let quickActions: [(icon: String, label: String, prompt: String)] = [
         ("checklist", "Tasks", "What are my tasks today?"),
         ("calendar", "Calendar", "What's on my calendar today?"),
@@ -26,7 +27,7 @@ struct MainView: View {
                 endPoint: .bottom
             ).ignoresSafeArea()
 
-            // ForIT brand watermark — top-left
+            // Layer 1: ForIT logo (top-left)
             VStack {
                 HStack {
                     Image("ForITLogo")
@@ -43,47 +44,43 @@ struct MainView: View {
                 Spacer()
             }
 
+            // Layer 2: Main content stack
             VStack(spacing: 0) {
+                // Connection status (below safe area)
+                ConnectionBanner()
+                    .padding(.top, 4)
+
                 Spacer()
 
-                // Center: Dolores avatar + quick action ring
-                GeometryReader { geo in
-                    let ringSize = min(geo.size.width, geo.size.height) * 0.85
+                // CENTER: Dolores avatar + quick action ring
+                ZStack {
+                    StatusIndicator()
 
-                    ZStack {
-                        // Dolores avatar at center
-                        StatusIndicator()
-
-                        // Quick action ring — hidden during processing
-                        if !appState.isProcessing && !appState.isListening {
-                            RadialLayout() {
-                                ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
-                                    quickActionButton(icon: action.icon, label: action.label) {
-                                        await appState.handleTranscription(action.prompt)
-                                    }
+                    // Quick action ring — hidden during processing/listening
+                    if !appState.isProcessing && !appState.isListening {
+                        RadialLayout() {
+                            ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
+                                quickActionButton(icon: action.icon, label: action.label) {
+                                    await appState.handleTranscription(action.prompt)
                                 }
                             }
-                            .frame(width: ringSize, height: ringSize)
-                            .transition(.opacity.combined(with: .scale))
                         }
+                        .frame(width: 280, height: 280)
+                        .transition(.opacity.combined(with: .scale))
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .animation(.easeInOut(duration: 0.2), value: appState.isProcessing)
                 .animation(.easeInOut(duration: 0.2), value: appState.isListening)
 
                 Spacer()
 
-                // Transcript cards floating above the control bar
+                // Transcript cards floating above the mic button
                 TranscriptOverlay()
                     .padding(.bottom, 8)
 
-                // Connection status pills
-                ConnectionBanner()
-                    .padding(.bottom, 4)
-
-                // Bottom: mic button
+                // Bottom: single mic button
                 BottomControlBar()
+                    .padding(.bottom, 8)
             }
         }
         .preferredColorScheme(.dark)

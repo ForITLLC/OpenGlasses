@@ -100,17 +100,15 @@ struct StatusIndicator: View {
     }
 
     private var statusLabel: String {
-        if !appState.isConnected {
-            let status = appState.glassesService.connectionStatus
-            if status == "Not connected" { return "No Glasses" }
-            return status
-        }
         if appState.isListening { return "Listening..." }
         if appState.speechService.isSpeaking { return "Speaking..." }
+        if appState.isProcessing { return "Thinking..." }
+        if !appState.isConnected { return "Dolores" }
         return "Ready"
     }
 
     private var modeLabel: String {
+        if !appState.isConnected { return "Connect glasses to begin" }
         return "ForIT AI"
     }
 
