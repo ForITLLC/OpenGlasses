@@ -47,7 +47,8 @@ struct GlassesActivityWidget: Widget {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .activityBackgroundTint(Color(red: 0.04, green: 0.10, blue: 0.15))
+            .activityBackgroundTint(Color(red: 0.08, green: 0.18, blue: 0.26)) // ForIT navy — visible on Lock Screen
+            .activitySystemActionForegroundColor(.white)
 
         } dynamicIsland: { context in
             DynamicIsland {
