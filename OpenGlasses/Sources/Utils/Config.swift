@@ -41,24 +41,43 @@ struct Config {
 
     // MARK: - Wake Word
 
-    /// The primary wake word phrase (user-configurable)
+    /// All available wake phrases the user can enable
+    static let availableWakePhrases = [
+        "hey dolores", "hey assistant", "hey claude", "hey jarvis", "hey computer", "hey rayban",
+    ]
+
+    /// The primary wake word phrase (first enabled phrase)
     static var wakePhrase: String {
-        if let phrase = UserDefaults.standard.string(forKey: "wakePhrase"), !phrase.isEmpty {
-            return phrase.lowercased()
+        enabledWakePhrases.first ?? "hey dolores"
+    }
+
+    /// All enabled wake phrases (multi-select)
+    static var enabledWakePhrases: [String] {
+        if let phrases = UserDefaults.standard.stringArray(forKey: "enabledWakePhrases"), !phrases.isEmpty {
+            return phrases.map { $0.lowercased() }
         }
-        return "hey dolores"
+        return ["hey dolores"]
     }
 
+    static func setEnabledWakePhrases(_ phrases: [String]) {
+        UserDefaults.standard.set(phrases.map { $0.lowercased() }, forKey: "enabledWakePhrases")
+    }
+
+    /// Legacy setter — updates primary phrase
     static func setWakePhrase(_ phrase: String) {
-        UserDefaults.standard.set(phrase.lowercased(), forKey: "wakePhrase")
+        var current = enabledWakePhrases
+        if !current.contains(phrase.lowercased()) {
+            current.insert(phrase.lowercased(), at: 0)
+        }
+        setEnabledWakePhrases(current)
     }
 
-    /// Alternative spellings / misrecognitions of the wake phrase
+    /// Alternative spellings / misrecognitions — auto-generated for ALL enabled phrases
     static var alternativeWakePhrases: [String] {
         if let alts = UserDefaults.standard.stringArray(forKey: "alternativeWakePhrases"), !alts.isEmpty {
             return alts.map { $0.lowercased() }
         }
-        return Self.defaultAlternativesForPhrase(wakePhrase)
+        return enabledWakePhrases.flatMap { Self.defaultAlternativesForPhrase($0) }
     }
 
     static func setAlternativeWakePhrases(_ phrases: [String]) {

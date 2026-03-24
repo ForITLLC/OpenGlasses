@@ -4,7 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
     @State private var speedMode: String = UserDefaults.standard.string(forKey: "speedMode") ?? "fast"
-    @State private var wakePhrase: String = Config.wakePhrase
+    @State private var enabledWakePhrases: Set<String> = Set(Config.enabledWakePhrases)
     @State private var apiKey: String = UserDefaults.standard.string(forKey: "doloresAPIKey") ?? ""
     @State private var userEmail: String = Config.userEmail
 
@@ -81,17 +81,35 @@ struct SettingsView: View {
                     Text("Response Speed")
                 }
 
-                // Wake Word
-                Section("Wake Word") {
-                    Picker("Wake phrase", selection: $wakePhrase) {
-                        Text("Hey Dolores").tag("hey dolores")
-                        Text("Hey Assistant").tag("hey assistant")
+                // Wake Words (multi-select)
+                Section {
+                    ForEach(Config.availableWakePhrases, id: \.self) { phrase in
+                        Button {
+                            if enabledWakePhrases.contains(phrase) {
+                                if enabledWakePhrases.count > 1 {
+                                    enabledWakePhrases.remove(phrase)
+                                }
+                            } else {
+                                enabledWakePhrases.insert(phrase)
+                            }
+                            Config.setEnabledWakePhrases(Array(enabledWakePhrases))
+                        } label: {
+                            HStack {
+                                Text(phrase.split(separator: " ").map { $0.capitalized }.joined(separator: " "))
+                                    .foregroundColor(Color(hex: "E1EFF3"))
+                                Spacer()
+                                if enabledWakePhrases.contains(phrase) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(Color(hex: "8EDCEF"))
+                                }
+                            }
+                        }
                     }
-                    .pickerStyle(.menu)
-                    .foregroundColor(Color(hex: "8EDCEF"))
-                    .onChange(of: wakePhrase) { _, newValue in
-                        Config.setWakePhrase(newValue)
-                    }
+                } header: {
+                    Text("Wake Words")
+                } footer: {
+                    Text("Select one or more. The app listens for all enabled phrases simultaneously.")
+                        .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
                 }
 
                 // About

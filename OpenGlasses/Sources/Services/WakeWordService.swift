@@ -30,6 +30,7 @@ class WakeWordService: NSObject, ObservableObject {
     private var audioBufferForwarder: (@Sendable (AVAudioPCMBuffer) -> Void)?
 
     private var wakePhrase: String { Config.wakePhrase }
+    private var enabledPhrases: [String] { Config.enabledWakePhrases }
     private var alternativePhrases: [String] { Config.alternativeWakePhrases }
     private let stopPhrases = ["stop", "stop stop"]
 
@@ -238,10 +239,10 @@ class WakeWordService: NSObject, ObservableObject {
         recognitionRequest.shouldReportPartialResults = true
         recognitionRequest.requiresOnDeviceRecognition = false
         recognitionRequest.taskHint = .search  // Short phrase detection
-        // Boost recognition of the wake phrase and its alternatives
-        let allPhrases = [wakePhrase] + alternativePhrases
+        // Boost recognition of ALL enabled wake phrases + their alternatives
+        let allPhrases = enabledPhrases + alternativePhrases
         recognitionRequest.contextualStrings = allPhrases
-        print("🎤 Wake phrase: '\(wakePhrase)', alternatives: \(alternativePhrases), contextualStrings: \(allPhrases)")
+        print("🎤 Wake phrases: \(enabledPhrases), alternatives: \(alternativePhrases.count), contextualStrings: \(allPhrases.count)")
 
         // Reuse existing engine if it's already running AND has a valid format
         if let engine = audioEngine, engine.isRunning {
@@ -344,11 +345,19 @@ class WakeWordService: NSObject, ObservableObject {
     }
 
     private func containsWakePhrase(_ transcript: String) -> Bool {
-        // Log every transcript so we can see what the recognizer hears
-        print("🎤 Heard: '\(transcript)' (looking for: '\(wakePhrase)')")
-        if transcript.contains(wakePhrase) { return true }
+        // Check all enabled wake phrases
+        for phrase in enabledPhrases {
+            if transcript.contains(phrase) {
+                print("🎤 Heard: '\(transcript)' — matched '\(phrase)'")
+                return true
+            }
+        }
+        // Check alternatives (misrecognitions)
         for phrase in alternativePhrases {
-            if transcript.contains(phrase) { return true }
+            if transcript.contains(phrase) {
+                print("🎤 Heard: '\(transcript)' — matched alternative '\(phrase)'")
+                return true
+            }
         }
         return false
     }
