@@ -111,7 +111,7 @@ struct OpenGlassesApp: App {
                 }
                 // Restart wake word listener on foreground (only if enabled)
                 Task {
-                    guard Config.listeningEnabled else {
+                    guard appState.listeningEnabled else {
                         appState.addDebugEvent("Listening disabled — skipping wake word restart")
                         return
                     }
@@ -189,6 +189,22 @@ class AppState: ObservableObject {
     @Published var lastResponse: String = ""
     @Published var errorMessage: String?
     @Published var showSettings: Bool = false
+    @Published var listeningEnabled: Bool = Config.listeningEnabled
+
+    /// Toggle listening on/off — single source of truth for all UI
+    func setListeningEnabled(_ enabled: Bool) {
+        listeningEnabled = enabled
+        Config.setListeningEnabled(enabled)
+        if !enabled {
+            wakeWordService.stopListening()
+            liveActivity.end()
+            addDebugEvent("Listening DISABLED by user")
+        } else {
+            addDebugEvent("Listening ENABLED by user")
+            Task { try? await wakeWordService.startListening() }
+            syncLiveActivity()
+        }
+    }
 
     let glassesService = GlassesConnectionService()
     let wakeWordService = WakeWordService()
@@ -221,7 +237,7 @@ class AppState: ObservableObject {
     /// Only ends when app goes to background (handled in scenePhase onChange).
     func syncLiveActivity() {
         // Don't start or update Live Activity if listening is disabled
-        guard Config.listeningEnabled else {
+        guard listeningEnabled else {
             if liveActivity.isActive {
                 liveActivity.end()
             }

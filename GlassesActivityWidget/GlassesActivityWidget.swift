@@ -40,10 +40,21 @@ struct GlassesActivityWidget: Widget {
 
                     Spacer()
 
-                    // Right: Status icon (mic/brain/speaker)
-                    Image(systemName: statusIconName(state: context.state))
-                        .font(.system(size: 20))
-                        .foregroundStyle(statusColor(state: context.state))
+                    // Right: Disable button + status icon
+                    HStack(spacing: 8) {
+                        Button(intent: DisableListeningIntent()) {
+                            Image(systemName: "power")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.black.opacity(0.5))
+                                .padding(6)
+                                .background(Circle().fill(.black.opacity(0.1)))
+                        }
+                        .buttonStyle(.plain)
+
+                        Image(systemName: statusIconName(state: context.state))
+                            .font(.system(size: 20))
+                            .foregroundStyle(statusColor(state: context.state))
+                    }
                 }
             }
             .padding(16)

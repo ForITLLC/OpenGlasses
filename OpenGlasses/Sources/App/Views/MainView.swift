@@ -42,23 +42,15 @@ struct MainView: View {
                     ConnectionBanner()
                     Spacer()
                     Button {
-                        let newState = !Config.listeningEnabled
-                        Config.setListeningEnabled(newState)
-                        if !newState {
-                            appState.wakeWordService.stopListening()
-                            appState.liveActivity.end()
-                        } else {
-                            Task { try? await appState.wakeWordService.startListening() }
-                            appState.syncLiveActivity()
-                        }
+                        appState.setListeningEnabled(!appState.listeningEnabled)
                     } label: {
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(Config.listeningEnabled ? Color.green : Color.red.opacity(0.6))
+                                .fill(appState.listeningEnabled ? Color.green : Color.red.opacity(0.6))
                                 .frame(width: 8, height: 8)
-                            Text(Config.listeningEnabled ? "ON" : "OFF")
+                            Text(appState.listeningEnabled ? "ON" : "OFF")
                                 .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .foregroundColor(Config.listeningEnabled ? Color(hex: "8EDCEF") : Color(hex: "E1EFF3").opacity(0.4))
+                                .foregroundColor(appState.listeningEnabled ? Color(hex: "8EDCEF") : Color(hex: "E1EFF3").opacity(0.4))
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
@@ -67,7 +59,7 @@ struct MainView: View {
                                 .fill(Color(hex: "142F43").opacity(0.8))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Config.listeningEnabled ? Color.green.opacity(0.3) : Color.red.opacity(0.3), lineWidth: 1)
+                                        .stroke(appState.listeningEnabled ? Color.green.opacity(0.3) : Color.red.opacity(0.3), lineWidth: 1)
                                 )
                         )
                     }
