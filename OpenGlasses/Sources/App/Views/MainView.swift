@@ -15,7 +15,7 @@ struct MainView: View {
         ("calendar", "Meetings", .prompt("Give me a summary of my meetings today")),
         ("checklist", "Tasks", .prompt("Give me a summary of my tasks today")),
         ("camera.fill", "Photo → Task", .photoThen("Turn this photo into a task")),
-        ("person.text.rectangle", "Lead Lookup", .photoThen("Look at this business card or name tag. Extract the person's name, company, email, and any other details. Then search the CRM for this person — try searching by name and by company. If found, give me a brief on them: their role, our relationship, recent activity, any open deals. If not found, offer to create them as a new lead. Be concise — I'm wearing glasses and need a quick verbal briefing.")),
+        ("person.text.rectangle", "Lead Lookup", .photoThen("Look at this business card or name tag. Extract the person's name, company, email, and any other details visible. Then follow this exact sequence: 1) FIRST call enrich_lookup with their email and/or company domain — this gives you Lusha data (title, seniority, company size, revenue, LinkedIn). 2) THEN search the CRM by name and company to see if we already know them. 3) If found in CRM, call the AI summary tool to get our relationship briefing. 4) Combine everything into a concise verbal brief: who they are (from enrichment), our history with them (from CRM), and any open deals or flags. If not in CRM, tell me what enrichment found and offer to create them as a lead. Keep it short — I'm wearing glasses.")),
         ("camera.viewfinder", "New Lead", .photoThen("Create a lead from this business card")),
         ("envelope", "Emails", .prompt("Summarize my unread emails")),
     ]
