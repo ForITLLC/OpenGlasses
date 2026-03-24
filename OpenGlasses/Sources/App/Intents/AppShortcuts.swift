@@ -30,6 +30,41 @@ struct ActivateDoloresIntent: AppIntent {
     }
 }
 
+struct EnableListeningIntent: AppIntent {
+    static var title: LocalizedStringResource = "Turn On Dolores"
+    static var description = IntentDescription("Enable wake word listening and Live Activity")
+
+    static var isDiscoverable: Bool { true }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        guard let appState = AppStateProvider.shared else {
+            // App not running — just set the flag so it starts on next launch
+            Config.setListeningEnabled(true)
+            return .result(value: "Dolores will start listening when you open the app.")
+        }
+
+        appState.setListeningEnabled(true)
+        return .result(value: "Dolores is now listening.")
+    }
+}
+
+struct DisableListeningAppIntent: AppIntent {
+    static var title: LocalizedStringResource = "Turn Off Dolores"
+    static var description = IntentDescription("Disable wake word listening and end Live Activity")
+
+    static var isDiscoverable: Bool { true }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+        Config.setListeningEnabled(false)
+        if let appState = AppStateProvider.shared {
+            appState.setListeningEnabled(false)
+        }
+        return .result(value: "Dolores stopped listening.")
+    }
+}
+
 struct LeadLookupIntent: AppIntent {
     static var title: LocalizedStringResource = "Lead Lookup"
     static var description = IntentDescription("Take a photo and look up the person in CRM")
@@ -57,6 +92,18 @@ struct DoloresShortcuts: AppShortcutsProvider {
             phrases: ["Talk to \(.applicationName)", "Hey \(.applicationName)"],
             shortTitle: "Talk to Dolores",
             systemImageName: "waveform"
+        )
+        AppShortcut(
+            intent: EnableListeningIntent(),
+            phrases: ["Turn on \(.applicationName)", "Enable \(.applicationName)", "Start \(.applicationName)"],
+            shortTitle: "Turn On",
+            systemImageName: "power"
+        )
+        AppShortcut(
+            intent: DisableListeningAppIntent(),
+            phrases: ["Turn off \(.applicationName)", "Disable \(.applicationName)", "Stop \(.applicationName)"],
+            shortTitle: "Turn Off",
+            systemImageName: "power.circle.fill"
         )
         AppShortcut(
             intent: LeadLookupIntent(),
