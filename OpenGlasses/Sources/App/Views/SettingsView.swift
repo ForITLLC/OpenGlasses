@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
+    @State private var listeningEnabled: Bool = Config.listeningEnabled
     @State private var speedMode: String = UserDefaults.standard.string(forKey: "speedMode") ?? "fast"
     @State private var enabledWakePhrases: Set<String> = Set(Config.enabledWakePhrases)
     @State private var apiKey: String = UserDefaults.standard.string(forKey: "doloresAPIKey") ?? ""
@@ -79,6 +80,33 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Response Speed")
+                }
+
+                // Listening Master Switch
+                Section {
+                    Toggle(isOn: $listeningEnabled) {
+                        HStack {
+                            Image(systemName: listeningEnabled ? "ear.fill" : "ear.badge.waveform")
+                                .foregroundColor(listeningEnabled ? Color(hex: "8EDCEF") : .red)
+                            Text(listeningEnabled ? "Listening Active" : "Listening Disabled")
+                                .foregroundColor(Color(hex: "E1EFF3"))
+                        }
+                    }
+                    .tint(Color(hex: "8EDCEF"))
+                    .onChange(of: listeningEnabled) { _, newValue in
+                        Config.setListeningEnabled(newValue)
+                        if !newValue {
+                            appState.wakeWordService.stopListening()
+                            appState.liveActivity.endActivity()
+                        } else {
+                            Task { try? await appState.wakeWordService.startListening() }
+                        }
+                    }
+                } footer: {
+                    Text(listeningEnabled
+                        ? "Wake word detection is running. Disable to save battery."
+                        : "All listening stopped. Wake word, mic, and Live Activity are off.")
+                        .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
                 }
 
                 // Wake Words (multi-select)

@@ -104,6 +104,19 @@ struct Config {
         }
     }
 
+    // MARK: - Listening Enabled
+
+    /// Master switch — when off, wake word listener does not auto-start
+    static var listeningEnabled: Bool {
+        // Default to true if not set
+        if UserDefaults.standard.object(forKey: "listeningEnabled") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "listeningEnabled")
+    }
+
+    static func setListeningEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: "listeningEnabled")
+    }
+
     // MARK: - Custom System Prompt
 
     static let defaultSystemPrompt = """

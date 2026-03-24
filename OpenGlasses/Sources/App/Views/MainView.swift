@@ -37,9 +37,27 @@ struct MainView: View {
 
             // Main content stack
             VStack(spacing: 0) {
-                // Top: Mic + Camera connection status pills
-                ConnectionBanner()
-                    .padding(.top, 4)
+                // Top: Connection banner + power button
+                HStack {
+                    ConnectionBanner()
+                    Spacer()
+                    Button {
+                        let newState = !Config.listeningEnabled
+                        Config.setListeningEnabled(newState)
+                        if !newState {
+                            appState.wakeWordService.stopListening()
+                        } else {
+                            Task { try? await appState.wakeWordService.startListening() }
+                        }
+                    } label: {
+                        Image(systemName: Config.listeningEnabled ? "power" : "power.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(Config.listeningEnabled ? Color(hex: "8EDCEF").opacity(0.5) : .red)
+                            .padding(8)
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.horizontal, 8)
 
                 Spacer()
 

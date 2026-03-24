@@ -109,8 +109,12 @@ struct OpenGlassesApp: App {
                         print("Registration dropped to \(state.rawValue) after background — waiting for natural reconnect...")
                     }
                 }
-                // Restart wake word listener on foreground
+                // Restart wake word listener on foreground (only if enabled)
                 Task {
+                    guard Config.listeningEnabled else {
+                        appState.addDebugEvent("Listening disabled — skipping wake word restart")
+                        return
+                    }
                     let regState = appState.registrationStateRaw
                     guard regState >= 3 else {
                         appState.addDebugEvent("Skipping wake word restart on foreground: registration state=\(regState)")
