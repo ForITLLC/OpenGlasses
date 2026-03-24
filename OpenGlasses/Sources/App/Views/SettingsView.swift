@@ -97,7 +97,7 @@ struct SettingsView: View {
                         Config.setListeningEnabled(newValue)
                         if !newValue {
                             appState.wakeWordService.stopListening()
-                            appState.liveActivity.endActivity()
+                            appState.liveActivity.end()
                         } else {
                             Task { try? await appState.wakeWordService.startListening() }
                         }
