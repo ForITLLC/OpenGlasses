@@ -220,6 +220,14 @@ class AppState: ObservableObject {
     /// Activity starts on first connection and persists even during brief disconnects.
     /// Only ends when app goes to background (handled in scenePhase onChange).
     func syncLiveActivity() {
+        // Don't start or update Live Activity if listening is disabled
+        guard Config.listeningEnabled else {
+            if liveActivity.isActive {
+                liveActivity.end()
+            }
+            return
+        }
+
         let status: String
         if isListening { status = "Listening..." }
         else if speechService.isSpeaking { status = "Speaking..." }

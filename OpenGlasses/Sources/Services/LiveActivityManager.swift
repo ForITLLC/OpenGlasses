@@ -68,12 +68,10 @@ class LiveActivityManager {
         }
     }
 
-    /// End the Live Activity
+    /// End the Live Activity — kills current AND any stale activities
     func end() {
-        guard let activity = currentActivity else { return }
-
         let finalState = GlassesActivityAttributes.ContentState(
-            status: "Disconnected",
+            status: "Disabled",
             isConnected: false,
             lastResponse: "",
             isListening: false,
@@ -81,11 +79,22 @@ class LiveActivityManager {
             isProcessing: false
         )
 
-        Task {
-            await activity.end(.init(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
-            print("[LiveActivity] Ended")
+        // End tracked activity
+        if let activity = currentActivity {
+            Task {
+                await activity.end(.init(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
+                print("[LiveActivity] Ended tracked activity")
+            }
+            currentActivity = nil
         }
-        currentActivity = nil
+
+        // Also kill any stale activities from previous launches
+        Task {
+            for activity in Activity<GlassesActivityAttributes>.activities {
+                await activity.end(.init(state: finalState, staleDate: nil), dismissalPolicy: .immediate)
+                print("[LiveActivity] Ended stale activity: \(activity.id)")
+            }
+        }
     }
 
     var isActive: Bool { currentActivity != nil }

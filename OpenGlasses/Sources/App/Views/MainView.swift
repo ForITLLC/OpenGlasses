@@ -46,14 +46,30 @@ struct MainView: View {
                         Config.setListeningEnabled(newState)
                         if !newState {
                             appState.wakeWordService.stopListening()
+                            appState.liveActivity.end()
                         } else {
                             Task { try? await appState.wakeWordService.startListening() }
+                            appState.syncLiveActivity()
                         }
                     } label: {
-                        Image(systemName: Config.listeningEnabled ? "power" : "power.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(Config.listeningEnabled ? Color(hex: "8EDCEF").opacity(0.5) : .red)
-                            .padding(8)
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Config.listeningEnabled ? Color.green : Color.red.opacity(0.6))
+                                .frame(width: 8, height: 8)
+                            Text(Config.listeningEnabled ? "ON" : "OFF")
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundColor(Config.listeningEnabled ? Color(hex: "8EDCEF") : Color(hex: "E1EFF3").opacity(0.4))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(hex: "142F43").opacity(0.8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Config.listeningEnabled ? Color.green.opacity(0.3) : Color.red.opacity(0.3), lineWidth: 1)
+                                )
+                        )
                     }
                 }
                 .padding(.top, 4)
