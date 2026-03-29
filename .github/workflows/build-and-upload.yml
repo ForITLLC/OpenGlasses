@@ -21,8 +21,8 @@ jobs:
       - name: Select Xcode
         run: |
           ls /Applications/ | grep Xcode
-          # Use Xcode 16.1 (GA release)
-          sudo xcode-select -s /Applications/Xcode_16.1.app || sudo xcode-select -s /Applications/Xcode.app
+          # Meta Wearables DAT SDK requires Swift 6.2+ (Xcode 16.2+)
+          sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s /Applications/Xcode.app
           xcodebuild -version
 
       - name: Install signing materials
