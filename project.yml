@@ -72,6 +72,10 @@ targets:
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: "Automatic"
         CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
+      configs:
+        Release:
+          CODE_SIGN_STYLE: "Manual"
+          PROVISIONING_PROFILE_SPECIFIER: "OpenGlasses App Store"
     dependencies:
       - package: meta-wearables-dat-ios
         product: MWDATCore
@@ -104,6 +108,10 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: "Automatic"
+      configs:
+        Release:
+          CODE_SIGN_STYLE: "Manual"
+          PROVISIONING_PROFILE_SPECIFIER: "OpenGlasses Watch App Store"
 
   GlassesActivityWidget:
     type: app-extension
@@ -128,3 +136,7 @@ targets:
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: "Automatic"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+      configs:
+        Release:
+          CODE_SIGN_STYLE: "Manual"
+          PROVISIONING_PROFILE_SPECIFIER: "OpenGlasses Widget App Store"
