@@ -61,6 +61,21 @@ jobs:
 
           security find-identity -v -p codesigning $KEYCHAIN_PATH
 
+      - name: Create Secrets.plist
+        env:
+          DOLORES_API_KEY: ${{ secrets.DOLORES_API_KEY }}
+        run: |
+          cat > OpenGlasses/Secrets.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>DOLORES_API_KEY</key>
+            <string>${DOLORES_API_KEY:-placeholder}</string>
+          </dict>
+          </plist>
+          PLIST
+
       - name: Generate Xcode project
         run: |
           brew install xcodegen || true
