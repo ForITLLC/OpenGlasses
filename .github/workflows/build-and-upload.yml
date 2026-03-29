@@ -1,0 +1,124 @@
+name: Build & Upload to App Store Connect
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SCHEME: OpenGlasses
+  PROJECT: OpenGlasses.xcodeproj
+  TEAM_ID: UUSSWWML2A
+  ASC_KEY_ID: 78ND83SSBB
+  ASC_ISSUER_ID: b21bbf92-e667-43f9-b358-29908a814489
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          ls /Applications/ | grep Xcode
+          # Use Xcode 16.1 (GA release)
+          sudo xcode-select -s /Applications/Xcode_16.1.app || sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      - name: Install signing materials
+        env:
+          DISTRIBUTION_CERT_BASE64: ${{ secrets.DISTRIBUTION_CERT_BASE64 }}
+          DISTRIBUTION_KEY_BASE64: ${{ secrets.DISTRIBUTION_KEY_BASE64 }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          WATCH_PROFILE_BASE64: ${{ secrets.WATCH_PROFILE_BASE64 }}
+          WIDGET_PROFILE_BASE64: ${{ secrets.WIDGET_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import cert + key
+          echo -n "$DISTRIBUTION_CERT_BASE64" | base64 -D > $RUNNER_TEMP/dist.cer
+          security import $RUNNER_TEMP/dist.cer -k $KEYCHAIN_PATH -A
+          echo -n "$DISTRIBUTION_KEY_BASE64" | base64 -D > $RUNNER_TEMP/dist.key
+          security import $RUNNER_TEMP/dist.key -k $KEYCHAIN_PATH -A
+
+          # Apple WWDR intermediate
+          curl -sO https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          security import AppleWWDRCAG3.cer -k $KEYCHAIN_PATH
+
+          security list-keychains -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Install all 3 provisioning profiles
+          PP_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PP_DIR"
+          echo -n "$PROVISIONING_PROFILE_BASE64" | base64 -D > "$PP_DIR/openglasses.mobileprovision"
+          echo -n "$WATCH_PROFILE_BASE64" | base64 -D > "$PP_DIR/watch.mobileprovision"
+          echo -n "$WIDGET_PROFILE_BASE64" | base64 -D > "$PP_DIR/widget.mobileprovision"
+
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen || true
+          xcodegen
+
+      - name: Archive
+        env:
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/.private_keys
+          echo -n "$ASC_KEY_BASE64" | base64 -D > ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+          xcodebuild -project $PROJECT -scheme $SCHEME \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -archivePath $RUNNER_TEMP/OpenGlasses.xcarchive \
+            DEVELOPMENT_TEAM=$TEAM_ID \
+            CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID $ASC_KEY_ID \
+            -authenticationKeyIssuerID $ASC_ISSUER_ID \
+            archive
+
+      - name: Export & Upload
+        env:
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/.private_keys
+          echo -n "$ASC_KEY_BASE64" | base64 -D > ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+          cat > $RUNNER_TEMP/ExportOptions.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>UUSSWWML2A</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/OpenGlasses.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID $ASC_KEY_ID \
+            -authenticationKeyIssuerID $ASC_ISSUER_ID
+
+      - name: Cleanup
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
