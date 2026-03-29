@@ -79,11 +79,8 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/OpenGlasses.xcarchive \
             DEVELOPMENT_TEAM=$TEAM_ID \
-            CODE_SIGN_STYLE=Automatic \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8 \
-            -authenticationKeyID $ASC_KEY_ID \
-            -authenticationKeyIssuerID $ASC_ISSUER_ID \
+            CODE_SIGN_STYLE=Manual \
+            "CODE_SIGN_IDENTITY=Apple Distribution: ForIT Limited Liability Company ($TEAM_ID)" \
             archive
 
       - name: Export & Upload
