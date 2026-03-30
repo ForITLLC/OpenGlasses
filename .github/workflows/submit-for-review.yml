@@ -1,0 +1,88 @@
+name: Submit for App Store Review
+
+on:
+  workflow_dispatch:
+
+env:
+  ASC_KEY_ID: 78ND83SSBB
+  ASC_ISSUER_ID: b21bbf92-e667-43f9-b358-29908a814489
+
+jobs:
+  submit:
+    runs-on: macos-14
+    steps:
+      - name: Setup ASC API key
+        env:
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/.private_keys
+          echo -n "$ASC_KEY_BASE64" | base64 -D > ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Generate JWT and submit
+        run: |
+          KEY_FILE="${HOME}/.private_keys/AuthKey_${ASC_KEY_ID}.p8"
+
+          # Generate JWT
+          NOW=$(date +%s)
+          EXP=$((NOW + 1200))
+          HEADER=$(echo -n '{"alg":"ES256","kid":"'"${ASC_KEY_ID}"'","typ":"JWT"}' | base64 | tr '+/' '-_' | tr -d '=\n')
+          PAYLOAD=$(echo -n '{"iss":"'"${ASC_ISSUER_ID}"'","iat":'"${NOW}"',"exp":'"${EXP}"',"aud":"appstoreconnect-v1"}' | base64 | tr '+/' '-_' | tr -d '=\n')
+          SIGNATURE=$(echo -n "${HEADER}.${PAYLOAD}" | openssl dgst -sha256 -sign "${KEY_FILE}" -binary | base64 | tr '+/' '-_' | tr -d '=\n')
+          JWT="${HEADER}.${PAYLOAD}.${SIGNATURE}"
+
+          AUTH="Authorization: Bearer ${JWT}"
+
+          # List all apps
+          echo "=== Apps ==="
+          APPS=$(curl -sf -H "$AUTH" \
+            "https://api.appstoreconnect.apple.com/v1/apps?fields[apps]=name,bundleId&limit=10")
+          echo "$APPS" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          for app in d.get('data', []):
+              print(f'{app[\"attributes\"][\"name\"]} ({app[\"attributes\"][\"bundleId\"]}) id={app[\"id\"]}')
+          "
+
+          # For each app, get the editable version and submit
+          for APP_ID in $(echo "$APPS" | python3 -c "import json,sys; [print(a['id']) for a in json.load(sys.stdin).get('data',[])]"); do
+            APP_NAME=$(echo "$APPS" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(a['attributes']['name']) for a in d['data'] if a['id']=='$APP_ID']")
+            echo ""
+            echo "=== Processing: $APP_NAME (${APP_ID}) ==="
+
+            # Get app store versions
+            VERSIONS=$(curl -sf -H "$AUTH" \
+              "https://api.appstoreconnect.apple.com/v1/apps/${APP_ID}/appStoreVersions?filter[appStoreState]=READY_FOR_SUBMISSION,PREPARE_FOR_SUBMISSION&fields[appStoreVersions]=versionString,appStoreState&limit=5" 2>/dev/null || echo '{"data":[]}')
+
+            echo "Versions:"
+            echo "$VERSIONS" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          for v in d.get('data', []):
+              print(f'  {v[\"attributes\"][\"versionString\"]} state={v[\"attributes\"][\"appStoreState\"]} id={v[\"id\"]}')
+          "
+
+            # Find a version ready for submission
+            VERSION_ID=$(echo "$VERSIONS" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          for v in d.get('data', []):
+              state = v['attributes']['appStoreState']
+              if state in ('READY_FOR_SUBMISSION',):
+                  print(v['id'])
+                  break
+          " 2>/dev/null || true)
+
+            if [ -n "$VERSION_ID" ]; then
+              echo "Submitting version ${VERSION_ID} for review..."
+              RESULT=$(curl -sf -X POST -H "$AUTH" -H "Content-Type: application/json" \
+                "https://api.appstoreconnect.apple.com/v1/appStoreVersionSubmissions" \
+                -d "{\"data\":{\"type\":\"appStoreVersionSubmissions\",\"relationships\":{\"appStoreVersion\":{\"data\":{\"type\":\"appStoreVersions\",\"id\":\"${VERSION_ID}\"}}}}}" 2>&1 || true)
+              echo "Result: $RESULT"
+            else
+              echo "No version in READY_FOR_SUBMISSION state. Current states shown above."
+              echo "May need: screenshots, app description, or build processing to complete."
+            fi
+          done
+
+          echo ""
+          echo "=== Done ==="
