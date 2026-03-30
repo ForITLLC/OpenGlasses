@@ -85,8 +85,7 @@ jobs:
 
               versions = asc_get(
                   f"/v1/apps/{app_id}/appStoreVersions"
-                  f""
-                  f"&fields%5BappStoreVersions%5D=versionString,appStoreState&limit=5"
+                  f"?fields%5BappStoreVersions%5D=versionString,appStoreState&limit=5"
               )
               if not versions or not versions.get("data"):
                   print("  No editable versions found")
