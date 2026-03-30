@@ -19,7 +19,7 @@ jobs:
           echo -n "$ASC_KEY_BASE64" | base64 -D > ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8
 
       - name: Install PyJWT
-        run: pip3 install PyJWT cryptography
+        run: pip3 install --break-system-packages PyJWT cryptography
 
       - name: Query apps and submit for review
         run: |
