@@ -85,7 +85,7 @@ jobs:
 
               versions = asc_get(
                   f"/v1/apps/{app_id}/appStoreVersions"
-                  f"?filter%5BappStoreState%5D=READY_FOR_SUBMISSION,PREPARE_FOR_SUBMISSION"
+                  f"?"
                   f"&fields%5BappStoreVersions%5D=versionString,appStoreState&limit=5"
               )
               if not versions or not versions.get("data"):
@@ -97,9 +97,11 @@ jobs:
                   print(f"  Version {va['versionString']} state={va['appStoreState']} id={v['id']}")
 
               # Find READY_FOR_SUBMISSION
-              ready = [v for v in versions["data"] if v["attributes"]["appStoreState"] == "READY_FOR_SUBMISSION"]
+              # Check for submittable states
+              submittable_states = {"READY_FOR_SUBMISSION", "PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW"}
+              ready = [v for v in versions["data"] if v["attributes"]["appStoreState"] in submittable_states]
               if not ready:
-                  print("  No version in READY_FOR_SUBMISSION state.")
+                  print("  No version in submittable state.")
                   print("  May need: screenshots, build selection, or privacy questionnaire.")
                   continue
 
