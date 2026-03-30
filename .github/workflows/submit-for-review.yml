@@ -18,84 +18,107 @@ jobs:
           mkdir -p ~/.private_keys
           echo -n "$ASC_KEY_BASE64" | base64 -D > ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8
 
-      - name: Generate JWT and submit
+      - name: Install PyJWT
+        run: pip3 install PyJWT cryptography
+
+      - name: Query apps and submit for review
         run: |
-          KEY_FILE="${HOME}/.private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          python3 << 'PYEOF'
+          import jwt, time, json, urllib.request, os
+
+          KEY_ID = os.environ["ASC_KEY_ID"]
+          ISSUER_ID = os.environ["ASC_ISSUER_ID"]
+          KEY_FILE = os.path.expanduser(f"~/.private_keys/AuthKey_{KEY_ID}.p8")
 
           # Generate JWT
-          NOW=$(date +%s)
-          EXP=$((NOW + 1200))
-          HEADER=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "${ASC_KEY_ID}" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
-          PAYLOAD=$(printf '{"iss":"%s","iat":%d,"exp":%d,"aud":"appstoreconnect-v1"}' "${ASC_ISSUER_ID}" "${NOW}" "${EXP}" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
-          SIGNATURE=$(printf '%s.%s' "${HEADER}" "${PAYLOAD}" | openssl dgst -sha256 -sign "${KEY_FILE}" -binary | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
-          JWT="${HEADER}.${PAYLOAD}.${SIGNATURE}"
+          with open(KEY_FILE, "r") as f:
+              private_key = f.read()
 
-          AUTH="Authorization: Bearer ${JWT}"
+          now = int(time.time())
+          token = jwt.encode(
+              {"iss": ISSUER_ID, "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+              private_key,
+              algorithm="ES256",
+              headers={"kid": KEY_ID},
+          )
+          print(f"JWT generated (len={len(token)})")
 
-          # Debug: show JWT header to verify format
-          echo "JWT header (first 50 chars): ${JWT:0:50}..."
-          echo "Key file exists: $(test -f "$KEY_FILE" && echo yes || echo no)"
-          echo "Key file size: $(wc -c < "$KEY_FILE") bytes"
+          headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-          # List all apps
-          echo "=== Apps ==="
-          HTTP_CODE=$(curl -s -o /tmp/asc-response.json -w "%{http_code}" --globoff \
-            -H "$AUTH" \
-            "https://api.appstoreconnect.apple.com/v1/apps?fields[apps]=name,bundleId&limit=10")
-          APPS=$(cat /tmp/asc-response.json)
-          echo "HTTP Status: ${HTTP_CODE}"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "ERROR: ASC API returned HTTP ${HTTP_CODE}"
-            echo "Response: ${APPS}"
-            exit 1
-          fi
-          echo "$APPS" | python3 -c "
-          import json, sys
-          d = json.load(sys.stdin)
-          for app in d.get('data', []):
-              print(f'{app[\"attributes\"][\"name\"]} ({app[\"attributes\"][\"bundleId\"]}) id={app[\"id\"]}')
-          "
+          def asc_get(path):
+              url = f"https://api.appstoreconnect.apple.com{path}"
+              req = urllib.request.Request(url, headers=headers)
+              try:
+                  resp = urllib.request.urlopen(req)
+                  return json.loads(resp.read())
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode()
+                  print(f"ERROR: {e.code} {body[:500]}")
+                  return None
 
-          # For each app, get the editable version and submit
-          for APP_ID in $(echo "$APPS" | python3 -c "import json,sys; [print(a['id']) for a in json.load(sys.stdin).get('data',[])]"); do
-            APP_NAME=$(echo "$APPS" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(a['attributes']['name']) for a in d['data'] if a['id']=='$APP_ID']")
-            echo ""
-            echo "=== Processing: $APP_NAME (${APP_ID}) ==="
+          def asc_post(path, data):
+              url = f"https://api.appstoreconnect.apple.com{path}"
+              req = urllib.request.Request(url, data=json.dumps(data).encode(), headers=headers, method="POST")
+              try:
+                  resp = urllib.request.urlopen(req)
+                  return json.loads(resp.read())
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode()
+                  print(f"ERROR: {e.code} {body[:500]}")
+                  return None
 
-            # Get app store versions
-            VERSIONS=$(curl -s --globoff -H "$AUTH" \
-              "https://api.appstoreconnect.apple.com/v1/apps/${APP_ID}/appStoreVersions?filter[appStoreState]=READY_FOR_SUBMISSION,PREPARE_FOR_SUBMISSION&fields[appStoreVersions]=versionString,appStoreState&limit=5" 2>/dev/null || echo '{"data":[]}')
+          # List apps
+          print("=== Apps ===")
+          apps = asc_get("/v1/apps?fields%5Bapps%5D=name,bundleId&limit=10")
+          if not apps:
+              exit(1)
 
-            echo "Versions:"
-            echo "$VERSIONS" | python3 -c "
-          import json, sys
-          d = json.load(sys.stdin)
-          for v in d.get('data', []):
-              print(f'  {v[\"attributes\"][\"versionString\"]} state={v[\"attributes\"][\"appStoreState\"]} id={v[\"id\"]}')
-          "
+          for app in apps["data"]:
+              attrs = app["attributes"]
+              print(f"  {attrs['name']} ({attrs['bundleId']}) id={app['id']}")
 
-            # Find a version ready for submission
-            VERSION_ID=$(echo "$VERSIONS" | python3 -c "
-          import json, sys
-          d = json.load(sys.stdin)
-          for v in d.get('data', []):
-              state = v['attributes']['appStoreState']
-              if state in ('READY_FOR_SUBMISSION',):
-                  print(v['id'])
-                  break
-          " 2>/dev/null || true)
+          # For each app, check versions and submit
+          for app in apps["data"]:
+              app_id = app["id"]
+              app_name = app["attributes"]["name"]
+              print(f"\n=== Processing: {app_name} ===")
 
-            if [ -n "$VERSION_ID" ]; then
-              echo "Submitting version ${VERSION_ID} for review..."
-              RESULT=$(curl -sf -X POST -H "$AUTH" -H "Content-Type: application/json" \
-                "https://api.appstoreconnect.apple.com/v1/appStoreVersionSubmissions" \
-                -d "{\"data\":{\"type\":\"appStoreVersionSubmissions\",\"relationships\":{\"appStoreVersion\":{\"data\":{\"type\":\"appStoreVersions\",\"id\":\"${VERSION_ID}\"}}}}}" 2>&1 || true)
-              echo "Result: $RESULT"
-            else
-              echo "No version in READY_FOR_SUBMISSION state. Current states shown above."
-              echo "May need: screenshots, app description, or build processing to complete."
-            fi
-          done
+              versions = asc_get(
+                  f"/v1/apps/{app_id}/appStoreVersions"
+                  f"?filter%5BappStoreState%5D=READY_FOR_SUBMISSION,PREPARE_FOR_SUBMISSION"
+                  f"&fields%5BappStoreVersions%5D=versionString,appStoreState&limit=5"
+              )
+              if not versions or not versions.get("data"):
+                  print("  No editable versions found")
+                  continue
 
-          echo ""
-          echo "=== Done ==="
+              for v in versions["data"]:
+                  va = v["attributes"]
+                  print(f"  Version {va['versionString']} state={va['appStoreState']} id={v['id']}")
+
+              # Find READY_FOR_SUBMISSION
+              ready = [v for v in versions["data"] if v["attributes"]["appStoreState"] == "READY_FOR_SUBMISSION"]
+              if not ready:
+                  print("  No version in READY_FOR_SUBMISSION state.")
+                  print("  May need: screenshots, build selection, or privacy questionnaire.")
+                  continue
+
+              version_id = ready[0]["id"]
+              print(f"  Submitting {version_id} for review...")
+              result = asc_post("/v1/appStoreVersionSubmissions", {
+                  "data": {
+                      "type": "appStoreVersionSubmissions",
+                      "relationships": {
+                          "appStoreVersion": {
+                              "data": {"type": "appStoreVersions", "id": version_id}
+                          }
+                      }
+                  }
+              })
+              if result:
+                  print(f"  SUBMITTED! id={result['data']['id']}")
+              else:
+                  print("  Submission failed — check errors above")
+
+          print("\n=== Done ===")
+          PYEOF
