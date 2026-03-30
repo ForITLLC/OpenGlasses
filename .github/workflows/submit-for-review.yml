@@ -9,7 +9,7 @@ env:
 
 jobs:
   submit:
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - name: Setup ASC API key
         env:
@@ -32,12 +32,21 @@ jobs:
 
           AUTH="Authorization: Bearer ${JWT}"
 
+          # Debug: show JWT header to verify format
+          echo "JWT header (first 50 chars): ${JWT:0:50}..."
+          echo "Key file exists: $(test -f "$KEY_FILE" && echo yes || echo no)"
+          echo "Key file size: $(wc -c < "$KEY_FILE") bytes"
+
           # List all apps
           echo "=== Apps ==="
-          APPS=$(curl -s --fail-with-body -H "$AUTH" \
+          HTTP_CODE=$(curl -s -o /tmp/asc-response.json -w "%{http_code}" --globoff \
+            -H "$AUTH" \
             "https://api.appstoreconnect.apple.com/v1/apps?fields[apps]=name,bundleId&limit=10")
-          if [ $? -ne 0 ]; then
-            echo "ERROR: ASC API call failed. Response: $APPS"
+          APPS=$(cat /tmp/asc-response.json)
+          echo "HTTP Status: ${HTTP_CODE}"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ERROR: ASC API returned HTTP ${HTTP_CODE}"
+            echo "Response: ${APPS}"
             exit 1
           fi
           echo "$APPS" | python3 -c "
@@ -54,7 +63,7 @@ jobs:
             echo "=== Processing: $APP_NAME (${APP_ID}) ==="
 
             # Get app store versions
-            VERSIONS=$(curl -sf -H "$AUTH" \
+            VERSIONS=$(curl -s --globoff -H "$AUTH" \
               "https://api.appstoreconnect.apple.com/v1/apps/${APP_ID}/appStoreVersions?filter[appStoreState]=READY_FOR_SUBMISSION,PREPARE_FOR_SUBMISSION&fields[appStoreVersions]=versionString,appStoreState&limit=5" 2>/dev/null || echo '{"data":[]}')
 
             echo "Versions:"

@@ -14,21 +14,18 @@ env:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
         run: |
-          ls /Applications/ | grep Xcode
-          # Meta Wearables DAT SDK requires Swift 6.2.3+ (Xcode 16.3+)
-          sudo xcode-select -s /Applications/Xcode_16.3.app || sudo xcode-select -s /Applications/Xcode.app
+          # Use Xcode 26.2 (default on macos-26 runner, iOS 26 SDK)
+          sudo xcode-select -s /Applications/Xcode_26.2.app || sudo xcode-select -s /Applications/Xcode.app
           xcodebuild -version
 
-      - name: Install iOS Simulator Runtime
+      - name: Verify iOS SDK
         run: |
-          # Xcode 16.3 needs matching simulator runtime for asset catalog compilation
-          xcodebuild -downloadPlatform iOS || echo "Download failed — may already be installed"
           xcrun simctl list runtimes | head -5
 
       - name: Install signing materials
