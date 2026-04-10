@@ -27,7 +27,7 @@ struct Config {
 
     /// User email for the ForIT AI Engine (identifies the user)
     static var userEmail: String {
-        UserDefaults.standard.string(forKey: "userEmail") ?? "b.thomas@forit.io"
+        UserDefaults.standard.string(forKey: "userEmail") ?? ""
     }
 
     static func setUserEmail(_ email: String) {

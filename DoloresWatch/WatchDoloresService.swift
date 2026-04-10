@@ -22,7 +22,9 @@ class WatchDoloresService {
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         request.timeoutInterval = 120
 
-        var body: [String: Any] = ["text": text, "userEmail": "b.thomas@forit.io", "fast": true]
+        let email = UserDefaults.standard.string(forKey: "userEmail") ?? ""
+        guard !email.isEmpty else { throw URLError(.userAuthenticationRequired) }
+        var body: [String: Any] = ["text": text, "userEmail": email, "fast": true]
         if let img = imageBase64 { body["imageBase64"] = img }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
