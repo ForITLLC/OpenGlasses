@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @State private var showLaunchScreen = true
-    @State private var needsOnboarding = Config.userEmail.isEmpty
+    @State private var needsOnboarding = Config.doloresAPIKey.isEmpty
 
     var body: some View {
         ZStack {
@@ -30,10 +30,10 @@ struct RootView: View {
     }
 }
 
-/// First-launch onboarding — just asks for email
+/// First-launch onboarding — just API key
 struct OnboardingView: View {
     let onComplete: () -> Void
-    @State private var email = ""
+    @State private var apiKey = ""
 
     var body: some View {
         ZStack {
@@ -52,22 +52,21 @@ struct OnboardingView: View {
                     .font(.title2.bold())
                     .foregroundColor(.white)
 
-                Text("Enter your ForIT email to get started.")
+                Text("Ask Dolores in Teams for your API key.")
                     .font(.body)
                     .foregroundColor(Color(hex: "8EDCEF").opacity(0.7))
+                    .multilineTextAlignment(.center)
 
-                TextField("Email", text: $email)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
+                TextField("Dolores API Key", text: $apiKey)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal, 40)
 
                 Button {
-                    let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                    guard !trimmed.isEmpty, trimmed.contains("@") else { return }
-                    Config.setUserEmail(trimmed)
+                    let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    Config.setAPIKey(trimmed)
                     onComplete()
                 } label: {
                     Text("Continue")
@@ -79,7 +78,7 @@ struct OnboardingView: View {
                         .cornerRadius(14)
                 }
                 .padding(.horizontal, 40)
-                .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 Spacer()
                 Spacer()

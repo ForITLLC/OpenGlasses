@@ -34,9 +34,11 @@ class LLMService: ObservableObject {
 
         var body: [String: Any] = [
             "text": text,
-            "userEmail": Config.userEmail,
             "fast": fastValue
         ]
+        // Include userEmail if set (legacy support), but per-user API keys don't need it
+        let email = Config.userEmail
+        if !email.isEmpty { body["userEmail"] = email }
         if let imageData = imageData {
             body["imageBase64"] = imageData.base64EncodedString()
         }
