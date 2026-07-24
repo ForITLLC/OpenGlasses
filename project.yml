@@ -10,7 +10,13 @@ options:
 packages:
   meta-wearables-dat-ios:
     url: https://github.com/facebook/meta-wearables-dat-ios.git
-    from: "0.3.0"
+    # PINNED EXACT — do not float. The app source targets the 0.5.0 API
+    # (StreamSession, StreamSessionConfig, DeviceStateSession, VideoFrame…).
+    # A floating `from: "0.3.0"` let a fresh CI resolve drift to 0.8.0, whose
+    # API renamed/removed those types → archive compile-failed (run 30123851437).
+    # xcodegen regenerates the .xcodeproj and discards the pinned Package.resolved,
+    # so the version MUST be pinned here to stay reproducible.
+    exactVersion: "0.5.0"
 
 targets:
   OpenGlasses:
