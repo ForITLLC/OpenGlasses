@@ -40,8 +40,11 @@ Sources: Apple *App build statuses* + *Distribute proprietary in-house apps* dep
   and we are *not* pursuing it).
 - **The expiry problem is now an automation problem, and it's solved.** The hardened CI pipeline
   (`.github/workflows/build-and-upload.yml`) computes the build number from *ASC latest + 1*, archives,
-  uploads, auto-clears export compliance, and assigns the build to "ForIT Internal" — so a fresh, installable
-  build is one push away, and a scheduled monthly run would keep a non-expired build live indefinitely.
+  uploads, and auto-clears export compliance. Because "ForIT Internal" is an internal group with
+  `hasAccessToAllBuilds=true`, every uploaded build is exposed to its testers automatically — no explicit
+  build→group assignment is needed (App Store Connect actually *rejects* one with 422 "Cannot add internal
+  group to a build"). So a fresh, installable build is one push away, and a scheduled monthly run would keep
+  a non-expired build live indefinitely.
 
 ## What the ABM Custom App path would cost (if chosen later)
 

@@ -3,6 +3,9 @@ name: Build & Upload to App Store Connect
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 env:
@@ -218,17 +221,32 @@ jobs:
               print(f"Cleared export compliance — {resp.status}")
           except urllib.error.HTTPError as e:
               print(f"Export compliance patch: {e.code} {e.read().decode()[:200]}")
-          # Assign to beta group
-          body = json.dumps({"data": [{"type": "builds", "id": bid}]}).encode()
-          req = urllib.request.Request(f"https://api.appstoreconnect.apple.com/v1/betaGroups/{GROUP}/relationships/builds", data=body, headers=h, method="POST")
-          try:
-              resp = urllib.request.urlopen(req)
-              print(f"Assigned to beta group — {resp.status}")
-          except urllib.error.HTTPError as e:
-              if e.code == 409:
-                  print("Already assigned (409) — ok")
-              else:
-                  print(f"ERROR {e.code}: {e.read().decode()}")
+          # Assign to beta group.
+          # NOTE: An INTERNAL group with hasAccessToAllBuilds=true already exposes EVERY
+          # build automatically — App Store Connect REJECTS explicit build->group assignment
+          # for it with 422 ENTITY_UNPROCESSABLE "Cannot add internal group to a build."
+          # (This 422 was previously print-swallowed, masking that the assign never happened.)
+          # So: inspect the group first; skip the impossible POST for all-builds groups,
+          # and fail LOUD on any genuinely unexpected error instead of printing past it.
+          greq = urllib.request.Request(f"https://api.appstoreconnect.apple.com/v1/betaGroups/{GROUP}", headers=h)
+          gattr = json.load(urllib.request.urlopen(greq))["data"]["attributes"]
+          if gattr.get("hasAccessToAllBuilds"):
+              print(f"Group '{gattr.get('name')}' is internal all-builds — build {WANT} is auto-available to its testers; no explicit assignment needed.")
+          else:
+              body = json.dumps({"data": [{"type": "builds", "id": bid}]}).encode()
+              req = urllib.request.Request(f"https://api.appstoreconnect.apple.com/v1/betaGroups/{GROUP}/relationships/builds", data=body, headers=h, method="POST")
+              try:
+                  resp = urllib.request.urlopen(req)
+                  print(f"Assigned to beta group — {resp.status}")
+              except urllib.error.HTTPError as e:
+                  msg = e.read().decode()
+                  if e.code == 409:
+                      print("Already assigned (409) — ok")
+                  elif e.code == 422 and "internal group" in msg.lower():
+                      print("Internal group — build auto-available; explicit assignment not applicable (422 benign).")
+                  else:
+                      print(f"ERROR {e.code}: {msg}")
+                      raise SystemExit(1)
           PYEOF
 
       - name: Cleanup
