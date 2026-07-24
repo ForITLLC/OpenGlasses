@@ -84,6 +84,32 @@ jobs:
           brew install xcodegen || true
           xcodegen
 
+      - name: Determine build number (ASC latest + 1)
+        env:
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+          APP_ID: "6761319043"
+        run: |
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography
+          BUILD_NUMBER=$(python3 <<'PYEOF'
+          import jwt, time, os, json, base64, urllib.request
+          key = base64.b64decode(os.environ["ASC_KEY_BASE64"]).decode()
+          tok = jwt.encode(
+              {"iss": os.environ["ASC_ISSUER_ID"], "iat": int(time.time()),
+               "exp": int(time.time())+600, "aud": "appstoreconnect-v1"},
+              key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"]})
+          h = {"Authorization": f"Bearer {tok}"}
+          app = os.environ["APP_ID"]
+          req = urllib.request.Request(
+              f"https://api.appstoreconnect.apple.com/v1/builds?filter[app]={app}&limit=200&fields[builds]=version",
+              headers=h)
+          data = json.load(urllib.request.urlopen(req))
+          nums = [int(b["attributes"]["version"]) for b in data["data"] if str(b["attributes"]["version"]).isdigit()]
+          print(max(nums)+1 if nums else 1)
+          PYEOF
+          )
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Computed build number (ASC max + 1): $BUILD_NUMBER"
+
       - name: Archive
         env:
           ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
@@ -91,12 +117,14 @@ jobs:
           mkdir -p ~/.private_keys
           echo -n "$ASC_KEY_BASE64" | base64 -D > ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8
 
+          echo "Archiving with CURRENT_PROJECT_VERSION=$BUILD_NUMBER"
           xcodebuild -project $PROJECT -scheme $SCHEME \
             -configuration Release \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -archivePath $RUNNER_TEMP/OpenGlasses.xcarchive \
             DEVELOPMENT_TEAM=$TEAM_ID \
+            CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
             CODE_SIGN_STYLE=Manual \
             "CODE_SIGN_IDENTITY=Apple Distribution: ForIT Limited Liability Company ($TEAM_ID)" \
             ENABLE_PREVIEWS=NO \
@@ -140,7 +168,8 @@ jobs:
         env:
           ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
           APP_ID: "6761319043"
-          GROUP_ID: "dcdf189d-49f3-422e-b62d-f091436d524b"
+          # "ForIT Internal" — purpose-built internal group (isInternalGroup=true, hasAccessToAllBuilds=true)
+          GROUP_ID: "971212a6-200e-4b9d-82cb-433d9c5105f2"
         run: |
           python3 -m pip install --quiet --break-system-packages pyjwt cryptography
           python3 << 'PYEOF'
@@ -153,25 +182,34 @@ jobs:
           h = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
           APP = os.environ["APP_ID"]
           GROUP = os.environ["GROUP_ID"]
-          # Poll for latest build to be VALID (processing takes ~1-3 min)
+          WANT = os.environ.get("BUILD_NUMBER", "").strip()  # target THIS build by version
+          # Poll for the build we just uploaded to become VALID (processing ~1-15 min)
           bid = None
-          for attempt in range(20):
+          for attempt in range(40):
               req = urllib.request.Request(
-                  f"https://api.appstoreconnect.apple.com/v1/builds?filter[app]={APP}&sort=-uploadedDate&limit=1",
+                  f"https://api.appstoreconnect.apple.com/v1/builds?filter[app]={APP}&sort=-uploadedDate&limit=10",
                   headers=h,
               )
               builds = json.load(urllib.request.urlopen(req))
-              if builds["data"]:
-                  latest = builds["data"][0]
-                  if latest["attributes"]["processingState"] == "VALID":
-                      bid = latest["id"]
-                      print(f"Build {latest['attributes']['version']} is VALID")
+              target = None
+              for b in builds["data"]:
+                  if WANT and str(b["attributes"]["version"]) == WANT:
+                      target = b; break
+              if target is None and not WANT and builds["data"]:
+                  target = builds["data"][0]  # fallback: newest
+              if target is not None:
+                  state = target["attributes"]["processingState"]
+                  if state == "VALID":
+                      bid = target["id"]
+                      print(f"Build {target['attributes']['version']} is VALID")
                       break
-                  print(f"Attempt {attempt+1}: state={latest['attributes']['processingState']}, waiting 30s")
+                  print(f"Attempt {attempt+1}: build {target['attributes'].get('version')} state={state}, waiting 30s")
+              else:
+                  print(f"Attempt {attempt+1}: build {WANT} not visible yet, waiting 30s")
               time.sleep(30)
           if not bid:
-              print("Build did not become VALID in time — skipping")
-              raise SystemExit(0)
+              print(f"Build {WANT or '(latest)'} did not become VALID in time — failing so it is not silently skipped")
+              raise SystemExit(1)
           # Clear export compliance
           body = json.dumps({"data": {"type": "builds", "id": bid, "attributes": {"usesNonExemptEncryption": False}}}).encode()
           req = urllib.request.Request(f"https://api.appstoreconnect.apple.com/v1/builds/{bid}", data=body, headers=h, method="PATCH")

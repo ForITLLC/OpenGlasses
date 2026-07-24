@@ -68,7 +68,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores
         DEVELOPMENT_TEAM: UUSSWWML2A
         MARKETING_VERSION: "1.3.1"
-        CURRENT_PROJECT_VERSION: "7"
+        # Local/base value only — CI overrides via CURRENT_PROJECT_VERSION=<ASC latest + 1>
+        # so uploads never collide with an existing App Store Connect build number.
+        CURRENT_PROJECT_VERSION: "18"
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: "Automatic"
         CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
