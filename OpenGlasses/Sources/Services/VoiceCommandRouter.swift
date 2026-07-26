@@ -34,8 +34,14 @@ struct VoiceCommandDecision: Equatable {
 ///
 /// Matching is on WORD BOUNDARIES via the tokeniser `WakeWordService` already uses, rather
 /// than a second copy of the logic. These classifiers previously used
-/// `lower.contains(phrase)` — the same defect ruled on for stop phrases — so "maybe
-/// tomorrow" ended the conversation, because "maybe" contains "bye".
+/// `lower.contains(phrase)` — the same defect ruled on for stop phrases — so "say your
+/// goodbyes to the crew" ended the conversation, because it contains "goodbye".
+///
+/// That substring surface is narrower than it is for "stop": few English words embed
+/// "bye" or "goodbye". The larger false-positive surface for these classifiers is a
+/// command phrase appearing inside an ordinary sentence — "that's all i wanted to ask
+/// about the weather" ends the conversation under BOTH matchers, and word boundaries do
+/// not help. What catches that class is the discard warning below, not the tokeniser.
 @MainActor
 enum VoiceCommandRouter {
 

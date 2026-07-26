@@ -189,11 +189,15 @@ final class VoiceCommandRoutingTests: XCTestCase {
 
     // MARK: - Word boundaries (the defect WO#816 ruled on, in its second copy)
 
-    /// "maybe" contains "bye". Under the shipped `contains` matching, planning a trip
-    /// ended the conversation.
+    /// Under the shipped `contains` matching, any word embedding a goodbye phrase ended
+    /// the conversation.
+    ///
+    /// This corpus is deliberately narrow, because the substring surface here IS narrow —
+    /// an earlier draft of this test claimed "maybe" contains "bye" and the positive
+    /// control below caught that it does not (m-a-y-b-e). The control stays for exactly
+    /// that reason: it fails if the "defect" being fixed was never real.
     func testGoodbyeNoLongerFiresOnWordsMerelyContainingBye() {
-        let falsePositives = ["maybe", "maybe tomorrow", "maybe you can check the weather",
-                              "say your goodbyes to the crew"]
+        let falsePositives = ["goodbyes", "say your goodbyes to the crew", "the byes are posted"]
 
         let legacyFired = falsePositives.filter(legacyGoodbye).count
         XCTAssertEqual(legacyFired, falsePositives.count,
@@ -204,6 +208,29 @@ final class VoiceCommandRoutingTests: XCTestCase {
                               "'\(utterance)' must not end the conversation")
         }
         print("VOICE-ROUTER-BOUNDARY goodbye false_positives=\(falsePositives.count) legacy_fired=\(legacyFired) new_fired=0")
+    }
+
+    /// The bigger false-positive surface, and the one word boundaries do NOT close: a
+    /// command phrase sitting inside an ordinary sentence. "that's all i wanted to ask
+    /// about the weather" ends the conversation under the shipped matcher AND under this
+    /// one — the phrase really is there as whole tokens. Asserted as-is rather than
+    /// claimed fixed. What catches it is the discard warning: the classifier consumed a
+    /// nine-word question to fire a three-word command.
+    func testACommandPhraseInsideASentenceStillFiresButIsNowReported() {
+        let cases = ["that's all i wanted to ask about the weather",
+                     "i want to go to sleep early tonight",
+                     "thanks claude that was helpful can you also check the hangar"]
+
+        for utterance in cases {
+            let decision = VoiceCommandRouter.route(utterance)
+            XCTAssertEqual(decision.command, .goodbye,
+                           "characterization: word boundaries do not fix this class")
+            XCTAssertTrue(legacyGoodbye(utterance),
+                          "positive control: the shipped predicate fired here too")
+            let discard = decision.warnings.filter { $0.contains("discarded") }
+            XCTAssertEqual(discard.count, 1, "\(utterance): \(decision.warnings)")
+            print("VOICE-ROUTER-OBSERVABLE sentence-swallow | \(discard[0])")
+        }
     }
 
     /// Tightening a predicate moves risk from false-positive to false-negative, and the

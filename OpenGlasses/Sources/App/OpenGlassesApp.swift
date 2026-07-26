@@ -655,8 +655,8 @@ class AppState: ObservableObject {
 
     // Classification lives in `VoiceCommandRouter`, which matches on word boundaries via
     // the same tokeniser `WakeWordService` uses. The three predicates that used to sit
-    // here were a second copy of phrase matching — `lower.contains(phrase)` with "bye" in
-    // the list, so "maybe tomorrow" ended the conversation.
+    // here were a second copy of phrase matching — `lower.contains(phrase)` over the same
+    // lists, so "say your goodbyes to the crew" ended the conversation.
 
     func handleTranscription(_ text: String) async {
         guard !isProcessing else {
