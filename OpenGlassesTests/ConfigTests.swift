@@ -3,12 +3,17 @@ import XCTest
 
 final class ConfigTests: XCTestCase {
 
+    // "wakePhrase" used to be listed here, but Config never reads or writes that key —
+    // setWakePhrase() writes "enabledWakePhrases". So the wake-phrase tests were leaking
+    // ["hey jarvis"] into the rest of the process, and testWakePhraseDefault passed only
+    // because XCTest happens to run it first alphabetically ("Default" < "SetAndGet").
     private let testKeys = [
-        "wakePhrase",
+        "enabledWakePhrases",
         "alternativeWakePhrases",
         "customSystemPrompt",
         "elevenLabsAPIKey",
         "elevenLabsVoiceId",
+        "listeningEnabled",
     ]
 
     override func setUp() {
@@ -51,6 +56,25 @@ final class ConfigTests: XCTestCase {
         let alts = Config.defaultAlternativesForPhrase("hey dolores")
         XCTAssertFalse(alts.isEmpty)
         XCTAssertTrue(alts.contains("hey delores"))
+    }
+
+    // MARK: - Listening master switch
+
+    /// The switch that decides whether the wake-word listener auto-starts at all.
+    /// It is deliberately absent-means-on: a fresh install has never written the key,
+    /// and if this regressed to false-by-default the app would ship mute — it would
+    /// simply never respond to "hey dolores" and look like a wake-word bug.
+    func testListeningIsEnabledByDefaultWhenNeverSet() {
+        XCTAssertNil(UserDefaults.standard.object(forKey: "listeningEnabled"),
+                     "precondition: the key must be unset for this to test the default")
+        XCTAssertTrue(Config.listeningEnabled)
+    }
+
+    func testListeningEnabledSetAndGet() {
+        Config.setListeningEnabled(false)
+        XCTAssertFalse(Config.listeningEnabled)
+        Config.setListeningEnabled(true)
+        XCTAssertTrue(Config.listeningEnabled)
     }
 
     // MARK: - System Prompt

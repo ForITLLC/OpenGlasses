@@ -141,7 +141,12 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
     }
 
     /// Generate a short WAV tone in memory
-    private static func generateToneData(frequency: Double, duration: Double, sampleRate: Double) throws -> Data {
+    ///
+    /// Internal rather than private so AudioToneGenerationTests can pin the WAV
+    /// contract. A drifted header field fails silently in production: the
+    /// `AVAudioPlayer(data:)` init throws, `playTone` swallows it into a system
+    /// sound, and the user just never hears the glasses acknowledge them.
+    static func generateToneData(frequency: Double, duration: Double, sampleRate: Double) throws -> Data {
         let numSamples = Int(sampleRate * duration)
         var samples = [Int16]()
         samples.reserveCapacity(numSamples)
@@ -193,7 +198,10 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
     }
 
     /// Generate a descending two-note WAV tone (440Hz → 330Hz) for disconnect
-    private static func generateDescendingToneData(sampleRate: Double) throws -> Data {
+    ///
+    /// Internal rather than private so AudioToneGenerationTests can pin the WAV
+    /// contract — see the note on `generateToneData`.
+    static func generateDescendingToneData(sampleRate: Double) throws -> Data {
         let note1Freq = 440.0  // A4
         let note2Freq = 330.0  // E4 (a fourth down — pleasant interval)
         let noteDuration = 0.1
