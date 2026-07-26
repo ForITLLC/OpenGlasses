@@ -4,12 +4,29 @@ import MWDATCore
 import AppIntents
 import UIKit
 
+/// Whether `Wearables.configure()` has actually succeeded.
+///
+/// MWDAT hard-traps (`fatalError`, Wearables.swift:191 "Call `configure()` before
+/// attempting to access Wearables!") on ANY `Wearables.shared` access when the SDK
+/// was never configured. `configureWearables()` only logs a configure() failure, so
+/// without this gate a failed configure turned into a crash the moment the app
+/// foregrounded or set up its listeners. Every startup-path access checks this.
+enum WearablesRuntime {
+    @MainActor static var isConfigured = false
+}
+
 private func processWearablesCallbackURL(_ url: URL, source: String) {
     NSLog("[OpenGlasses] [\(source)] Received URL callback: \(url.absoluteString)")
     Task { @MainActor in
         AppStateProvider.shared?.recordCallback(url: url, source: source)
     }
     Task {
+        // A callback URL can be delivered by Meta AI at any time, including when
+        // configure() failed at launch — handleUrl would then trap instead of throw.
+        guard await WearablesRuntime.isConfigured else {
+            NSLog("[OpenGlasses] [\(source)] Wearables SDK unconfigured — dropping URL callback")
+            return
+        }
         do {
             let result = try await Wearables.shared.handleUrl(url)
             NSLog("[OpenGlasses] [\(source)] handleUrl result: \(String(describing: result))")
@@ -103,7 +120,8 @@ struct OpenGlassesApp: App {
                 Task {
                     // Give onOpenURL time to process any pending Meta Auth callbacks
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    
+
+                    guard WearablesRuntime.isConfigured else { return }
                     let state = Wearables.shared.registrationState
                     if state.rawValue < 3 {
                         print("Registration dropped to \(state.rawValue) after background — waiting for natural reconnect...")
@@ -140,6 +158,7 @@ struct OpenGlassesApp: App {
         do {
             NSLog("[OpenGlasses] Logging active")
             try Wearables.configure()
+            WearablesRuntime.isConfigured = true
             NSLog("[OpenGlasses] Meta Wearables SDK configured successfully")
             let state = Wearables.shared.registrationState
             NSLog("[OpenGlasses] Registration state: \(state.rawValue)")
@@ -274,6 +293,7 @@ class AppState: ObservableObject {
     }
 
     private func waitForRegistration(minState: Int, timeoutSeconds: Double) async -> Int {
+        guard WearablesRuntime.isConfigured else { return 0 }
         let waitStart = ContinuousClock.now
         while true {
             let state = Wearables.shared.registrationState.rawValue
@@ -335,6 +355,15 @@ class AppState: ObservableObject {
     }
 
     private func observeGlassesConnection() {
+        // Without a configured SDK these calls fatalError. Registration stays at 0
+        // and the UI shows the unregistered state, which is the honest outcome when
+        // configure() failed.
+        guard WearablesRuntime.isConfigured else {
+            NSLog("[OpenGlasses] Wearables SDK unconfigured — skipping connection observers")
+            addDebugEvent("Wearables SDK unconfigured — glasses features unavailable")
+            return
+        }
+
         let deviceToken = Wearables.shared.addDevicesListener { [weak self] deviceIds in
             Task { @MainActor in
                 guard let self else { return }
@@ -377,6 +406,11 @@ class AppState: ObservableObject {
     private func autoConnectGlasses() {
         Task {
             try? await Task.sleep(nanoseconds: 500_000_000)
+            guard WearablesRuntime.isConfigured else {
+                self.isConnected = false
+                self.addDebugEvent("Wearables SDK unconfigured — skipping launch state check")
+                return
+            }
             let state = Wearables.shared.registrationState
             self.registrationStateRaw = state.rawValue
             print("Launch state check: state=\(state.rawValue)")
@@ -404,6 +438,10 @@ class AppState: ObservableObject {
 
     func completeAuthorizationInMetaAI() async {
         addDebugEvent("Manual Meta authorization requested")
+        guard WearablesRuntime.isConfigured else {
+            addDebugEvent("Wearables SDK unconfigured — cannot start registration")
+            return
+        }
         do {
             try await Wearables.shared.startRegistration()
         } catch {
@@ -425,6 +463,10 @@ class AppState: ObservableObject {
 
     func resetMetaRegistration() async {
         addDebugEvent("Manual reset requested: startUnregistration")
+        guard WearablesRuntime.isConfigured else {
+            addDebugEvent("Wearables SDK unconfigured — cannot reset registration")
+            return
+        }
         do {
             try await Wearables.shared.startUnregistration()
             addDebugEvent("startUnregistration succeeded")

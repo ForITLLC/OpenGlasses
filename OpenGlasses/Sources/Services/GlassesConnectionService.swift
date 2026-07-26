@@ -19,6 +19,11 @@ class GlassesConnectionService: ObservableObject {
     }
 
     private func observeDevices() {
+        // `Wearables.shared` fatalErrors when configure() failed — stay inert instead.
+        guard WearablesRuntime.isConfigured else {
+            connectionStatus = "Meta SDK not registered"
+            return
+        }
         devicesListenerToken = Wearables.shared.addDevicesListener { [weak self] deviceIds in
             Task { @MainActor in
                 self?.handleDevicesChanged(deviceIds)
@@ -43,6 +48,10 @@ class GlassesConnectionService: ObservableObject {
     }
 
     func connect() async {
+        guard WearablesRuntime.isConfigured else {
+            connectionStatus = "Meta SDK not registered"
+            return
+        }
         connectionStatus = "Registering..."
         let stateBefore = Wearables.shared.registrationState
         print("📋 Registration state before: \(stateBefore)")

@@ -33,10 +33,13 @@ class CameraService: ObservableObject {
         case streaming, waiting, stopped
     }
 
-    // Core SDK objects — created ONCE, reused
-    private let wearables: WearablesInterface
-    private let deviceSelector: AutoDeviceSelector
-    private let streamSession: StreamSession
+    // Core SDK objects — created ONCE, reused.
+    // Optional because `Wearables.shared` hard-traps when configure() failed; in
+    // that case the service is constructed inert and every entry point throws
+    // `.sdkNotRegistered` instead of crashing the app.
+    private let wearables: WearablesInterface?
+    private let deviceSelector: AutoDeviceSelector?
+    private let streamSession: StreamSession?
 
     // Listener tokens
     private var stateListenerToken: (any AnyListenerToken)?
@@ -55,9 +58,19 @@ class CameraService: ObservableObject {
     // MARK: - Init (matches sample app pattern)
 
     init() {
+        guard WearablesRuntime.isConfigured else {
+            self.wearables = nil
+            self.deviceSelector = nil
+            self.streamSession = nil
+            self.lastError = "Meta SDK not registered — camera unavailable"
+            ErrorReporter.shared.report("CameraService inert: Wearables.configure() never succeeded", source: "camera", level: "error")
+            return
+        }
+
         let w = Wearables.shared
         self.wearables = w
-        self.deviceSelector = AutoDeviceSelector(wearables: w)
+        let selector = AutoDeviceSelector(wearables: w)
+        self.deviceSelector = selector
 
         // Create ONE StreamSession with photo-quality config — kept alive for app lifetime
         let config = StreamSessionConfig(
@@ -65,12 +78,13 @@ class CameraService: ObservableObject {
             resolution: .high,
             frameRate: 15
         )
-        self.streamSession = StreamSession(streamSessionConfig: config, deviceSelector: deviceSelector)
+        let session = StreamSession(streamSessionConfig: config, deviceSelector: selector)
+        self.streamSession = session
 
         // Monitor device availability via async stream (from sample app line 65-69)
         deviceMonitorTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            for await device in self.deviceSelector.activeDeviceStream() {
+            guard let self, let selector = self.deviceSelector else { return }
+            for await device in selector.activeDeviceStream() {
                 self.hasActiveDevice = device != nil
                 if device != nil {
                     ErrorReporter.shared.report("Device became available: \(String(describing: device))", source: "camera", level: "info")
@@ -79,7 +93,7 @@ class CameraService: ObservableObject {
         }
 
         // Subscribe to session state changes (from sample app line 73-77)
-        stateListenerToken = streamSession.statePublisher.listen { [weak self] state in
+        stateListenerToken = session.statePublisher.listen { [weak self] state in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.updateStatusFromState(state)
@@ -88,7 +102,7 @@ class CameraService: ObservableObject {
         }
 
         // Subscribe to video frames (from sample app line 81-92)
-        videoFrameListenerToken = streamSession.videoFramePublisher.listen { [weak self] videoFrame in
+        videoFrameListenerToken = session.videoFramePublisher.listen { [weak self] videoFrame in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if let image = videoFrame.makeUIImage() {
@@ -99,7 +113,7 @@ class CameraService: ObservableObject {
         }
 
         // Subscribe to errors (from sample app line 96-104)
-        errorListenerToken = streamSession.errorPublisher.listen { [weak self] error in
+        errorListenerToken = session.errorPublisher.listen { [weak self] error in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let msg = self.formatStreamingError(error)
@@ -109,7 +123,7 @@ class CameraService: ObservableObject {
         }
 
         // Subscribe to photo capture events (from sample app line 110-118)
-        photoDataListenerToken = streamSession.photoDataPublisher.listen { [weak self] photoData in
+        photoDataListenerToken = session.photoDataPublisher.listen { [weak self] photoData in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if let image = UIImage(data: photoData.data) {
@@ -123,7 +137,7 @@ class CameraService: ObservableObject {
             }
         }
 
-        updateStatusFromState(streamSession.state)
+        updateStatusFromState(session.state)
     }
 
     // MARK: - Permission (matches sample app handleStartStreaming pattern)
@@ -131,6 +145,8 @@ class CameraService: ObservableObject {
     /// Check and request camera permission, then start streaming.
     /// This is the single entry point — call from the camera pill or before first capture.
     func ensurePermissionAndStartStreaming() async throws {
+        guard let wearables else { throw CameraError.sdkNotRegistered }
+
         // iOS camera permission first
         let iosStatus = AVCaptureDevice.authorizationStatus(for: .video)
         if iosStatus == .notDetermined {
@@ -181,6 +197,7 @@ class CameraService: ObservableObject {
     /// Start the persistent stream session. Call after permission is granted.
     /// The session handles waitingForDevice internally — it auto-connects when a device appears.
     func startStreaming() async {
+        guard let streamSession else { return }
         guard streamingStatus == .stopped else {
             ErrorReporter.shared.report("startStreaming called but status=\(streamingStatus.rawValue)", source: "camera", level: "debug")
             return
@@ -191,6 +208,7 @@ class CameraService: ObservableObject {
     }
 
     func stopStreaming() async {
+        guard let streamSession else { return }
         await streamSession.stop()
         latestFrame = nil
     }
@@ -200,6 +218,7 @@ class CameraService: ObservableObject {
     /// Capture a photo from the ALREADY-RUNNING stream.
     /// If stream isn't running yet, starts it and waits for streaming state.
     func capturePhoto() async throws -> Data {
+        guard let streamSession else { throw CameraError.sdkNotRegistered }
         ErrorReporter.shared.report("capturePhoto() called. streamingStatus=\(streamingStatus.rawValue) hasActiveDevice=\(hasActiveDevice)", source: "camera", level: "info")
         isCaptureInProgress = true
         defer { isCaptureInProgress = false }
