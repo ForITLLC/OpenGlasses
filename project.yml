@@ -90,6 +90,31 @@ targets:
       - package: meta-wearables-dat-ios
         product: MWDATCamera
       - target: GlassesActivityWidget
+    # Explicit SHARED scheme. Without this the only schemes are Xcode's implicit
+    # auto-created ones (xcuserdata, not in git), which CI cannot rely on for
+    # `xcodebuild test -only-testing:OpenGlassesTests`.
+    scheme:
+      testTargets:
+        - OpenGlassesTests
+
+  # Unit tests for the iOS app. Hosted by the OpenGlasses target so the test
+  # bundle can `@testable import OpenGlasses`. Without this target xcodegen
+  # generates no test bundle at all and the checked-in OpenGlassesTests/*.swift
+  # are never compiled or run (CI silently tested nothing).
+  OpenGlassesTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: OpenGlassesTests
+    dependencies:
+      - target: OpenGlasses
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores.tests
+        DEVELOPMENT_TEAM: UUSSWWML2A
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_STYLE: "Automatic"
+        GENERATE_INFOPLIST_FILE: "YES"
 
   DoloresWatch:
     type: application

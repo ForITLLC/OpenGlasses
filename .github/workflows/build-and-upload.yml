@@ -87,6 +87,34 @@ jobs:
           brew install xcodegen || true
           xcodegen
 
+      # Runs AFTER Secrets.plist exists (ConfigTests asserts a non-empty
+      # DOLORES_API_KEY) and BEFORE Archive, so a red test blocks the upload.
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          # Resolve a concrete iPhone simulator UDID. Destination-by-name is
+          # brittle across runner-image updates; the UDID from simctl is not.
+          SIM_UDID=$(xcrun simctl list devices available \
+            | sed -n '/-- iOS/,/^--/p' \
+            | grep -E '^[[:space:]]+iPhone' \
+            | head -1 \
+            | grep -oE '[0-9A-Fa-f-]{36}')
+          if [ -z "$SIM_UDID" ]; then
+            echo "::error::No available iPhone simulator on this runner"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Testing on simulator $SIM_UDID"
+          xcodebuild test \
+            -project OpenGlasses.xcodeproj \
+            -scheme OpenGlasses \
+            -destination "id=$SIM_UDID" \
+            -only-testing:OpenGlassesTests \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xctest.log
+          echo "--- test summary ---"
+          grep -E "Executed [0-9]+ test|\*\* TEST (SUCCEEDED|FAILED) \*\*" xctest.log | tail -5
+
       - name: Determine build number (ASC latest + 1)
         env:
           ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
