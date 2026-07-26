@@ -35,7 +35,11 @@ class WakeWordService: NSObject, ObservableObject {
     private let stopPhrases = ["stop", "stop stop"]
 
     /// Dynamic stop phrases that include the current wake word
-    private var allStopPhrases: [String] {
+    ///
+    /// Internal rather than private so the latency benchmark in
+    /// StopPhraseMatchingTests can build its baseline from the exact same phrase
+    /// list the shipping predicate uses, instead of a hand-copied one that could drift.
+    var allStopPhrases: [String] {
         let base = wakePhrase.replacingOccurrences(of: "hey ", with: "")  // e.g. "claude"
         return stopPhrases + ["\(wakePhrase) stop", "\(base) stop"]
     }
@@ -334,15 +338,56 @@ class WakeWordService: NSObject, ObservableObject {
         if result.isFinal { restartRecognition() }
     }
 
-    /// Internal rather than private so WakeWordMatchingTests can pin it. Callers must
-    /// pass an already-lowercased transcript (see the recognition handler above).
-    func containsStopPhrase(_ transcript: String) -> Bool {
-        for phrase in allStopPhrases {
-            if transcript.contains(phrase) { return true }
+    /// Words ASR plausibly joins onto the command when the speaker runs them together
+    /// ("stopit"). Deliberately a closed list of things people actually say after
+    /// "stop": it must never admit an inflection like "stopped" / "stopping" / "stops",
+    /// which is precisely the false positive word-boundary matching exists to kill.
+    private static let stopJoinSuffixes: Set<String> = ["it", "now", "please", "talking", "listening"]
+
+    /// Split on anything that is not a letter or digit, so trailing punctuation
+    /// ("stop." / "stop,") and ASR's usual complete lack of punctuation tokenise
+    /// identically. Returns Substrings — no per-token allocation on the hot path.
+    static func tokenize(_ text: String) -> [Substring] {
+        text.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+    }
+
+    /// True when `needle` appears as a contiguous run of whole tokens in `haystack`.
+    static func tokens(_ haystack: [Substring], containSequence needle: [Substring]) -> Bool {
+        guard !needle.isEmpty, haystack.count >= needle.count else { return false }
+        outer: for start in 0...(haystack.count - needle.count) {
+            for offset in 0..<needle.count {
+                if haystack[start + offset] != needle[offset] { continue outer }
+            }
+            return true
         }
-        // Also match if the transcript is just "stop" with minor noise
-        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed == "stop" || trimmed.hasSuffix(" stop") { return true }
+        return false
+    }
+
+    /// Internal rather than private so StopPhraseMatchingTests can pin it. Callers must
+    /// pass an already-lowercased transcript (see the recognition handler above).
+    ///
+    /// Matches on WORD BOUNDARIES, not substrings. The previous implementation was
+    /// `transcript.contains(phrase)` with "stop" in the phrase list, so "it stopped
+    /// working yesterday", "nonstop", "stops" and "unstoppable" all cut the assistant
+    /// off mid-sentence. Nobody chose that behaviour — it was `String.contains` doing
+    /// exactly what it does.
+    ///
+    /// Tightening a predicate moves risk from false-positive to false-negative, and the
+    /// false negative is the dangerous direction here: a user says "stop" and the
+    /// assistant keeps talking. So a bare word-boundary test is not enough on its own —
+    /// ASR emits "stop." and "stop," and sometimes runs the next word on with no space.
+    /// Punctuation is handled by tokenisation; the word-join case by `stopJoinSuffixes`.
+    func containsStopPhrase(_ transcript: String) -> Bool {
+        let spoken = Self.tokenize(transcript)
+        guard !spoken.isEmpty else { return false }
+
+        for phrase in allStopPhrases {
+            if Self.tokens(spoken, containSequence: Self.tokenize(phrase)) { return true }
+        }
+
+        for token in spoken where token.count > 4 && token.hasPrefix("stop") {
+            if Self.stopJoinSuffixes.contains(String(token.dropFirst(4))) { return true }
+        }
         return false
     }
 

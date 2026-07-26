@@ -59,28 +59,86 @@ class LLMService: ObservableObject {
             throw LLMError.apiError(provider: "Dolores", statusCode: statusCode, message: nil)
         }
 
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let responseText = json["response"] as? String else {
-            throw LLMError.invalidResponse("Dolores")
+        let parsed = try Self.parseResponse(data)
+
+        // Shape problems used to be swallowed here. Surface them: a reply whose audio
+        // failed to decode produced no voice and no explanation, which is precisely the
+        // failure you cannot debug afterwards.
+        for warning in parsed.warnings {
+            print("⚠️ [Dolores] \(warning)")
         }
 
-        let toolsUsed = json["toolsUsed"] as? [String] ?? []
-        if !toolsUsed.isEmpty {
-            print("🔧 [Dolores] Tools used: \(toolsUsed.joined(separator: ", "))")
+        if !parsed.toolsUsed.isEmpty {
+            print("🔧 [Dolores] Tools used: \(parsed.toolsUsed.joined(separator: ", "))")
         }
 
-        // Check for server-provided TTS audio
-        if let audioBase64 = json["audio"] as? String,
-           let audioData = Data(base64Encoded: audioBase64) {
+        if let audioData = parsed.audio {
             print("🔊 [Dolores] Server provided TTS audio (\(audioData.count) bytes)")
             self.speechService?.preloadedAudio = audioData
         }
 
-        return responseText
+        return parsed.text
+    }
+
+    /// Parse a voice-endpoint reply.
+    ///
+    /// Split out of `sendMessage` so the unhappy paths are reachable from tests without
+    /// any network egress — the request itself cannot be exercised in CI, because the
+    /// API key falls back to the Secrets.plist that CI writes, so a test that reached
+    /// the transport would POST at the production endpoint. A test send is a send.
+    ///
+    /// An unrecognised shape is never silently dropped: anything we cannot use comes
+    /// back in `warnings` for the caller to surface.
+    static func parseResponse(_ data: Data) throws -> DoloresResponse {
+        guard let object = try? JSONSerialization.jsonObject(with: data),
+              let json = object as? [String: Any] else {
+            throw LLMError.invalidResponse("Dolores")
+        }
+        guard let text = json["response"] as? String else {
+            throw LLMError.invalidResponse("Dolores")
+        }
+
+        var warnings: [String] = []
+
+        var toolsUsed: [String] = []
+        if let raw = json["toolsUsed"] {
+            if let list = raw as? [String] {
+                toolsUsed = list
+            } else {
+                warnings.append("toolsUsed present but not [String] (got \(type(of: raw))) — ignored")
+            }
+        }
+
+        var audio: Data?
+        if let raw = json["audio"] {
+            if let base64 = raw as? String {
+                if let decoded = Data(base64Encoded: base64) {
+                    audio = decoded
+                } else {
+                    warnings.append("audio present but not valid base64 (\(base64.count) chars) — reply will have no voice")
+                }
+            } else {
+                warnings.append("audio present but not a string (got \(type(of: raw))) — reply will have no voice")
+            }
+        }
+
+        return DoloresResponse(text: text, toolsUsed: toolsUsed, audio: audio, warnings: warnings)
     }
 
     func clearHistory() { /* server manages history */ }
     func refreshActiveModel() { activeModelName = "Dolores" }
+}
+
+// MARK: - Parsed response
+
+/// A parsed voice-endpoint reply, including anything about its shape we could not use.
+struct DoloresResponse: Equatable {
+    let text: String
+    let toolsUsed: [String]
+    let audio: Data?
+    /// Non-fatal shape problems, in the order encountered. Empty for a clean reply.
+    /// These exist so an unusable field is observable rather than invisible.
+    let warnings: [String]
 }
 
 // MARK: - Errors

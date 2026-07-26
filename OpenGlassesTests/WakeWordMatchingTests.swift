@@ -104,20 +104,19 @@ final class WakeWordMatchingTests: XCTestCase {
         }
     }
 
-    /// CHARACTERIZATION, NOT ENDORSEMENT.
+    /// This used to be a characterization test asserting the OPPOSITE — that "it
+    /// stopped working yesterday" fired the stop command, because `containsStopPhrase`
+    /// substring-matched "stop". WO#816 ruled that a defect rather than a product
+    /// decision, so the expectation is inverted here rather than the test weakened.
     ///
-    /// `containsStopPhrase` substring-matches "stop", so any word containing it —
-    /// "stopped", "stopping", "unstoppable" — cuts Dolores off mid-sentence during
-    /// barge-in listening. This test pins the behaviour as it ships today so the
-    /// trade-off is visible and any future change is deliberate.
-    ///
-    /// Whether to tighten this to word-boundary matching is a product/UX call
-    /// (responsive barge-in vs. false cutoffs), not a bug fix — flagged for Ben,
-    /// deliberately not changed here.
-    func testStopAlsoFiresOnWordsMerelyContainingStop() {
+    /// Full two-directional corpus (false positives AND genuine-stop recall across
+    /// realistic ASR shapes) plus the latency measurement live in
+    /// StopPhraseMatchingTests. This one case stays here so the inversion is visible
+    /// in the file that originally pinned the bug.
+    func testStopDoesNotFireOnWordsMerelyContainingStop() {
         withDefaultPhrases { service in
-            XCTAssertTrue(service.containsStopPhrase("it stopped working yesterday"),
-                          "current behaviour: substring match on \"stop\" — see doc comment")
+            XCTAssertFalse(service.containsStopPhrase("it stopped working yesterday"),
+                           "word-boundary matching — see StopPhraseMatchingTests")
         }
     }
 
