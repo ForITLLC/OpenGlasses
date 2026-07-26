@@ -119,16 +119,21 @@ final class VoiceCommandRoutingTests: XCTestCase {
         }
     }
 
-    /// Word-boundary matching does not help the photo classifier: a question ABOUT taking
-    /// photos still contains the phrase as whole tokens, so it still fires the camera and
-    /// still writes a JPEG. Asserted as-is rather than quietly "fixed" — the honest state
-    /// is that the misfire remains and is now at least reported.
-    func testAQuestionAboutPhotosStillFiresTheCameraButIsNowReported() {
-        let decision = VoiceCommandRouter.route("how do i take a photo with these glasses")
-        XCTAssertEqual(decision.command, .photo, "characterization: this still misfires")
-        XCTAssertEqual(decision.warnings.count, 1, "\(decision.warnings)")
-        XCTAssertTrue(decision.warnings[0].contains("discarded"))
-        print("VOICE-ROUTER-OBSERVABLE photo-misfire | \(decision.warnings[0])")
+    /// The named unintended-capture case. Word boundaries did not help here — a question
+    /// ABOUT taking photos contains the phrase as whole tokens — so an earlier revision of
+    /// this test asserted the misfire as characterization. Rule A closes it.
+    func testAQuestionAboutPhotosNoLongerFiresTheCamera() {
+        let utterance = "how do i take a photo with these glasses"
+        let decision = VoiceCommandRouter.route(utterance)
+
+        XCTAssertTrue(legacyPhoto(utterance),
+                      "positive control: the shipped predicate fired on this")
+        XCTAssertEqual(decision.command, .message,
+                       "a question about the camera must not fire the camera")
+
+        let ruleA = decision.warnings.filter { $0.contains("rule A") }
+        XCTAssertEqual(ruleA.count, 1, "the demotion must name its rule: \(decision.warnings)")
+        print("VOICE-ROUTER-FIX capture | routed=\(decision.command.rawValue) | \(ruleA[0])")
     }
 
     /// Two command classes match at once. Branch order silently picked a winner before;
@@ -210,27 +215,131 @@ final class VoiceCommandRoutingTests: XCTestCase {
         print("VOICE-ROUTER-BOUNDARY goodbye false_positives=\(falsePositives.count) legacy_fired=\(legacyFired) new_fired=0")
     }
 
-    /// The bigger false-positive surface, and the one word boundaries do NOT close: a
-    /// command phrase sitting inside an ordinary sentence. "that's all i wanted to ask
-    /// about the weather" ends the conversation under the shipped matcher AND under this
-    /// one — the phrase really is there as whole tokens. Asserted as-is rather than
-    /// claimed fixed. What catches it is the discard warning: the classifier consumed a
-    /// nine-word question to fire a three-word command.
-    func testACommandPhraseInsideASentenceStillFiresButIsNowReported() {
+    /// The named false-conversation-end case, plus the rest of its class: a sign-off phrase
+    /// sitting inside an ordinary sentence. All three ended the conversation under the
+    /// shipped matcher AND under word-boundary matching — the phrase really is there as
+    /// whole tokens. Rule B closes it, because none of them END on the sign-off.
+    func testASignOffInsideASentenceNoLongerEndsTheConversation() {
         let cases = ["that's all i wanted to ask about the weather",
                      "i want to go to sleep early tonight",
                      "thanks claude that was helpful can you also check the hangar"]
 
         for utterance in cases {
             let decision = VoiceCommandRouter.route(utterance)
-            XCTAssertEqual(decision.command, .goodbye,
-                           "characterization: word boundaries do not fix this class")
             XCTAssertTrue(legacyGoodbye(utterance),
                           "positive control: the shipped predicate fired here too")
-            let discard = decision.warnings.filter { $0.contains("discarded") }
-            XCTAssertEqual(discard.count, 1, "\(utterance): \(decision.warnings)")
-            print("VOICE-ROUTER-OBSERVABLE sentence-swallow | \(discard[0])")
+            XCTAssertEqual(decision.command, .message,
+                           "'\(utterance)' must not end the conversation")
+
+            let ruleB = decision.warnings.filter { $0.contains("rule B") }
+            XCTAssertEqual(ruleB.count, 1, "\(utterance): \(decision.warnings)")
+            print("VOICE-ROUTER-FIX close | routed=\(decision.command.rawValue) | \(ruleB[0])")
         }
+    }
+
+    // MARK: - The rule, on utterances that appear in no other test
+
+    /// A rule is only worth having if it predicts utterances nobody wrote a case for.
+    /// These three are INVENTED FOR THIS TEST — they are not in the WO, not in the bug
+    /// report, and not in any corpus above. Every one is synthesised; none is a recording
+    /// or transcript of anything a person said.
+    func testTheRulePredictsUtterancesInventedForThisTest() {
+        // Rule A — interrogative frame, lead-ins of two and five words.
+        for utterance in ["how does the camera decide when to take a photo",
+                          "is there a way to take a picture without the wake word"] {
+            let decision = VoiceCommandRouter.route(utterance)
+            XCTAssertTrue(legacyPhoto(utterance), "positive control: \(utterance)")
+            XCTAssertEqual(decision.command, .message, "'\(utterance)'")
+            XCTAssertEqual(decision.warnings.filter { $0.contains("rule A") }.count, 1,
+                           "\(decision.warnings)")
+            print("VOICE-ROUTER-PREDICTED ruleA | \(decision.command.rawValue) | invented-for-this-test")
+        }
+
+        // Rule B — "that's all" opening a sentence that keeps going.
+        let close = VoiceCommandRouter.route("that's all the fuel we have for the return leg")
+        XCTAssertTrue(legacyGoodbye("that's all the fuel we have for the return leg"))
+        XCTAssertEqual(close.command, .message)
+        XCTAssertEqual(close.warnings.filter { $0.contains("rule B") }.count, 1, "\(close.warnings)")
+        print("VOICE-ROUTER-PREDICTED ruleB | \(close.command.rawValue) | invented-for-this-test")
+    }
+
+    /// The false-negative guard on rule A. "can you", "could you" and "please" are polite
+    /// IMPERATIVES, not questions about method — they are deliberately absent from the
+    /// lead-in list, and this pins that the politest phrasing of a real command still works.
+    func testPoliteImperativesAreNotTreatedAsQuestions() {
+        for utterance in ["can you take a picture", "could you take a photo",
+                          "please take a picture", "would you snap a photo"] {
+            XCTAssertEqual(VoiceCommandRouter.route(utterance).command, .photo,
+                           "'\(utterance)' is a request, not a question about the camera")
+        }
+    }
+
+    /// Both rules are exempt on `.stop` by design. Tightening `.stop` trades a false
+    /// positive for a false negative, and that false negative means the user cannot
+    /// interrupt the assistant mid-sentence — the more dangerous direction.
+    func testStopIsExemptFromBothDemotionRules() {
+        let decision = VoiceCommandRouter.route("how do i stop the assistant")
+        XCTAssertEqual(decision.command, .stop,
+                       "barge-in must stay greedy even inside a question")
+        XCTAssertTrue(decision.warnings.allSatisfy { !$0.contains("demoted") },
+                      "\(decision.warnings)")
+    }
+
+    // MARK: - The capture gate, asserted on the artefact rather than the branch
+
+    /// Asserting `.command != .photo` proves the router chose a label. It does NOT prove no
+    /// JPEG was written — a second path, or a branch that stopped consulting the router,
+    /// would sail past that assertion. So this drives
+    /// `VoiceCommandRouter.authorisesCapture(_:)`, which is the exact function
+    /// `handleTranscription` branches on (OpenGlassesApp.swift), and asserts on a FILE.
+    ///
+    /// The stand-in writes real JPEG magic bytes to a temporary directory in place of
+    /// `cameraService.capturePhoto()` + `saveToPhotoLibrary(_:)`; there is no camera on a CI
+    /// simulator, and no photo library is touched. Both directions are asserted, so the
+    /// test cannot pass by never writing anything at all.
+    func testTheCaptureGateWritesNoJPEGForAQuestionAboutTheCamera() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("wo822-capture-gate", isDirectory: true)
+        try? FileManager.default.removeItem(at: dir)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        func runCaptureBranch(_ utterance: String, _ name: String) -> URL {
+            let jpeg = dir.appendingPathComponent("\(name).jpg")
+            let decision = VoiceCommandRouter.route(utterance)
+            if VoiceCommandRouter.authorisesCapture(decision) {
+                let written = FileManager.default.createFile(
+                    atPath: jpeg.path, contents: Data([0xFF, 0xD8, 0xFF, 0xE0]))  // JPEG SOI
+                XCTAssertTrue(written, "could not write the stand-in JPEG to \(jpeg.path)")
+            }
+            return jpeg
+        }
+
+        // The failure class this product cannot ship with.
+        let fromQuestion = runCaptureBranch("how do i take a photo with these glasses", "question")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fromQuestion.path),
+                       "a question about the camera wrote a JPEG to \(fromQuestion.path)")
+
+        // Positive control: the same gate, the same file-writing branch, a real request.
+        let fromRequest = runCaptureBranch("take a picture", "request")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fromRequest.path),
+                      "positive control: a genuine request must still write a JPEG")
+        XCTAssertEqual(try Data(contentsOf: fromRequest).count, 4)
+
+        print("VOICE-ROUTER-CAPTURE-GATE question_wrote_jpeg=\(FileManager.default.fileExists(atPath: fromQuestion.path)) request_wrote_jpeg=\(FileManager.default.fileExists(atPath: fromRequest.path))")
+    }
+
+    /// Every phrase the shipped photo matcher fired on must still reach the camera gate —
+    /// measured through `authorisesCapture`, not through the enum, for the same reason.
+    func testGenuineCaptureRequestsStillPassTheGate() {
+        let genuine = ["take a picture", "take a photo", "snap a picture", "take a snap",
+                       "take a photograph of the sunset", "hey dolores take a photo of this"]
+        for utterance in genuine {
+            XCTAssertTrue(
+                VoiceCommandRouter.authorisesCapture(VoiceCommandRouter.route(utterance)),
+                "'\(utterance)' must still authorise capture")
+        }
+        print("VOICE-ROUTER-CAPTURE-GATE genuine_corpus=\(genuine.count) authorised=\(genuine.count)")
     }
 
     /// Tightening a predicate moves risk from false-positive to false-negative, and the

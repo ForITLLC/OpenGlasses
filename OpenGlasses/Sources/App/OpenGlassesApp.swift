@@ -704,7 +704,7 @@ class AppState: ObservableObject {
             return
         }
 
-        if decision.command == .photo {
+        if VoiceCommandRouter.authorisesCapture(decision) {
             print("Voice command: take a picture")
             ErrorReporter.shared.report("Photo voice command detected. isConnected=\(isConnected), regState=\(registrationStateRaw)", source: "camera", level: "info")
             isProcessing = true
