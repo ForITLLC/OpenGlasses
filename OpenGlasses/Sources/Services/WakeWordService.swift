@@ -334,7 +334,9 @@ class WakeWordService: NSObject, ObservableObject {
         if result.isFinal { restartRecognition() }
     }
 
-    private func containsStopPhrase(_ transcript: String) -> Bool {
+    /// Internal rather than private so WakeWordMatchingTests can pin it. Callers must
+    /// pass an already-lowercased transcript (see the recognition handler above).
+    func containsStopPhrase(_ transcript: String) -> Bool {
         for phrase in allStopPhrases {
             if transcript.contains(phrase) { return true }
         }
@@ -344,7 +346,9 @@ class WakeWordService: NSObject, ObservableObject {
         return false
     }
 
-    private func containsWakePhrase(_ transcript: String) -> Bool {
+    /// Internal rather than private so WakeWordMatchingTests can pin it. Callers must
+    /// pass an already-lowercased transcript (see the recognition handler above).
+    func containsWakePhrase(_ transcript: String) -> Bool {
         // Check all enabled wake phrases
         for phrase in enabledPhrases {
             if transcript.contains(phrase) {

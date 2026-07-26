@@ -32,6 +32,12 @@ class GlassesConnectionService: ObservableObject {
     }
 
     private func handleDevicesChanged(_ deviceIds: [DeviceIdentifier]) {
+        // Defense in depth. Today this is only reachable from the listener registered
+        // in observeDevices(), which is already behind the guard — so its safety rests
+        // on call-graph reasoning rather than anything local, and `deviceForIdentifier`
+        // traps on an unconfigured SDK. Guard here too so a future direct caller is safe.
+        guard WearablesRuntime.isConfigured else { return }
+
         if let firstId = deviceIds.first {
             let device = Wearables.shared.deviceForIdentifier(firstId)
             connectedDeviceId = firstId
