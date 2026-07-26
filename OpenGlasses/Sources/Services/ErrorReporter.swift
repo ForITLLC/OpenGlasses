@@ -15,9 +15,34 @@ class ErrorReporter {
     private static let isRunningTests =
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
+    private let captureLock = NSLock()
+    private var capturedUnderTest: [String] = []
+
+    /// Reports captured under XCTest instead of being sent, so a test can assert that a
+    /// failure actually reached the error surface — with zero network egress. The guard
+    /// above still returns before any request is built; this only records what WOULD have
+    /// been sent. Always empty in production, where the guard is false and nothing is
+    /// appended.
+    var testCapturedReports: [String] {
+        captureLock.lock()
+        defer { captureLock.unlock() }
+        return capturedUnderTest
+    }
+
+    func resetTestCapture() {
+        captureLock.lock()
+        capturedUnderTest.removeAll()
+        captureLock.unlock()
+    }
+
     /// Report an error to the server. Non-blocking.
     func report(_ message: String, source: String = "app", level: String = "error", extra: [String: String] = [:]) {
-        guard !Self.isRunningTests else { return }
+        guard !Self.isRunningTests else {
+            captureLock.lock()
+            capturedUnderTest.append("[\(level)] \(source): \(message)")
+            captureLock.unlock()
+            return
+        }
         var body: [String: Any] = [
             "source": "dolores-ios",
             "component": source,

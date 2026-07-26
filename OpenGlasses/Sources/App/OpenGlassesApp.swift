@@ -653,31 +653,21 @@ class AppState: ObservableObject {
 
     // MARK: - Voice Commands
 
-    private static let stopPhrases = ["stop", "nevermind", "never mind", "cancel", "shut up", "be quiet", "quiet"]
-    private static let goodbyePhrases = ["goodbye", "good bye", "bye", "that's all", "thats all",
-                                          "thanks claude", "thank you claude", "i'm done", "im done",
-                                          "end conversation", "go to sleep"]
-    private static let photoPhrases = ["take a picture", "take a photo", "take photo", "take picture",
-                                        "capture photo", "snap a photo", "snap a picture", "take a snap"]
-
-    private func isStopCommand(_ text: String) -> Bool {
-        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        return Self.stopPhrases.contains(where: { lower == $0 || lower.hasPrefix($0 + " ") || lower.hasSuffix(" " + $0) })
-    }
-
-    private func isGoodbyeCommand(_ text: String) -> Bool {
-        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        return Self.goodbyePhrases.contains(where: { lower.contains($0) })
-    }
-
-    private func isPhotoCommand(_ text: String) -> Bool {
-        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        return Self.photoPhrases.contains(where: { lower.contains($0) })
-    }
+    // Classification lives in `VoiceCommandRouter`, which matches on word boundaries via
+    // the same tokeniser `WakeWordService` uses. The three predicates that used to sit
+    // here were a second copy of phrase matching — `lower.contains(phrase)` with "bye" in
+    // the list, so "maybe tomorrow" ended the conversation.
 
     func handleTranscription(_ text: String) async {
         guard !isProcessing else {
+            // Dropping an utterance outright is the failure nobody can debug afterwards:
+            // the user spoke, nothing happened, and only a local print said why. Counts
+            // only — the transcript itself is a recording of a person speaking and does
+            // not go to the error surface.
             print("Already processing, ignoring: \(text)")
+            ErrorReporter.shared.report(
+                "utterance dropped: router busy (isProcessing) — \(WakeWordService.tokenize(text.lowercased()).count) spoken word(s) discarded, nothing reached the assistant",
+                source: "voice-router", level: "warning")
             return
         }
 
@@ -688,7 +678,10 @@ class AppState: ObservableObject {
         speechService.playEndListeningTone()
         print("Transcription: \(text)")
 
-        if isStopCommand(text) {
+        let decision = VoiceCommandRouter.route(text)
+        VoiceCommandRouter.reportWarnings(decision)
+
+        if decision.command == .stop {
             print("Voice command: stop")
             speechService.stopSpeaking()
             if inConversation {
@@ -701,7 +694,7 @@ class AppState: ObservableObject {
             return
         }
 
-        if isGoodbyeCommand(text) {
+        if decision.command == .goodbye {
             print("Voice command: goodbye")
             speechService.stopSpeaking()
             inConversation = false
@@ -711,9 +704,9 @@ class AppState: ObservableObject {
             return
         }
 
-        if isPhotoCommand(text) {
+        if decision.command == .photo {
             print("Voice command: take a picture")
-            ErrorReporter.shared.report("Photo voice command detected: \(text). isConnected=\(isConnected), regState=\(registrationStateRaw)", source: "camera", level: "info")
+            ErrorReporter.shared.report("Photo voice command detected. isConnected=\(isConnected), regState=\(registrationStateRaw)", source: "camera", level: "info")
             isProcessing = true
             speechService.playAcknowledgmentTone()  // Tone instead of spoken "Taking a picture" (avoids iOS voice)
             do {
