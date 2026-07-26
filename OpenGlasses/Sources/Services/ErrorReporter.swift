@@ -7,9 +7,17 @@ class ErrorReporter {
     
     private let endpoint = Config.doloresBaseURL.replacingOccurrences(of: "/voice", with: "/log")
     private let apiKey = Config.doloresAPIKey
-    
+
+    /// True when running inside an XCTest bundle. Test runs exercise failure paths
+    /// deliberately (see WearablesRuntimeGuardTests), and those synthetic errors must
+    /// not land in production App Insights — every CI run would otherwise report a
+    /// camera failure that never happened to a user.
+    private static let isRunningTests =
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
     /// Report an error to the server. Non-blocking.
     func report(_ message: String, source: String = "app", level: String = "error", extra: [String: String] = [:]) {
+        guard !Self.isRunningTests else { return }
         var body: [String: Any] = [
             "source": "dolores-ios",
             "component": source,

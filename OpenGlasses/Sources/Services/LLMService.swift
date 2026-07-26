@@ -101,7 +101,7 @@ enum LLMError: LocalizedError {
     }
 }
 
-// MARK: - Tool Call Status (stub — replaces deleted ToolCallModels.swift)
+// MARK: - Tool Call Status (replaces deleted ToolCallModels.swift)
 
 enum ToolCallStatus: Equatable {
     case idle
