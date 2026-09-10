@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Glasses</string>
+	<string>Bernard Glasses</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Glasses</string>
+	<string>Bernard Glasses</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -47,21 +47,21 @@
 		<string>$(DEVELOPMENT_TEAM)</string>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
+	<string>Bernard uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Dolores uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
+	<string>Bernard uses Bluetooth to connect to your Ray-Ban Meta smart glasses.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Dolores needs camera access to capture photos and video for the AI to analyze.</string>
+	<string>Bernard needs camera access to capture photos and video for the AI to analyze.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Dolores uses your location to provide contextually relevant answers based on where you are.</string>
+	<string>Bernard uses your location to provide contextually relevant answers based on where you are.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Dolores needs microphone access to listen for wake words and transcribe your voice commands.</string>
+	<string>Bernard needs microphone access to listen for wake words and transcribe your voice commands.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Glasses saves photos taken with your Ray-Ban Meta glasses to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Glasses saves photos to a dedicated album in your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Dolores uses speech recognition to detect the wake word and transcribe your questions.</string>
+	<string>Bernard uses speech recognition to detect the wake word and transcribe your questions.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

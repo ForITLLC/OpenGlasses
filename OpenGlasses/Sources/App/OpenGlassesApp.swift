@@ -717,7 +717,7 @@ class AppState: ObservableObject {
 
                 let response = try await llmService.sendMessage(text, locationContext: locationService.locationContext, imageData: photoData)
                 lastResponse = response
-                print("Dolores (vision): \(response)")
+                print("Bernard (vision): \(response)")
 
                 startStopListener()
                 await speechService.speak(response)
@@ -745,7 +745,7 @@ class AppState: ObservableObject {
         do {
             let response = try await llmService.sendMessage(text, locationContext: locationService.locationContext)
             lastResponse = response
-            print("Dolores: \(response)")
+            print("Bernard: \(response)")
 
             startStopListener()
             await speechService.speak(response)

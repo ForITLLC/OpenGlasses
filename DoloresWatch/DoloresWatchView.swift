@@ -2,7 +2,7 @@ import SwiftUI
 import WatchKit
 
 struct DoloresWatchView: View {
-    @State private var lastResponse = "Say \"Hey Dolores\" on your glasses"
+    @State private var lastResponse = "Say \"Hey Bernard\" on your glasses"
     @State private var isProcessing = false
 
     var body: some View {
@@ -15,7 +15,7 @@ struct DoloresWatchView: View {
                     .frame(width: 40, height: 40)
                     .clipShape(Circle())
 
-                Text("Dolores")
+                Text("Bernard")
                     .font(.headline)
                     .foregroundColor(Color(red: 0.56, green: 0.86, blue: 0.94))
 

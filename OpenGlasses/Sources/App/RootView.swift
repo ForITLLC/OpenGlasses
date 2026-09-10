@@ -52,12 +52,12 @@ struct OnboardingView: View {
                     .font(.title2.bold())
                     .foregroundColor(.white)
 
-                Text("Ask Dolores in Teams for your API key.")
+                Text("Ask Bernard in Teams for your API key.")
                     .font(.body)
                     .foregroundColor(Color(hex: "8EDCEF").opacity(0.7))
                     .multilineTextAlignment(.center)
 
-                TextField("Dolores API Key", text: $apiKey)
+                TextField("Bernard API Key", text: $apiKey)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
                     .textFieldStyle(.roundedBorder)

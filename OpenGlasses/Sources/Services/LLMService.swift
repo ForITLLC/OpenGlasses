@@ -6,7 +6,7 @@ class LLMService: ObservableObject {
     /// Reference to speech service for passing server-provided audio
     var speechService: TextToSpeechService?
     @Published var isProcessing: Bool = false
-    @Published var activeModelName: String = "Dolores"
+    @Published var activeModelName: String = "Bernard"
     @Published var toolCallStatus: ToolCallStatus = .idle
 
     func sendMessage(_ text: String, locationContext: String? = nil, imageData: Data? = nil) async throws -> String {
@@ -15,11 +15,11 @@ class LLMService: ObservableObject {
 
         let apiKey = Config.doloresAPIKey
         guard !apiKey.isEmpty else {
-            throw LLMError.missingAPIKey("Dolores API key not configured")
+            throw LLMError.missingAPIKey("Bernard API key not configured")
         }
 
         guard let url = URL(string: Config.doloresBaseURL) else {
-            throw LLMError.invalidConfiguration("Invalid Dolores URL")
+            throw LLMError.invalidConfiguration("Invalid Bernard URL")
         }
 
         var request = URLRequest(url: url)
@@ -45,7 +45,7 @@ class LLMService: ObservableObject {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        print("🤖 [Dolores] Sending: \(text.prefix(100))...")
+        print("🤖 [Bernard] Sending: \(text.prefix(100))...")
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
@@ -53,10 +53,10 @@ class LLMService: ObservableObject {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorMsg = errorJson["error"] as? String {
-                print("❌ Dolores error \(statusCode): \(errorMsg)")
-                throw LLMError.apiError(provider: "Dolores", statusCode: statusCode, message: errorMsg)
+                print("❌ Bernard error \(statusCode): \(errorMsg)")
+                throw LLMError.apiError(provider: "Bernard", statusCode: statusCode, message: errorMsg)
             }
-            throw LLMError.apiError(provider: "Dolores", statusCode: statusCode, message: nil)
+            throw LLMError.apiError(provider: "Bernard", statusCode: statusCode, message: nil)
         }
 
         let parsed = try Self.parseResponse(data)
@@ -65,15 +65,15 @@ class LLMService: ObservableObject {
         // failed to decode produced no voice and no explanation, which is precisely the
         // failure you cannot debug afterwards.
         for warning in parsed.warnings {
-            print("⚠️ [Dolores] \(warning)")
+            print("⚠️ [Bernard] \(warning)")
         }
 
         if !parsed.toolsUsed.isEmpty {
-            print("🔧 [Dolores] Tools used: \(parsed.toolsUsed.joined(separator: ", "))")
+            print("🔧 [Bernard] Tools used: \(parsed.toolsUsed.joined(separator: ", "))")
         }
 
         if let audioData = parsed.audio {
-            print("🔊 [Dolores] Server provided TTS audio (\(audioData.count) bytes)")
+            print("🔊 [Bernard] Server provided TTS audio (\(audioData.count) bytes)")
             self.speechService?.preloadedAudio = audioData
         }
 
@@ -92,10 +92,10 @@ class LLMService: ObservableObject {
     static func parseResponse(_ data: Data) throws -> DoloresResponse {
         guard let object = try? JSONSerialization.jsonObject(with: data),
               let json = object as? [String: Any] else {
-            throw LLMError.invalidResponse("Dolores")
+            throw LLMError.invalidResponse("Bernard")
         }
         guard let text = json["response"] as? String else {
-            throw LLMError.invalidResponse("Dolores")
+            throw LLMError.invalidResponse("Bernard")
         }
 
         var warnings: [String] = []
@@ -126,7 +126,7 @@ class LLMService: ObservableObject {
     }
 
     func clearHistory() { /* server manages history */ }
-    func refreshActiveModel() { activeModelName = "Dolores" }
+    func refreshActiveModel() { activeModelName = "Bernard" }
 }
 
 // MARK: - Parsed response

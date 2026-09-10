@@ -1,0 +1,36 @@
+name: Native checks
+on:
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: native-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-tests:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode and generate project
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.2.app || sudo xcode-select -s /Applications/Xcode.app
+          brew install xcodegen || true
+          # Simulator tests use no production credentials. XcodeGen still
+          # enumerates the optional resource paths, so supply empty plists.
+          python3 -c 'import pathlib,plistlib; [pathlib.Path(p).write_bytes(plistlib.dumps({})) for p in ("OpenGlasses/Secrets.plist", "DoloresWatch/Secrets.plist")]'
+          xcodegen
+      - name: Select iPhone simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for xs in d["devices"].values() for x in xs if x["name"].startswith("iPhone")))')
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+      - name: Build and run native tests
+        run: |
+          xcodebuild test -project OpenGlasses.xcodeproj -scheme OpenGlasses \
+            -destination "platform=iOS Simulator,id=$DEVICE" \
+            -resultBundlePath "$RUNNER_TEMP/native-tests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-tests
+          path: ${{ runner.temp }}/native-tests.xcresult
