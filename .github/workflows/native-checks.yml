@@ -15,6 +15,9 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_26.2.app || sudo xcode-select -s /Applications/Xcode.app
           brew install xcodegen || true
+          # Simulator tests use no production credentials. XcodeGen still
+          # enumerates the optional resource paths, so supply empty plists.
+          python3 -c 'import pathlib,plistlib; [pathlib.Path(p).write_bytes(plistlib.dumps({})) for p in ("OpenGlasses/Secrets.plist", "DoloresWatch/Secrets.plist")]'
           xcodegen
       - name: Select iPhone simulator
         run: |
