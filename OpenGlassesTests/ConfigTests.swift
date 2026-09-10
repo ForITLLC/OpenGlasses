@@ -34,7 +34,7 @@ final class ConfigTests: XCTestCase {
     // MARK: - Dolores Config (hardcoded)
 
     func testDoloresAPIKeyCanBeConfigured() {
-        Config.setDoloresAPIKey("test-key");
+        Config.setAPIKey("test-key")
         XCTAssertEqual(Config.doloresAPIKey, "test-key")
     }
 
