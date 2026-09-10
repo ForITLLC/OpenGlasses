@@ -1,7 +1,7 @@
 import AppIntents
 
 struct ActivateDoloresIntent: AppIntent {
-    static var title: LocalizedStringResource = "Talk to Dolores"
+    static var title: LocalizedStringResource = "Talk to Bernard"
     static var description = IntentDescription("Start listening for voice commands")
 
     static var isDiscoverable: Bool { true }
@@ -25,13 +25,13 @@ struct ActivateDoloresIntent: AppIntent {
         case appNotRunning
 
         var localizedStringResource: LocalizedStringResource {
-            "Dolores is not running. Open the app first."
+            "Bernard is not running. Open the app first."
         }
     }
 }
 
 struct EnableListeningIntent: AppIntent {
-    static var title: LocalizedStringResource = "Turn On Dolores"
+    static var title: LocalizedStringResource = "Turn On Bernard"
     static var description = IntentDescription("Enable wake word listening and Live Activity")
 
     static var isDiscoverable: Bool { true }
@@ -41,16 +41,16 @@ struct EnableListeningIntent: AppIntent {
         guard let appState = AppStateProvider.shared else {
             // App not running — just set the flag so it starts on next launch
             Config.setListeningEnabled(true)
-            return .result(value: "Dolores will start listening when you open the app.")
+            return .result(value: "Bernard will start listening when you open the app.")
         }
 
         appState.setListeningEnabled(true)
-        return .result(value: "Dolores is now listening.")
+        return .result(value: "Bernard is now listening.")
     }
 }
 
 struct DisableListeningAppIntent: AppIntent {
-    static var title: LocalizedStringResource = "Turn Off Dolores"
+    static var title: LocalizedStringResource = "Turn Off Bernard"
     static var description = IntentDescription("Disable wake word listening and end Live Activity")
 
     static var isDiscoverable: Bool { true }
@@ -61,7 +61,7 @@ struct DisableListeningAppIntent: AppIntent {
         if let appState = AppStateProvider.shared {
             appState.setListeningEnabled(false)
         }
-        return .result(value: "Dolores stopped listening.")
+        return .result(value: "Bernard stopped listening.")
     }
 }
 
@@ -90,7 +90,7 @@ struct DoloresShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: ActivateDoloresIntent(),
             phrases: ["Talk to \(.applicationName)", "Hey \(.applicationName)"],
-            shortTitle: "Talk to Dolores",
+            shortTitle: "Talk to Bernard",
             systemImageName: "waveform"
         )
         AppShortcut(

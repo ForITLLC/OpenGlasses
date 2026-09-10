@@ -43,12 +43,12 @@ struct Config {
 
     /// All available wake phrases the user can enable
     static let availableWakePhrases = [
-        "hey dolores", "hey assistant", "hey claude", "hey jarvis", "hey computer", "hey rayban",
+        "hey bernard", "hey dolores", "hey assistant", "hey claude", "hey jarvis", "hey computer", "hey rayban",
     ]
 
     /// The primary wake word phrase (first enabled phrase)
     static var wakePhrase: String {
-        enabledWakePhrases.first ?? "hey dolores"
+        enabledWakePhrases.first ?? "hey bernard"
     }
 
     /// All enabled wake phrases (multi-select)
@@ -56,7 +56,7 @@ struct Config {
         if let phrases = UserDefaults.standard.stringArray(forKey: "enabledWakePhrases"), !phrases.isEmpty {
             return phrases.map { $0.lowercased() }
         }
-        return ["hey dolores"]
+        return ["hey bernard", "hey dolores"]
     }
 
     static func setEnabledWakePhrases(_ phrases: [String]) {
@@ -87,6 +87,8 @@ struct Config {
     /// Default alternative spellings for common wake phrases
     static func defaultAlternativesForPhrase(_ phrase: String) -> [String] {
         switch phrase.lowercased() {
+        case "hey bernard":
+            return ["hey bernar", "hey bernardo", "hey bernard lowe"]
         case "hey dolores":
             return ["hey dolorus", "hey delores", "hey dolorus", "hey de lores", "hey the lores"]
         case "hey claude":
@@ -120,7 +122,7 @@ struct Config {
     // MARK: - Custom System Prompt
 
     static let defaultSystemPrompt = """
-    You are Dolores, a voice assistant running on Ray-Ban Meta smart glasses. Your responses will be spoken aloud via text-to-speech.
+    You are Bernard, a voice assistant running on Ray-Ban Meta smart glasses. Your responses will be spoken aloud via text-to-speech.
 
     RESPONSE STYLE:
     - Keep responses CONCISE but COMPLETE — typically 2-4 sentences, longer for complex topics.

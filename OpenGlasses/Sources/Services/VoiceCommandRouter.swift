@@ -116,7 +116,7 @@ enum VoiceCommandRouter {
     /// closed on purpose: anything outside it means the user kept talking, which is what
     /// distinguishes "okay goodbye then" from "that's all i wanted to ask about the weather".
     static let closeTrailerWords: Set<String> = ["then", "now", "please", "bye", "goodbye",
-                                                 "thanks", "thank", "you", "dolores", "claude"]
+                                                 "thanks", "thank", "you", "bernard", "dolores", "claude"]
 
     // MARK: - Routing
 

@@ -9,6 +9,7 @@ final class ConfigTests: XCTestCase {
     // because XCTest happens to run it first alphabetically ("Default" < "SetAndGet").
     private let testKeys = [
         "enabledWakePhrases",
+        "doloresAPIKey",
         "alternativeWakePhrases",
         "customSystemPrompt",
         "elevenLabsAPIKey",
@@ -32,8 +33,9 @@ final class ConfigTests: XCTestCase {
 
     // MARK: - Dolores Config (hardcoded)
 
-    func testDoloresAPIKeyIsSet() {
-        XCTAssertFalse(Config.doloresAPIKey.isEmpty)
+    func testDoloresAPIKeyCanBeConfigured() {
+        Config.setDoloresAPIKey("test-key");
+        XCTAssertEqual(Config.doloresAPIKey, "test-key")
     }
 
     func testDoloresBaseURLIsValid() {
@@ -44,7 +46,8 @@ final class ConfigTests: XCTestCase {
     // MARK: - Wake Word
 
     func testWakePhraseDefault() {
-        XCTAssertEqual(Config.wakePhrase, "hey dolores")
+        XCTAssertEqual(Config.wakePhrase, "hey bernard")
+        XCTAssertTrue(Config.enabledWakePhrases.contains("hey dolores"))
     }
 
     func testWakePhraseSetAndGet() {
@@ -80,7 +83,7 @@ final class ConfigTests: XCTestCase {
     // MARK: - System Prompt
 
     func testSystemPromptDefault() {
-        XCTAssertTrue(Config.systemPrompt.contains("Dolores"))
+        XCTAssertTrue(Config.systemPrompt.contains("Bernard"))
     }
 
     func testSystemPromptSetAndGet() {

@@ -32,7 +32,7 @@ struct GlassesActivityWidget: Widget {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.black)
 
-                        Text(context.state.lastResponse.isEmpty ? "Dolores AI" : context.state.lastResponse)
+                        Text(context.state.lastResponse.isEmpty ? "Bernard AI" : context.state.lastResponse)
                             .font(.system(size: 12))
                             .foregroundStyle(.black.opacity(0.6))
                             .lineLimit(1)

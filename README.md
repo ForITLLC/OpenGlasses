@@ -1,3 +1,5 @@
+> Identity update (2026-09-10): this is the **Bernard Glasses** internal operator client, including the Bernard watch companion. Dolores is the external receptionist in for-Dolores. The bundle ID `com.forit.openglasses.dolores`, saved keys, target names and Shortcuts types remain stable. Fresh installs listen for “Hey Bernard” and accept “Hey Dolores” as a compatibility phrase. Existing saved wake-phrase choices are preserved. Avatar artwork comes from `for-AI/assets/brand-icons/bernard-1024.png`.
+
 # OpenGlasses
 
 Voice-powered AI assistant for Ray-Ban Meta smart glasses using Claude AI and on-device wake word detection.
