@@ -45,5 +45,7 @@ Swift changes were needed.
   no Dolores icon.
 - Bundle ids, the `DoloresAvatar` / `AppIcon` asset keys, target names and
   persistence identifiers.
-- Maeve icons are not in v3 yet; they will be adopted under WO#2014 when for-AI
-  publishes them the same way.
+- Maeve (`forit-ai` `54e11df`, `assets/brand-icons/source/maeve-v1/`) is the
+  internal Teams Support agent. OpenGlasses renders Bernard only and has no
+  Maeve site (`git grep -i maeve`: 0 hits outside this line); any engine agent
+  avatar would come from the API `iconUrl`, so no bundled asset is needed.
