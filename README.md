@@ -1,4 +1,4 @@
-> Identity update (2026-09-10): this is the **Bernard Glasses** internal operator client, including the Bernard watch companion. Dolores is the external receptionist in for-Dolores. The bundle ID `com.forit.openglasses.dolores`, saved keys, target names and Shortcuts types remain stable. Fresh installs listen for “Hey Bernard” and accept “Hey Dolores” as a compatibility phrase. Existing saved wake-phrase choices are preserved. Avatar artwork comes from `for-AI/assets/brand-icons/bernard-1024.png`.
+> Identity update (2026-09-10): this is the **Bernard Glasses** internal operator client, including the Bernard watch companion. Dolores is the external receptionist in for-Dolores. The bundle ID `com.forit.openglasses.dolores`, saved keys, target names and Shortcuts types remain stable. Fresh installs listen for “Hey Bernard” and accept “Hey Dolores” as a compatibility phrase. Existing saved wake-phrase choices are preserved. Avatar artwork is the ForIT v3 icon set: `for-AI/assets/brand-icons/source/forit-icons-v3/bernard-forit-1024.png` (see `docs/2026-09-11-forit-icons-v3.md`).
 
 # OpenGlasses
 
