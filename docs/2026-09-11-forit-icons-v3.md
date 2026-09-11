@@ -18,6 +18,10 @@ fleet VM) and decoded again to check it; it is byte-identical to the
 
 ## Sites switched
 
+> Later the same day the two app-icon rows were superseded by the Bernard
+> smart-glasses variant (`docs/2026-09-11-openglasses-icon-glasses.md`). The
+> avatar rows are unchanged.
+
 | Site | File | Treatment | SHA-256 |
 | --- | --- | --- | --- |
 | iOS app icon | `OpenGlasses/Sources/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` | `bernard-forit-1024.png` on `#071D2B`, RGB | `b22180042ac4c001f1ee61ede6f440a9dc031650d78d69a9e0589d8a231cf1d3` |
