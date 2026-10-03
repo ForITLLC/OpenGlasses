@@ -25,7 +25,7 @@ the rest of the fleet.
 
 ## How it was made
 
-1. **Source.** v3 `bernard-forit-1024.png` from `ForITLLC/forit-ai` `main`,
+1. **Source.** v3 `bernard-forit-1024.png` from `ForITLLC/for-AI` `main`,
    `assets/brand-icons/source/forit-icons-v3/`, verified against `SHA256SUMS`.
 2. **Model.** Azure OpenAI `gpt-image-2.5` (model version `2026-09-08`),
    deployment `gpt-image-2.5-sunburst` (GlobalStandard) on the ForIT account
