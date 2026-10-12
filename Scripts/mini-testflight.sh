@@ -4,8 +4,8 @@
 # Unit tests, archive, export and upload of ForIT Glasses (OpenGlasses, com.forit.openglasses.dolores) to internal
 # TestFlight, run by hand on the Mac mini over ssh. It replaces .github/workflows/build-and-upload.yml: under the ForIT
 # checklist (CI-1, CI-3) the checks and the upload run on the Mini, never on GitHub-hosted macOS. Ported from
-# for-Notes apps/ios/Scripts/mini-testflight.sh (ForITLLC/for-Notes f77e50a3); the Scripts/asc_*.py helpers are
-# adapted copies from the same commit.
+# for-Notes apps/ios/Scripts/mini-testflight.sh (ForITLLC/for-Notes f77e50a3); Scripts/asc_resolve.py and
+# Scripts/asc_attach.py are adapted copies from the same commit. The profile script is ForITCommon's (checklist CI-4).
 #
 # Run it from a copy of the repo on the Mini (rsync the worktree there first):
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh'              tests, archive, export, upload, wait for VALID
@@ -15,17 +15,19 @@
 # 1. OpenGlasses/Secrets.plist: DOLORES_API_KEY from the environment, written as the workflow wrote it. With no key
 #    the plist holds an empty dict and the app asks each person for their own key at onboarding. The key is never
 #    printed.
-# 2. xcodegen generate, then the unit tests (scheme OpenGlasses, -only-testing:OpenGlassesTests) on one of the Mini's
-#    stock iPhone simulators: named exactly like its device type, shut down, booted before (it has
-#    data/Library/Preferences/com.apple.migration.plist) and given to no lane in /Users/Shared/ci-sim/ci-sim-lanes.conf.
-#    No device is ever created. The boot goes through the Mini's boot slot (checklist CI-2), and the simulator is shut
-#    down again after the tests. A red test stops the run before anything is signed (CI-1).
+# 2. xcodegen generate, then the unit tests (scheme OpenGlasses, -only-testing:OpenGlassesTests) on OpenGlasses' own
+#    iPhone simulator, through the Mini's route /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses (checklist
+#    CI-2): the iPhone ci-sim-lanes.conf gives the lane, else ci-OpenGlasses-iPhone, which the route creates and
+#    primes once. Since 2026-10-11 a lane may not use another lane's simulator or one that belongs to no lane. The
+#    route boots it through the boot slot and refuses a test run on any other simulator; it is shut down again after
+#    the tests. A red test stops the run before anything is signed (CI-1).
 # 3. App Store Connect (Scripts/asc_resolve.py, read-only): the app record (must be 6761319043), its internal group
 #    "ForIT Internal", and the build number: the highest build number App Store Connect has for the app, plus one,
 #    the rule the workflow used.
 # 4. Signing, the for-Notes way (the login keychain is locked over ssh, and Xcode's automatic signing would want an
-#    Apple Development identity the Mini does not have). Scripts/asc_provision.py makes or reuses the two App Store
-#    profiles project.yml names in each target's Release configuration, chosen by the certificate's public key:
+#    Apple Development identity the Mini does not have). ForITCommon's Scripts/asc/asc_provision.py (checklist CI-4),
+#    from the package the tests resolved into build/spm (the version project.yml pins), makes or reuses the two App
+#    Store profiles project.yml names in each target's Release configuration, chosen by the certificate's public key:
 #      com.forit.openglasses.dolores                  "OpenGlasses App Store"         OpenGlasses.app
 #      com.forit.openglasses.dolores.activity-widget  "OpenGlasses Widget App Store"  PlugIns/GlassesActivityWidget.appex
 #    DoloresWatch is not embedded in the app and is not built. The team's Apple Distribution identity,
@@ -69,6 +71,8 @@ WHATS_NEW=${WHATS_NEW:-}
 PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
 XCODE_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 CI_SIM=/Users/Shared/ci-sim
+LANE_SIM=("$CI_SIM/ci-sim-lane.sh" --lane OpenGlasses)  # this lane's simulator, and nobody else's
+ASC_PROVISION=build/spm/checkouts/for-iCommon/Scripts/asc/asc_provision.py  # ForITCommon's, resolved by the tests
 OUT=build/testflight-$(date -u +%Y%m%dT%H%M%SZ)
 KC=$PWD/build/signing-$$.keychain-db
 KCPW=""
@@ -85,12 +89,6 @@ step() {  # step <name> <cmd...>: prints "step <name> rc=<rc> <seconds>s", log i
   rc=$?
   echo "step $name rc=$rc $(( $(date +%s) - start ))s"
   [ $rc -eq 0 ] || { tail -25 "$OUT/$name.log"; exit $rc; }
-}
-
-within() {  # within <seconds> <cmd...>: the command, killed when it outlives the deadline (macOS has no timeout(1))
-  local secs=$1
-  shift
-  perl -e 'alarm shift; exec @ARGV' "$secs" "$@"
 }
 
 keychain_first() {  # unlock $KC and put it first in the user search list; other jobs on the Mini rewrite that list
@@ -112,7 +110,7 @@ restore_plists() {  # put back the Info.plists xcodegen generated (the archive g
 
 shutdown_sim() {
   [ -n "$SIM_BOOTED" ] || return 0
-  within 60 "$SIMCTL" shutdown "$SIM_UDID" > /dev/null 2>&1 || echo "could not shut down simulator $SIM_UDID"
+  "${LANE_SIM[@]}" shutdown iPhone > /dev/null 2>&1 || echo "could not shut down simulator ${SIM_UDID:-of the lane}"
   SIM_BOOTED=""
 }
 
@@ -182,7 +180,7 @@ profile() {
   file=$OUT/profile-$key.mobileprovision
   grep -q -F "PROVISIONING_PROFILE_SPECIFIER: \"$name\"" project.yml ||
     { echo "project.yml names no profile \"$name\"; the archive would not find it"; exit 1; }
-  step "profile-$key" python3 Scripts/asc_provision.py profile --type IOS_APP_STORE --name "$name" \
+  step "profile-$key" python3 "$ASC_PROVISION" profile --type IOS_APP_STORE --name "$name" \
     --bundle-id "$bundle" --cert-der "$CERT_DIR/distribution.der" --error-title "$name" --out "$file"
   PROFILE_UUID=$(profile_field "$file" UUID)
   [ -n "$PROFILE_UUID" ] || { echo "no UUID in $file"; exit 1; }
@@ -213,7 +211,7 @@ done
 command -v xcodegen > /dev/null || { echo "no xcodegen on PATH (brew install xcodegen)"; exit 1; }
 python3 -c 'import jwt, cryptography' 2> /dev/null ||
   { echo "python3 has no PyJWT or cryptography (pip3 install --user pyjwt cryptography)"; exit 1; }
-SIMCTL=$(xcrun -f simctl) || { echo "no simctl (xcrun -f simctl)"; exit 1; }
+[ -x "$CI_SIM/ci-sim-lane.sh" ] || { echo "no $CI_SIM/ci-sim-lane.sh, the Mini's simulator route (CI-2)"; exit 1; }
 
 # --- 1. Secrets.plist ---------------------------------------------------------------------------------------------
 if [ -n "${DOLORES_API_KEY:-}" ]; then
@@ -242,66 +240,17 @@ fi
 # --- 2. project and unit tests (CI-1: a red test stops the run here) ----------------------------------------------
 step xcodegen xcodegen generate
 
-# Candidates, newest iOS runtime first: "<udid> <runtime> <name>". Stock only (named like the device type), shut
-# down, booted before (an iOS 27 simulator's first boot can hang the Mini for every lane), iOS 26 or later.
-stock_iphones() {
-  within 30 "$SIMCTL" list -j devices available > "$OUT/sim-devices.json" &&
-    within 30 "$SIMCTL" list -j devicetypes > "$OUT/sim-devicetypes.json" || return 1
-  python3 - "$OUT/sim-devices.json" "$OUT/sim-devicetypes.json" << 'PY'
-import json, os, re, sys
-devices = json.load(open(sys.argv[1]))["devices"]
-types = {t["identifier"]: t for t in json.load(open(sys.argv[2]))["devicetypes"]}
-rows = []
-for runtime, devs in devices.items():
-    m = re.search(r"SimRuntime\.iOS-(\d+)-(\d+)", runtime)
-    if not m or int(m.group(1)) < 26:
-        continue
-    for d in devs:
-        t = types.get(d.get("deviceTypeIdentifier"), {})
-        if t.get("productFamily") != "iPhone" or d.get("name") != t.get("name"):
-            continue
-        if d.get("state") != "Shutdown" or not d.get("isAvailable", True):
-            continue
-        data = d.get("dataPath") or os.path.expanduser(f"~/Library/Developer/CoreSimulator/Devices/{d['udid']}/data")
-        if not os.path.isfile(os.path.join(data, "Library/Preferences/com.apple.migration.plist")):
-            continue
-        rows.append(((int(m.group(1)), int(m.group(2))), d["udid"], d["name"]))
-for (major, minor), udid, name in sorted(rows, key=lambda r: r[0], reverse=True):
-    print(f"{udid} iOS-{major}.{minor} {name}")
-PY
-}
-
-sim_owner() {  # the lane (repo) a simulator belongs to, "-" for none; "?" when the lane helper cannot tell
-  local owner
-  [ -x "$CI_SIM/ci-sim-lane.sh" ] || { echo -; return; }
-  owner=$("$CI_SIM/ci-sim-lane.sh" owner "$1" < /dev/null 2> /dev/null) || owner="?"
-  echo "${owner:-?}"
-}
-
-while read -r udid runtime name; do
-  [ -n "$udid" ] || continue
-  owner=$(sim_owner "$udid")
-  if [ "$owner" != - ]; then
-    echo "skip $name $runtime ($udid): lane $owner"
-    continue
-  fi
-  SIM_UDID=$udid
-  echo "simulator $name $runtime ($udid)"
-  break
-done < <(stock_iphones)
-[ -n "$SIM_UDID" ] || {
-  echo "no stock iPhone simulator here is shut down, booted before and in no lane; not creating one."
-  echo "See $OUT/sim-devices.json."
-  exit 1
-}
-"$CI_SIM/ci-sim-boot-slot.sh" "OpenGlasses unit-tests $SIM_UDID" || true
-within 120 "$SIMCTL" boot "$SIM_UDID" || { echo "simctl boot $SIM_UDID failed"; exit 1; }
-SIM_BOOTED=1
-within 300 "$SIMCTL" bootstatus "$SIM_UDID" > "$OUT/bootstatus.log" 2>&1 ||
-  { echo "simulator $SIM_UDID did not finish booting (see $OUT/bootstatus.log)"; exit 1; }
+# The route makes the lane's iPhone if it has none (and primes it, so its first boot is not paid here), takes the boot
+# slot, boots it and waits for bootstatus, each under its own time limit, and prints the UDID last.
+SIM_BOOTED=1  # from here the cleanup shuts the lane's simulator down; the route says so if it never booted
+step sim "${LANE_SIM[@]}" boot iPhone
+SIM_UDID=$(tail -1 "$OUT/sim.log")
+[[ $SIM_UDID =~ ^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$ ]] ||
+  { echo "no UDID from ci-sim-lane.sh boot (see $OUT/sim.log)"; exit 1; }
+"${LANE_SIM[@]}" list 2> /dev/null | grep -F "$SIM_UDID" | sed 's/^/simulator /'
 
 # -parallel-testing-enabled NO: parallel testing would clone the simulator, and no device is made here.
-step tests nice -n 10 xcodebuild test -project OpenGlasses.xcodeproj -scheme OpenGlasses \
+step tests nice -n 10 "${LANE_SIM[@]}" xcodebuild test -project OpenGlasses.xcodeproj -scheme OpenGlasses \
   -destination "id=$SIM_UDID" -only-testing:OpenGlassesTests -parallel-testing-enabled NO \
   -derivedDataPath build/dd-sim -clonedSourcePackagesDirPath build/spm -scmProvider system \
   CODE_SIGNING_ALLOWED=NO
@@ -330,6 +279,8 @@ ARCHIVE=$OUT/OpenGlasses-$BUILD.xcarchive
 CERT=$(openssl x509 -inform der -in "$CERT_DIR/distribution.der" -noout -fingerprint -sha1 | sed 's/.*=//; s/://g')
 [ -n "$CERT" ] || { echo "could not read $CERT_DIR/distribution.der"; exit 1; }
 echo "cert $CERT"
+[ -r "$ASC_PROVISION" ] ||
+  { echo "no $ASC_PROVISION: the tests step resolves ForITCommon 0.17.1 or later there"; exit 1; }
 profile app "$BUNDLE" "$APP_PROFILE_NAME"
 UUID_APP=$PROFILE_UUID
 profile widget "$WIDGET_BUNDLE" "$WIDGET_PROFILE_NAME"

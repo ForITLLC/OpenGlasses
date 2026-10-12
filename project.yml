@@ -19,9 +19,12 @@ packages:
     exactVersion: "0.5.0"
   # Shared ForIT code by URL (for-iCommon, private): ForIT Sign-in and Send feedback (FB-1).
   # The phone app only; DoloresWatch and the widget don't link it (it doesn't build for watchOS).
+  # Pinned exact like the SDK above, for the same reason: Scripts/mini-testflight.sh runs the App
+  # Store profile script from this package (checklist CI-4), so every run uses the 0.17.1 one
+  # (0.17.0's asked App Store Connect for capabilities with ?limit=200 and got a 400).
   ForITCommon:
     url: https://github.com/ForITLLC/for-iCommon.git
-    from: "0.15.0"
+    exactVersion: "0.17.1"
 
 targets:
   OpenGlasses:
