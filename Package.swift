@@ -9,7 +9,8 @@ let package = Package(
     dependencies: [
         // Meta Wearables Device Access Toolkit
         .package(url: "https://github.com/facebook/meta-wearables-dat-ios.git", from: "0.3.0"),
-
+        // ForIT Sign-in and Send feedback (private: needs read access to ForITLLC/for-iCommon)
+        .package(url: "https://github.com/ForITLLC/for-iCommon.git", from: "0.15.0"),
     ],
     targets: [
         .target(
@@ -17,6 +18,7 @@ let package = Package(
             dependencies: [
                 .product(name: "MWDATCore", package: "meta-wearables-dat-ios"),
                 .product(name: "MWDATCamera", package: "meta-wearables-dat-ios"),
+                .product(name: "ForITCommon", package: "for-iCommon"),
             ],
             path: "OpenGlasses/Sources",
             resources: [

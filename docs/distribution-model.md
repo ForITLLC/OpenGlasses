@@ -38,13 +38,14 @@ Sources: Apple *App build statuses* + *Distribute proprietary in-house apps* dep
 - **Genuinely private.** Internal testers are explicitly named Apple IDs in the "ForIT Internal" group — a
   non-member cannot install (see D4). No public listing exists (the old public v1.0 submission was rejected
   and we are *not* pursuing it).
-- **The expiry problem is now an automation problem, and it's solved.** The hardened CI pipeline
-  (`.github/workflows/build-and-upload.yml`) computes the build number from *ASC latest + 1*, archives,
-  uploads, and auto-clears export compliance. Because "ForIT Internal" is an internal group with
+- **The expiry problem is now an automation problem, and it's solved.** The build script
+  (`Scripts/mini-testflight.sh`, run by hand on the Mac mini since 2026-10-12; the GitHub workflow it
+  replaced is gone) computes the build number from *ASC latest + 1*, archives, uploads, and auto-clears
+  export compliance. Because "ForIT Internal" is an internal group with
   `hasAccessToAllBuilds=true`, every uploaded build is exposed to its testers automatically — no explicit
   build→group assignment is needed (App Store Connect actually *rejects* one with 422 "Cannot add internal
-  group to a build"). So a fresh, installable build is one push away, and a scheduled monthly run would keep
-  a non-expired build live indefinitely.
+  group to a build"). So a fresh, installable build is one script run away, and a run every month or two
+  keeps a non-expired build live indefinitely.
 
 ## What the ABM Custom App path would cost (if chosen later)
 

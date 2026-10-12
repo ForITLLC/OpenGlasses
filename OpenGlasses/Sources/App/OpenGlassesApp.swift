@@ -3,6 +3,7 @@ import AVFoundation
 import MWDATCore
 import AppIntents
 import UIKit
+import ForITCommon
 
 /// Whether `Wearables.configure()` has actually succeeded.
 ///
@@ -16,6 +17,14 @@ enum WearablesRuntime {
 }
 
 private func processWearablesCallbackURL(_ url: URL, source: String) {
+    // The ForIT Sign-in redirect is the feedback account's, never the Meta SDK's. It can arrive
+    // through SwiftUI and the scene delegate both; the second is ignored.
+    if FeedbackAccount.isSignInLink(url) {
+        Task { @MainActor in
+            _ = FeedbackAccount.shared.handle(url)
+        }
+        return
+    }
     NSLog("[OpenGlasses] [\(source)] Received URL callback: \(url.absoluteString)")
     Task { @MainActor in
         AppStateProvider.shared?.recordCallback(url: url, source: source)
@@ -106,6 +115,7 @@ struct OpenGlassesApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
+                .forITFeedback(FeedbackAccount.shared.center)
                 .onAppear { AppStateProvider.shared = appState }
                 .onOpenURL { url in
                     processWearablesCallbackURL(url, source: "SwiftUI")
