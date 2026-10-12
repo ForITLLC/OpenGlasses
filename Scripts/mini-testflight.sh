@@ -4,8 +4,8 @@
 # Unit tests, archive, export and upload of ForIT Glasses (OpenGlasses, com.forit.openglasses.dolores) to internal
 # TestFlight, run by hand on the Mac mini over ssh. It replaces .github/workflows/build-and-upload.yml: under the ForIT
 # checklist (CI-1, CI-3) the checks and the upload run on the Mini, never on GitHub-hosted macOS. Ported from
-# for-Notes apps/ios/Scripts/mini-testflight.sh (ForITLLC/for-Notes f77e50a3); the Scripts/asc_*.py helpers are
-# adapted copies from the same commit.
+# for-Notes apps/ios/Scripts/mini-testflight.sh (ForITLLC/for-Notes f77e50a3); Scripts/asc_resolve.py and
+# Scripts/asc_attach.py are adapted copies from the same commit. The profile script is ForITCommon's (checklist CI-4).
 #
 # Run it from a copy of the repo on the Mini (rsync the worktree there first):
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh'              tests, archive, export, upload, wait for VALID
@@ -24,8 +24,9 @@
 #    "ForIT Internal", and the build number: the highest build number App Store Connect has for the app, plus one,
 #    the rule the workflow used.
 # 4. Signing, the for-Notes way (the login keychain is locked over ssh, and Xcode's automatic signing would want an
-#    Apple Development identity the Mini does not have). Scripts/asc_provision.py makes or reuses the two App Store
-#    profiles project.yml names in each target's Release configuration, chosen by the certificate's public key:
+#    Apple Development identity the Mini does not have). ForITCommon's Scripts/asc/asc_provision.py (checklist CI-4),
+#    from the package the tests resolved into build/spm (the version project.yml pins), makes or reuses the two App
+#    Store profiles project.yml names in each target's Release configuration, chosen by the certificate's public key:
 #      com.forit.openglasses.dolores                  "OpenGlasses App Store"         OpenGlasses.app
 #      com.forit.openglasses.dolores.activity-widget  "OpenGlasses Widget App Store"  PlugIns/GlassesActivityWidget.appex
 #    DoloresWatch is not embedded in the app and is not built. The team's Apple Distribution identity,
@@ -69,6 +70,7 @@ WHATS_NEW=${WHATS_NEW:-}
 PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
 XCODE_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 CI_SIM=/Users/Shared/ci-sim
+ASC_PROVISION=build/spm/checkouts/for-iCommon/Scripts/asc/asc_provision.py  # ForITCommon's, resolved by the tests
 OUT=build/testflight-$(date -u +%Y%m%dT%H%M%SZ)
 KC=$PWD/build/signing-$$.keychain-db
 KCPW=""
@@ -182,7 +184,7 @@ profile() {
   file=$OUT/profile-$key.mobileprovision
   grep -q -F "PROVISIONING_PROFILE_SPECIFIER: \"$name\"" project.yml ||
     { echo "project.yml names no profile \"$name\"; the archive would not find it"; exit 1; }
-  step "profile-$key" python3 Scripts/asc_provision.py profile --type IOS_APP_STORE --name "$name" \
+  step "profile-$key" python3 "$ASC_PROVISION" profile --type IOS_APP_STORE --name "$name" \
     --bundle-id "$bundle" --cert-der "$CERT_DIR/distribution.der" --error-title "$name" --out "$file"
   PROFILE_UUID=$(profile_field "$file" UUID)
   [ -n "$PROFILE_UUID" ] || { echo "no UUID in $file"; exit 1; }
@@ -330,6 +332,8 @@ ARCHIVE=$OUT/OpenGlasses-$BUILD.xcarchive
 CERT=$(openssl x509 -inform der -in "$CERT_DIR/distribution.der" -noout -fingerprint -sha1 | sed 's/.*=//; s/://g')
 [ -n "$CERT" ] || { echo "could not read $CERT_DIR/distribution.der"; exit 1; }
 echo "cert $CERT"
+[ -r "$ASC_PROVISION" ] ||
+  { echo "no $ASC_PROVISION: the tests step resolves ForITCommon 0.17.0 or later there"; exit 1; }
 profile app "$BUNDLE" "$APP_PROFILE_NAME"
 UUID_APP=$PROFILE_UUID
 profile widget "$WIDGET_BUNDLE" "$WIDGET_PROFILE_NAME"

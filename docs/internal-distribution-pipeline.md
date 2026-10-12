@@ -35,7 +35,8 @@ build reaches the "ForIT Internal" group with **no further action**.
    the boot slot. A red test stops the run before anything is signed.
 4. **Determine build number** — queries ASC for the current max build and sets
    `CURRENT_PROJECT_VERSION = max + 1`, so uploads never collide with an existing build.
-5. **Signing** — the Apple Distribution cert + key go into a throwaway keychain; `asc_provision.py`
+5. **Signing** — the Apple Distribution cert + key go into a throwaway keychain; ForITCommon's
+   `Scripts/asc/asc_provision.py` (checklist CI-4, run from the resolved package in `build/spm`)
    makes or reuses the app and widget App Store profiles. The Watch app is not embedded.
 6. **Archive** — `xcodebuild archive`, Release, `generic/platform=iOS`, manual signing.
 7. **Export & Upload** — `xcodebuild -exportArchive` with `method=app-store-connect`; the IPA's
