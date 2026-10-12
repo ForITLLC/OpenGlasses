@@ -280,7 +280,7 @@ CERT=$(openssl x509 -inform der -in "$CERT_DIR/distribution.der" -noout -fingerp
 [ -n "$CERT" ] || { echo "could not read $CERT_DIR/distribution.der"; exit 1; }
 echo "cert $CERT"
 [ -r "$ASC_PROVISION" ] ||
-  { echo "no $ASC_PROVISION: the tests step resolves ForITCommon 0.17.0 or later there"; exit 1; }
+  { echo "no $ASC_PROVISION: the tests step resolves ForITCommon 0.17.1 or later there"; exit 1; }
 profile app "$BUNDLE" "$APP_PROFILE_NAME"
 UUID_APP=$PROFILE_UUID
 profile widget "$WIDGET_BUNDLE" "$WIDGET_PROFILE_NAME"
