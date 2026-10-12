@@ -134,6 +134,8 @@ struct SettingsView: View {
                         .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
                 }
 
+                FeedbackSection()
+
                 // About
                 Section("About") {
                     HStack {
@@ -154,6 +156,7 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color(hex: "0A1A26"))
+            .feedbackDialogs()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

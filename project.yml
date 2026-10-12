@@ -17,6 +17,11 @@ packages:
     # xcodegen regenerates the .xcodeproj and discards the pinned Package.resolved,
     # so the version MUST be pinned here to stay reproducible.
     exactVersion: "0.5.0"
+  # Shared ForIT code by URL (for-iCommon, private): ForIT Sign-in and Send feedback (FB-1).
+  # The phone app only; DoloresWatch and the widget don't link it (it doesn't build for watchOS).
+  ForITCommon:
+    url: https://github.com/ForITLLC/for-iCommon.git
+    from: "0.15.0"
 
 targets:
   OpenGlasses:
@@ -67,6 +72,9 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - "mwdat-688603774243722"
+          # ForIT Sign-in's redirect (FeedbackAccount.redirectURI).
+          - CFBundleURLSchemes:
+              - "io.forit.glasses"
     entitlements:
       path: OpenGlasses/OpenGlasses.entitlements
     settings:
@@ -89,6 +97,7 @@ targets:
         product: MWDATCore
       - package: meta-wearables-dat-ios
         product: MWDATCamera
+      - package: ForITCommon
       - target: GlassesActivityWidget
     # Explicit SHARED scheme. Without this the only schemes are Xcode's implicit
     # auto-created ones (xcuserdata, not in git), which CI cannot rely on for

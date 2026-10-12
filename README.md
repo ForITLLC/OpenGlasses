@@ -122,6 +122,12 @@ swift build
 
 **Note**: First launch will trigger Meta AI app for glasses pairing authorization.
 
+### ForIT build
+
+ForIT Glasses (`com.forit.openglasses.dolores`) gets ForIT Sign-in and Send feedback from the ForITCommon package in ForITLLC/for-iCommon. That repository is private, so resolving packages needs a GitHub account or token that can read it.
+
+Tests and internal TestFlight uploads run by hand on the Mac mini with `Scripts/mini-testflight.sh` (usage is in its header). No GitHub-hosted macOS runner builds this app.
+
 ## Project Structure
 
 ```
