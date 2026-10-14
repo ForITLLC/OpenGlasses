@@ -30,7 +30,11 @@ final class FeedbackAccount: ObservableObject {
 
     private init() {
         let key = TasksFeedbackKey.shared
+        #if DEBUG
+        let signedIn = !OpenGlassesScreenshotFixture.isActive && key.current != nil
+        #else
         let signedIn = key.current != nil
+        #endif
         center = FeedbackCenter(
             sender: TasksFeedbackSender(epicId: Self.epicId, laneName: "OpenGlasses", credential: { key.credential }),
             shakeToReport: signedIn)

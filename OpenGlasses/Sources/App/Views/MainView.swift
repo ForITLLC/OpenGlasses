@@ -1,3 +1,4 @@
+import ForITCommon
 import SwiftUI
 
 /// Primary interaction view — Dolores-branded with ForIT colors.
@@ -28,13 +29,6 @@ struct MainView: View {
 
     var body: some View {
         ZStack {
-            // ForIT dark background gradient
-            LinearGradient(
-                colors: [Color(hex: "0A1A26"), Color(hex: "142F43")],
-                startPoint: .top,
-                endPoint: .bottom
-            ).ignoresSafeArea()
-
             // Main content stack
             VStack(spacing: 0) {
                 // Top: Connection banner + power button
@@ -108,6 +102,7 @@ struct MainView: View {
                     .padding(.bottom, 8)
             }
         }
+        .forITScreenBackground()
         .preferredColorScheme(.dark)
     }
 

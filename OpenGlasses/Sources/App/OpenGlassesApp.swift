@@ -17,6 +17,9 @@ enum WearablesRuntime {
 }
 
 private func processWearablesCallbackURL(_ url: URL, source: String) {
+    #if DEBUG
+    guard !OpenGlassesScreenshotFixture.isActive else { return }
+    #endif
     // The ForIT Sign-in redirect is the feedback account's, never the Meta SDK's. It can arrive
     // through SwiftUI and the scene delegate both; the second is ignored.
     if FeedbackAccount.isSignInLink(url) {
@@ -108,6 +111,9 @@ struct OpenGlassesApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.isActive else { return }
+        #endif
         configureWearables()
     }
 
@@ -115,6 +121,7 @@ struct OpenGlassesApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
+                .forITTint()
                 .forITFeedback(FeedbackAccount.shared.center)
                 .onAppear { AppStateProvider.shared = appState }
                 .onOpenURL { url in
@@ -122,6 +129,9 @@ struct OpenGlassesApp: App {
                 }
         }
         .onChange(of: scenePhase) { _, newPhase in
+            #if DEBUG
+            guard !OpenGlassesScreenshotFixture.isActive else { return }
+            #endif
             switch newPhase {
             case .background:
                 print("App moved to background — keeping audio + Live Activity alive")
@@ -314,6 +324,13 @@ class AppState: ObservableObject {
     }
 
     init() {
+        #if DEBUG
+        if OpenGlassesScreenshotFixture.isActive {
+            AppStateProvider.shared = self
+            OpenGlassesScreenshotFixture.prepare(self)
+            return
+        }
+        #endif
         addDebugEvent("AppState initialized")
         AppStateProvider.shared = self  // Set immediately so callbacks can record
         transcriptionService.sharedAudioEngineProvider = wakeWordService

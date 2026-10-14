@@ -37,6 +37,10 @@ class ErrorReporter {
 
     /// Report an error to the server. Non-blocking.
     func report(_ message: String, source: String = "app", level: String = "error", extra: [String: String] = [:]) {
+        #if DEBUG
+        // Simulator fixture startup also constructs inert camera services.
+        guard !OpenGlassesScreenshotFixture.isActive else { return }
+        #endif
         guard !Self.isRunningTests else {
             captureLock.lock()
             capturedUnderTest.append("[\(level)] \(source): \(message)")

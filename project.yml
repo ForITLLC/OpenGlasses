@@ -2,7 +2,7 @@ name: OpenGlasses
 options:
   bundleIdPrefix: com.openglasses
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "18.0"
     watchOS: "11.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
@@ -40,8 +40,8 @@ targets:
     info:
       path: OpenGlasses/Info.plist
       properties:
-        CFBundleName: "Bernard Glasses"
-        CFBundleDisplayName: "Bernard Glasses"
+        CFBundleName: "ForIT Glasses"
+        CFBundleDisplayName: "ForIT Glasses"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -83,6 +83,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores
+        TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: UUSSWWML2A
         MARKETING_VERSION: "1.3.1"
         # Local/base value only — CI overrides via CURRENT_PROJECT_VERSION=<ASC latest + 1>
@@ -143,8 +144,8 @@ targets:
       path: DoloresWatch/Info.plist
       properties:
         WKApplication: true
-        CFBundleName: "Bernard"
-        CFBundleDisplayName: "Bernard"
+        CFBundleName: "ForIT Glasses"
+        CFBundleDisplayName: "ForIT Glasses"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores.watchkitapp
