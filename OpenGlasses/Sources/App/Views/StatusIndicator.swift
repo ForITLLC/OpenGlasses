@@ -49,7 +49,7 @@ struct StatusIndicator: View {
             }
 
             // Keep the shared white mark legible in every activity state.
-            ForITMark(size: 24, color: .white)
+            ForITMark(size: 24, surface: .dark)
 
             // Status text — ONLY during active states
             if isActive {

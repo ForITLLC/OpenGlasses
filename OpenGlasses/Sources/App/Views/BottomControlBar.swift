@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Bottom control bar — single mic button centered at the bottom.
-/// Settings gear moved to ConnectionBanner (top-right).
+/// Settings opens from the shared profile panel in the navigation bar.
 struct BottomControlBar: View {
     @EnvironmentObject var appState: AppState
 
@@ -32,10 +32,6 @@ struct BottomControlBar: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 16)
-        .sheet(isPresented: $appState.showSettings) {
-            SettingsView()
-                .environmentObject(appState)
-        }
     }
 
     private var micIcon: String {

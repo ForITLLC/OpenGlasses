@@ -22,7 +22,7 @@ struct LaunchScreen: View {
                     .opacity(isAnimating ? 1.0 : 0)
 
                 // The package owns the mark's geometry and white ink.
-                ForITMark(size: 40, color: .white)
+                ForITMark(size: 40, surface: .dark)
                     .opacity(isAnimating ? 1.0 : 0)
 
                 Spacer()

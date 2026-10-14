@@ -23,6 +23,13 @@ final class FeedbackAccount: ObservableObject {
     let center: FeedbackCenter
     @Published private(set) var signedIn: Bool
     @Published private(set) var email: String?
+
+    /// The feedback identity only; the engine account in Settings is independent.
+    var profileAccount: ForITProfileAccount? {
+        guard signedIn else { return nil }
+        return ForITProfileAccount(id: email ?? "forit-feedback", name: email ?? "ForIT account")
+    }
+
     /// Why sign-in didn't work, shown in an alert.
     @Published var problem: String?
     @Published var askingSignIn = false
@@ -36,7 +43,12 @@ final class FeedbackAccount: ObservableObject {
         let signedIn = key.current != nil
         #endif
         center = FeedbackCenter(
-            sender: TasksFeedbackSender(epicId: Self.epicId, laneName: "OpenGlasses", credential: { key.credential }),
+            sender: TasksFeedbackSender(epicId: Self.epicId, laneName: "OpenGlasses", credential: {
+                #if DEBUG
+                guard !OpenGlassesScreenshotFixture.isActive else { return nil }
+                #endif
+                return key.credential
+            }),
             shakeToReport: signedIn)
         self.signedIn = signedIn
         email = signedIn ? UserDefaults.standard.string(forKey: Self.emailKey) : nil
@@ -45,6 +57,9 @@ final class FeedbackAccount: ObservableObject {
     /// Sign in in the browser, mint the board key, then open the feedback sheet. Tapping again
     /// while the browser is still open starts over (BrowserSignIn cancels the waiting attempt).
     func signInForFeedback() {
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.isActive else { return }
+        #endif
         Task {
             do {
                 let identity = try await signIn.signIn { url in await UIApplication.shared.open(url) }
@@ -64,9 +79,17 @@ final class FeedbackAccount: ObservableObject {
     }
 
     /// The sign-in redirect; false for any other link.
-    func handle(_ url: URL) -> Bool { signIn.handle(url) }
+    func handle(_ url: URL) -> Bool {
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.isActive else { return false }
+        #endif
+        return signIn.handle(url)
+    }
 
     func signOut() {
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.isActive else { return }
+        #endif
         TasksFeedbackKey.shared.forget()
         UserDefaults.standard.removeObject(forKey: Self.emailKey)
         email = nil
@@ -118,30 +141,38 @@ struct FeedbackSection: View {
 
 /// The dialogs FeedbackSection opens. On the List that holds the section, not on its rows.
 private struct FeedbackDialogs: ViewModifier {
+    let isEnabled: Bool
     @ObservedObject private var account = FeedbackAccount.shared
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog("Send feedback", isPresented: $account.askingSignIn, titleVisibility: .visible) {
+            .confirmationDialog("Send feedback", isPresented: presentation($account.askingSignIn), titleVisibility: .visible) {
                 Button("Sign in with ForIT") { account.signInForFeedback() }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Feedback goes to ForIT's board under your name, so it needs your ForIT account. Bernard works without one.")
             }
-            .confirmationDialog("Sign out of ForIT?", isPresented: $account.confirmingSignOut, titleVisibility: .visible) {
+            .confirmationDialog("Sign out of ForIT?", isPresented: presentation($account.confirmingSignOut), titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { account.signOut() }
             } message: {
                 Text("Sending feedback will ask you to sign in again. Bernard keeps working.")
             }
-            .alert("Send feedback", isPresented: Binding(get: { account.problem != nil },
-                                                         set: { if !$0 { account.problem = nil } })) {
+            .alert("Send feedback", isPresented: Binding(get: { isEnabled && account.problem != nil },
+                                                         set: { if isEnabled && !$0 { account.problem = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(account.problem ?? "")
             }
     }
+
+    private func presentation(_ value: Binding<Bool>) -> Binding<Bool> {
+        Binding(get: { isEnabled && value.wrappedValue },
+                set: { if isEnabled { value.wrappedValue = $0 } })
+    }
 }
 
 extension View {
-    func feedbackDialogs() -> some View { modifier(FeedbackDialogs()) }
+    func feedbackDialogs(isEnabled: Bool = true) -> some View {
+        modifier(FeedbackDialogs(isEnabled: isEnabled))
+    }
 }

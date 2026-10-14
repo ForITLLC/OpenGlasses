@@ -25,7 +25,7 @@ enum OpenGlassesScreenshotFixture {
         state.isProcessing = false
         state.isConnected = false
         state.inConversation = false
-        state.showSettings = false
+        state.showSettings = scene == .settings
         state.errorMessage = nil
         state.currentTranscription = scene == .detail ? "What can I ask my glasses?" : ""
         state.lastResponse = scene == .detail

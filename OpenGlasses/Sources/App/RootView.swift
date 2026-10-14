@@ -54,10 +54,8 @@ struct RootView: View {
         switch scene {
         case .gate:
             OnboardingView(onComplete: {})
-        case .home, .detail:
+        case .home, .detail, .settings:
             MainView()
-        case .settings:
-            SettingsView()
         case .launch:
             LaunchScreen()
         }
@@ -97,6 +95,9 @@ struct OnboardingView: View {
                     .padding(.horizontal, 40)
 
                 Button {
+                    #if DEBUG
+                    guard !OpenGlassesScreenshotFixture.isActive else { return }
+                    #endif
                     let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
                     Config.setAPIKey(trimmed)
