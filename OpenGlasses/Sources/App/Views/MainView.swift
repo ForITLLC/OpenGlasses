@@ -61,57 +61,62 @@ struct MainView: View {
     }
 
     private var content: some View {
-        ZStack {
-            // Main content stack
-            VStack(spacing: 0) {
-                // Device status stays below the shared navigation bar.
-                ConnectionBanner()
-                    .padding(.top, 4)
-                    .padding(.horizontal, 8)
+        GeometryReader { geometry in
+            ScrollView(.vertical) {
+                // Main content stack
+                VStack(spacing: 0) {
+                    // Device status stays below the shared navigation bar.
+                    ConnectionBanner()
+                        .padding(.top, 4)
+                        .padding(.horizontal, 8)
 
-                Spacer()
+                    Spacer()
 
-                // CENTER: Dolores avatar + ForIT logo + quick action ring
-                ZStack {
-                    StatusIndicator()
+                    // CENTER: Dolores avatar + ForIT logo + quick action ring
+                    ZStack {
+                        StatusIndicator()
 
-                    // Quick action ring — hidden during processing/listening
-                    // Ring is 340pt wide to push icons further from avatar
-                    if !appState.isProcessing && !appState.isListening {
-                        RadialLayout() {
-                            ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
-                                quickActionButton(icon: action.icon, label: action.label) {
-                                    switch action.action {
-                                    case .prompt(let text):
-                                        await appState.handleTranscription(text)
-                                    case .photo:
-                                        await appState.capturePhotoFromGlasses()
-                                    case .photoThen(let prompt):
-                                        await appState.capturePhotoAndSend(prompt: prompt)
+                        // Quick action ring — hidden during processing/listening
+                        // Ring is 340pt wide to push icons further from avatar
+                        if !appState.isProcessing && !appState.isListening {
+                            RadialLayout() {
+                                ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
+                                    quickActionButton(icon: action.icon, label: action.label) {
+                                        switch action.action {
+                                        case .prompt(let text):
+                                            await appState.handleTranscription(text)
+                                        case .photo:
+                                            await appState.capturePhotoFromGlasses()
+                                        case .photoThen(let prompt):
+                                            await appState.capturePhotoAndSend(prompt: prompt)
+                                        }
                                     }
                                 }
                             }
+                            .frame(width: 340, height: 340)
+                            .transition(.opacity.combined(with: .scale))
                         }
-                        .frame(width: 340, height: 340)
-                        .transition(.opacity.combined(with: .scale))
                     }
+                    .animation(.easeInOut(duration: 0.2), value: appState.isProcessing)
+                    .animation(.easeInOut(duration: 0.2), value: appState.isListening)
+
+                    Spacer()
+
+                    // Transcript cards floating above the mic button
+                    TranscriptOverlay()
+                        .padding(.bottom, 8)
+
+                    // Bottom: single mic button
+                    BottomControlBar()
+                        .padding(.bottom, 8)
                 }
-                .animation(.easeInOut(duration: 0.2), value: appState.isProcessing)
-                .animation(.easeInOut(duration: 0.2), value: appState.isListening)
-
-                Spacer()
-
-                // Transcript cards floating above the mic button
-                TranscriptOverlay()
-                    .padding(.bottom, 8)
-
-                // Bottom: single mic button
-                BottomControlBar()
-                    .padding(.bottom, 8)
+                // Keep portrait centering; shorter viewports can scroll the full content.
+                .frame(minHeight: geometry.size.height)
+                #if DEBUG
+                .allowsHitTesting(!OpenGlassesScreenshotFixture.isActive)
+                #endif
             }
-            #if DEBUG
-            .allowsHitTesting(!OpenGlassesScreenshotFixture.isActive)
-            #endif
+            .scrollBounceBehavior(.basedOnSize)
         }
         .forITScreenBackground()
     }
