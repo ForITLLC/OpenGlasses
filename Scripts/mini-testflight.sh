@@ -126,6 +126,21 @@ step() {  # step <name> <cmd...>: prints "step <name> rc=<rc> <seconds>s", log i
   [ $rc -eq 0 ] || { tail -25 "$OUT/$name.log"; exit $rc; }
 }
 
+capture_gate_matrix() {
+  # The first sheet can precede the human PR checklist. Preserve the real gate result;
+  # matrix_proof accepts rc=1 only when that checklist is the sole failed static check.
+  local start rc
+  start=$(date +%s)
+  "$@" > "$OUT/gate-matrix.log" 2>&1
+  rc=$?
+  printf '%s\n' "$rc" > "$OUT/gate-matrix.exit"
+  echo "step gate-matrix rc=$rc $(( $(date +%s) - start ))s; capture proof still requires validation"
+  case "$rc" in
+    0 | 1) return 0 ;;
+    *) tail -25 "$OUT/gate-matrix.log"; exit "$rc" ;;
+  esac
+}
+
 keychain_first() {  # unlock $KC and put it first in the user search list; other jobs on the Mini rewrite that list
   local rest
   security unlock-keychain -p "$KCPW" "$KC"
@@ -325,7 +340,7 @@ PY_APP
 
 matrix_proof() {
   python3 - "$OUT" "$GATE_SCREENS_ROOT" "$1" "$SOURCE_SHA" "$SOURCE_TREE" "$SOURCE_ORIGIN" "$TESTED_APP" "$MATRIX_PR" <<'PY_PROOF'
-import csv, hashlib, json, os, pathlib, plistlib, re, shutil, stat, struct, subprocess, sys
+import collections, csv, hashlib, json, os, pathlib, plistlib, re, shutil, stat, struct, subprocess, sys
 out, root = (pathlib.Path(value).resolve() for value in sys.argv[1:3])
 mode, sha, tree, origin, app_path, pr = sys.argv[3:]
 app = pathlib.Path(app_path)
@@ -370,6 +385,29 @@ def manifest_digest(entries):
     return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 def require(condition, reason):
     if not condition: raise ValueError(reason)
+def capture_verdict(lines, code, source_sha=None):
+    source_sha = source_sha or sha
+    require(code in (0, 1), "shared gate crashed or returned an unexpected status")
+    require(not any("Traceback (most recent call last):" in line or "gate crashed" in line for line in lines), "shared gate crashed")
+    green = "mini-gate: GREEN " + source_sha[:7]
+    red = "mini-gate: RED: no TestFlight build of " + source_sha[:7]
+    results = [match.groups() for line in lines if (match := re.fullmatch(r"(PASS|FAIL|WARN|WAIVED)\s+(\S+)\s+(.+)", line.rstrip()))]
+    failed = [row for row in results if row[0] == "FAIL"]
+    if code == 0:
+        require(any(line.strip() == green for line in lines) and not failed and not any(line.strip() == red for line in lines),
+                "no consistent green gate for this exact source")
+        return {"exit_code": 0, "status": "green", "source_sha": source_sha}
+    expected_ids = collections.Counter(["CFG", "PK-1", "SI-1", "FB-1", "NC-1", "BR-2", "ID-3", "PL-1", "ED-1", "OF-1",
+                                       "PL-2..5", "NC-1", "VS-1", "TR-1", "BE-1", "NT-1", "CI-4", "PL-6", "PR"])
+    require(collections.Counter(row[1] for row in results) == expected_ids, "incomplete or changed static gate result set")
+    require(len(failed) == 1 and failed[0][1:] == ("PR", "Judged by the lane: the PR body's checklist"),
+            "a static check other than the human PR checklist failed")
+    summaries = [match.groups() for line in lines if (match := re.match(r"^forit-gate: (\d+) failed, (\d+) warned, (\d+) waived, (\d+) passed \(", line))]
+    counts = collections.Counter(row[0] for row in results)
+    require(len(summaries) == 1 and tuple(map(int, summaries[0])) ==
+            (1, counts["WARN"], counts["WAIVED"], counts["PASS"]), "gate summary does not confirm only the checklist failed")
+    require(any(line.strip() == red for line in lines) and not any(line.strip() == green for line in lines), "missing exact-source RED verdict")
+    return {"exit_code": 1, "status": "pending-human-review", "source_sha": source_sha, "failed_checks": ["PR"]}
 def rows_of(folder):
     with (folder / "MATRIX.tsv").open(newline="") as stream: rows = list(csv.reader(stream, delimiter="\t"))
     require(all(len(row) == 4 for row in rows), "malformed full matrix rows")
@@ -426,6 +464,12 @@ def preserved_receipt(raw=None):
             folder = path.parent / "matrix"
             identity = identity_of(folder)
             require(receipt["captured_app"] == identity and receipt["source_tree"] == tree, "receipt identity/tree mismatch")
+            gate = receipt["capture_gate"]
+            source_of({"source_sha": gate["source_sha"], "source_tree": tree})
+            require(digest(folder / "capture-gate.log") == gate["log_sha256"], "retained capture gate log hash mismatch")
+            parsed = capture_verdict((folder / "capture-gate.log").read_text().splitlines(),
+                                     int((folder / "capture-gate.exit").read_text()), gate["source_sha"])
+            require(all(gate.get(key) == value for key, value in parsed.items()), "retained capture gate verdict mismatch")
             rows = rows_of(folder)
             images = {pathlib.Path(item["file"]).name: item for item in receipt["images"]}
             require(len(receipt["images"]) == len(images) == len(names) and set(images) == names, "receipt omits full PR images")
@@ -444,12 +488,15 @@ try:
         declared = [entry["name"] for entry in json.load(stream)["screens"]["list"]]
     require(len(declared) == 5 and set(declared) == set(screens), "the five approved scenes changed")
     reuse = None
+    verdict = None
     if mode == "reuse":
         source, identity, rows, reuse = preserved_receipt()
+        verdict = json.loads(pathlib.Path(reuse["receipt"]).read_text())["capture_gate"]
     else:
         source = root / "_pr" / ("OpenGlasses-" + pr)
         with (out / "gate-matrix.log").open() as stream: lines = list(stream)
-        require(any(line.strip() == "mini-gate: GREEN " + sha[:7] for line in lines), "no green gate for this source")
+        verdict = capture_verdict(lines, int((out / "gate-matrix.exit").read_text().strip()))
+        verdict["log_sha256"] = digest(out / "gate-matrix.log")
         require(not any("device matrix had failures" in line or "shards stopped early" in line for line in lines), "shared matrix failures")
         rows = rows_of(source)
         require({path.name for path in source.glob("*.png")} == names, "missing or unapproved actual PNGs")
@@ -475,6 +522,9 @@ try:
         else:
             original = source / name
         shutil.copy2(original, retained / name)
+    for name, original_name in (("capture-gate.log", "gate-matrix.log"), ("capture-gate.exit", "gate-matrix.exit")):
+        original = pathlib.Path(reuse["receipt"]).parent / "matrix" / name if mode == "reuse" else out / original_name
+        shutil.copy2(original, retained / name)
     images = []
     for name in sorted(names):
         path = retained / name
@@ -484,13 +534,14 @@ try:
         images.append({"file": str(path.relative_to(out)), "sha256": digest(path)})
     receipt = {"schema_version": 3, "scope": "upload-reuse" if mode == "reuse" else "full-pr", "source_tree": tree,
         "capture_source_sha": identity["source_sha"], "release_source_sha": sha, "captured_app": identity,
+        "capture_gate": verdict, "review_status": verdict["status"],
         "full_pr_grid_verified": True, "full_six_device_coverage": False, "boot_kinds": ["iPhone", "iPad"],
         "captured_devices": devices, "not_drawn_rows": [row for row in rows if tuple(row[:3]) in gap_cells],
         "upload_vs1_images": sorted(vs1), "cache_reuse": reuse, "images": images,
         "uncovered_distribution": ["Mac", "Vision", "Watch"], "retained_artifact_directory": str(retained)}
     (out / "matrix-verification.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print("retained full PR proof: 68 actual PNGs, 34 SE/Max gaps, 24 upload VS-1 cells; " +
-          ("reused with no test/boot/matrix" if mode == "reuse" else "capture verified"))
+          ("reused with no test/boot/matrix" if mode == "reuse" else "capture verified; " + verdict["status"]))
 except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
     sys.exit("matrix proof failed: " + str(error))
 PY_PROOF
@@ -510,6 +561,10 @@ fi
 [ -x "$CI_SIM/ci-sim-lane.sh" ] || { echo "no $CI_SIM/ci-sim-lane.sh, the Mini's simulator route (CI-2)"; exit 1; }
 [ -x "$MINI_GATE" ] || { echo "no $MINI_GATE, the required shared conformance gate (CI-1)"; exit 1; }
 [ -r forit-app.json ] || { echo "no forit-app.json for the shared gate and device matrix"; exit 1; }
+if [ -n "$MATRIX_PR" ]; then
+  [ -n "${CI_SIM_BOOT_SLOT:-}" ] && [ -x "$CI_SIM_BOOT_SLOT" ] ||
+    { echo "--matrix-pr requires an executable exported CI_SIM_BOOT_SLOT capture guard"; exit 1; }
+fi
 # Do not adopt or end a different lane's inherited run.
 if [ -n "${FORIT_GATE_RUN:-}" ] && [ -f "$FORIT_GATE_RUN/lane" ] &&
     [ "$(cat "$FORIT_GATE_RUN/lane")" != OpenGlasses ]; then
@@ -577,7 +632,9 @@ if [ -n "$MATRIX_PR" ]; then
 
   step tested-app record_tested_app
   IFS=$'\t' read -r GATE_VERSION CAPTURE_BUILD < "$OUT/captured-version.tsv" || exit 1
-  step gate-matrix env FORIT_VERSION="$GATE_VERSION" FORIT_BUILD="$CAPTURE_BUILD" MATRIX_APP_IOS="$TESTED_APP" \
+  step matrix-admission env CI_SIM_LANE=OpenGlasses CI_SIM_UDID="$SIM_UDID" \
+    "$CI_SIM_BOOT_SLOT" "OpenGlasses iPhone $SIM_UDID"
+  capture_gate_matrix env FORIT_VERSION="$GATE_VERSION" FORIT_BUILD="$CAPTURE_BUILD" MATRIX_APP_IOS="$TESTED_APP" \
     MATRIX_VS1="" MATRIX_BOOT="iPhone iPad" MATRIX_MENU=1 "$MINI_GATE" "$PWD" . --pr "$MATRIX_PR" --matrix iphone ipad
   step matrix-verify matrix_proof full
   step gate-run-end end_gate_run
@@ -607,11 +664,15 @@ ARCHIVE=$OUT/OpenGlasses-$BUILD.xcarchive
 # conformance gate. This mode never calls --sim, tests, or another screenshot matrix.
 [ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ] || { echo "source commit changed during the run"; exit 1; }
 step gate "$MINI_GATE" "$PWD" .
+grep -qxF "mini-gate: GREEN ${SOURCE_SHA:0:7}" "$OUT/gate.log" ||
+  { echo "no fresh exact-source GREEN gate for upload"; exit 1; }
 step upload-intent python3 - "$OUT" "$SOURCE_SHA" "$SOURCE_TREE" "$BUILD" <<'PY_INTENT'
-import json, pathlib, sys
+import hashlib, json, pathlib, sys
 out = pathlib.Path(sys.argv[1])
 p = out / "matrix-verification.json"
 receipt = json.loads(p.read_text())
+receipt["upload_gate"] = {"status": "green", "source_sha": sys.argv[2],
+                          "log_sha256": hashlib.sha256((out / "gate.log").read_bytes()).hexdigest()}
 receipt["intended_upload"] = {"source_sha": sys.argv[2], "source_tree": sys.argv[3], "build": sys.argv[4],
                               "version": receipt["captured_app"]["version"]}
 p.write_text(json.dumps(receipt, indent=2) + "\n")
