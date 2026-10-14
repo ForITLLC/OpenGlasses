@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: Scripts/mini-testflight.sh [--no-upload]
+# Usage: Scripts/mini-testflight.sh [--no-upload | --matrix-pr <number>]
 #
 # Unit tests, archive, export and upload of ForIT Glasses (OpenGlasses, com.forit.openglasses.dolores) to internal
 # TestFlight, run by hand on the Mac mini over ssh. It replaces .github/workflows/build-and-upload.yml: under the ForIT
@@ -10,20 +10,29 @@
 # Run it from a copy of the repo on the Mini (rsync the worktree there first):
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh'              tests, archive, export, upload, wait for VALID
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh --no-upload'  stops once the signed IPA is exported and checked
+#   Scripts/mini-testflight.sh --matrix-pr <number>                  tests and full PR matrix only; capture GO required
+# Run the full PR matrix once on the merge-ready tree. Upload requires its retained identity receipt and tested app,
+# then reuses those exact images without another test, simulator boot or matrix. Keep the PR commit's Git object
+# through a squash merge so both commits can be verified to have the same tree. Nothing here grants capture GO.
 # Each step prints "step <name> rc=<rc> <seconds>s"; its log is build/testflight-<UTC time>/<name>.log.
 #
 # 1. OpenGlasses/Secrets.plist: DOLORES_API_KEY from the environment, written as the workflow wrote it. With no key
 #    the plist holds an empty dict and the app asks each person for their own key at onboarding. The key is never
 #    printed.
-# 2. xcodegen generate, then the unit tests (scheme OpenGlasses, -only-testing:OpenGlassesTests) on OpenGlasses' own
+# 2. In --matrix-pr mode: xcodegen, then unit tests (scheme OpenGlasses, -only-testing:OpenGlassesTests) on its own
 #    iPhone simulator, through the Mini's route /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses (checklist
 #    CI-2): the iPhone ci-sim-lanes.conf gives the lane, else ci-OpenGlasses-iPhone, which the route creates and
 #    primes once. Since 2026-10-11 a lane may not use another lane's simulator or one that belongs to no lane. The
-#    route boots it through the boot slot and refuses a test run on any other simulator; it is shut down again after
-#    the tests. A red test stops the run before anything is signed (CI-1).
+#    shared gate run boots it through the boot slot and refuses a test run on any other simulator. Tests and the
+#    device matrix share that boot; --run-end releases the run's simulators on success and failure (CI-2).
+#    A red test stops the run before anything is signed (CI-1).
 # 3. App Store Connect (Scripts/asc_resolve.py, read-only): the app record (must be 6761319043), its internal group
 #    "ForIT Internal", and the build number: the highest build number App Store Connect has for the app, plus one,
 #    the rule the workflow used.
+#    Upload runs the current conformance gate and requires the full PR proof before signing or archiving. Captures
+#    keep the tested simulator app's actual identity; the intended upload build is recorded separately. The full PR
+#    grid has 68 actual PNGs (own iPhone and three iPad layouts, including AX5) and 34 SE/Max gap rows; its 24 standard
+#    light/dark iPhone/iPad cells are the upload's VS-1 subset. Mac/Vision/Watch distribution stays uncovered.
 # 4. Signing, the for-Notes way (the login keychain is locked over ssh, and Xcode's automatic signing would want an
 #    Apple Development identity the Mini does not have). ForITCommon's Scripts/asc/asc_provision.py (checklist CI-4),
 #    from the package the tests resolved into build/spm (the version project.yml pins), makes or reuses the two App
@@ -47,15 +56,37 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 export PATH=/opt/homebrew/bin:$PATH  # xcodegen and python3 with PyJWT; a non-login ssh shell does not have them
 
-USAGE="usage: Scripts/mini-testflight.sh [--no-upload]"
-UPLOAD=1
-for arg in "$@"; do
-  case "$arg" in
-    --no-upload) UPLOAD="" ;;
+USAGE="usage: Scripts/mini-testflight.sh [--no-upload | --matrix-pr <number>]"
+UPLOAD=1 MATRIX_PR=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-upload) UPLOAD=""; shift ;;
+    --matrix-pr)
+      [ $# -ge 2 ] && [[ $2 =~ ^[1-9][0-9]*$ ]] || { echo "$USAGE" >&2; exit 2; }
+      MATRIX_PR=$2 UPLOAD=""; shift 2 ;;
     -h | --help) echo "$USAGE"; exit 0 ;;
     *) echo "$USAGE" >&2; exit 2 ;;
   esac
 done
+
+# Establish source identity before writing secrets, logs or generated project files. A copied tree
+# without its real Git metadata, a dirty checkout, or hidden tracked changes cannot name a build.
+SOURCE_ORIGIN=$(git remote get-url origin) || { echo "no genuine Git origin"; exit 1; }
+case "$SOURCE_ORIGIN" in
+  https://github.com/ForITLLC/OpenGlasses | https://github.com/ForITLLC/OpenGlasses.git | \
+  git@github.com:ForITLLC/OpenGlasses.git | ssh://git@github.com/ForITLLC/OpenGlasses.git) ;;
+  *) echo "origin must be exactly ForITLLC/OpenGlasses on github.com"; exit 1 ;;
+esac
+[ "$(git rev-parse --show-toplevel)" = "$PWD" ] || { echo "run from the genuine repository root"; exit 1; }
+SOURCE_SHA=$(git rev-parse --verify HEAD) || exit 1
+SOURCE_TREE=$(git rev-parse "$SOURCE_SHA^{tree}") || exit 1
+SOURCE_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+[ -z "$SOURCE_STATUS" ] || { echo "tracked and untracked source must be clean before release preparation"; exit 1; }
+SOURCE_HIDDEN=$(git ls-files -v | LC_ALL=C awk '/^[a-zS]/ { n++ } END { print n + 0 }') || exit 1
+if [ "$SOURCE_HIDDEN" -ne 0 ]; then
+  echo "assume-unchanged/skip-worktree flags hide source changes; remove them before release preparation"
+  exit 1
+fi
 
 TEAM=UUSSWWML2A
 BUNDLE=com.forit.openglasses.dolores
@@ -72,13 +103,17 @@ PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
 XCODE_PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 CI_SIM=/Users/Shared/ci-sim
 LANE_SIM=("$CI_SIM/ci-sim-lane.sh" --lane OpenGlasses)  # this lane's simulator, and nobody else's
+MINI_GATE=/Users/Shared/forit-gate/mini-gate.sh
 ASC_PROVISION=build/spm/checkouts/for-iCommon/Scripts/asc/asc_provision.py  # ForITCommon's, resolved by the tests
 OUT=build/testflight-$(date -u +%Y%m%dT%H%M%SZ)
+TESTED_APP=$PWD/build/dd-sim/Build/Products/Debug-iphonesimulator/OpenGlasses.app
+GATE_SCREENS_ROOT=${FORIT_SCREENS_ROOT:-/Users/Shared/forit-screens}
 KC=$PWD/build/signing-$$.keychain-db
 KCPW=""
-KC_MADE="" SIM_UDID="" SIM_BOOTED="" PLISTS_PATCHED=""
+KC_MADE="" SIM_UDID="" GATE_RUN_ACTIVE="" PLISTS_PATCHED=""
 INFO_PLISTS=(OpenGlasses/Info.plist GlassesActivityWidget/Info.plist)
-mkdir -p "$OUT" "$PROFILES_DIR"
+mkdir -p "$OUT"
+[ -n "$MATRIX_PR" ] || mkdir -p "$PROFILES_DIR"
 echo "logs in $OUT"
 
 step() {  # step <name> <cmd...>: prints "step <name> rc=<rc> <seconds>s", log in $OUT
@@ -108,15 +143,24 @@ restore_plists() {  # put back the Info.plists xcodegen generated (the archive g
   PLISTS_PATCHED=""
 }
 
-shutdown_sim() {
-  [ -n "$SIM_BOOTED" ] || return 0
-  "${LANE_SIM[@]}" shutdown iPhone > /dev/null 2>&1 || echo "could not shut down simulator ${SIM_UDID:-of the lane}"
-  SIM_BOOTED=""
+end_gate_run() {
+  [ -n "$GATE_RUN_ACTIVE" ] || return 0
+  local rc
+  "$MINI_GATE" --run-end
+  rc=$?
+  if [ "$rc" -eq 0 ]; then GATE_RUN_ACTIVE=""; unset FORIT_GATE_RUN; fi
+  return "$rc"
 }
 
 cleanup() {
-  local rest
-  shutdown_sim
+  local rc=$? rest
+  trap '' INT TERM HUP
+  if [ -n "$GATE_RUN_ACTIVE" ]; then
+    end_gate_run > "$OUT/gate-run-cleanup.log" 2>&1 || {
+      echo "could not end the shared gate run (see $OUT/gate-run-cleanup.log)"
+      [ "$rc" -ne 0 ] || rc=1
+    }
+  fi
   restore_plists
   if [ -n "$KC_MADE" ]; then
     rest=$(security list-keychains -d user | tr -d '"' | grep -v -F "$KC")
@@ -124,6 +168,7 @@ cleanup() {
     security list-keychains -d user -s $rest
     security delete-keychain "$KC" 2>/dev/null
   fi
+  exit "$rc"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
@@ -204,14 +249,273 @@ make_keychain() {
     security find-identity -v -p codesigning "$KC" | grep -F "$CERT"
 }
 
+record_tested_app() {
+  python3 - "$TESTED_APP" "$OUT" "$SOURCE_SHA" "$SOURCE_ORIGIN" "" "$SOURCE_TREE" <<'PY_APP'
+import hashlib, json, os, pathlib, plistlib, re, stat, sys
+app, out = map(pathlib.Path, sys.argv[1:3])
+sha, origin, upload_build, tree = sys.argv[3:]
+def digest(path):
+    value = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""): value.update(block)
+    return value.hexdigest()
+def bundle_manifest(root):
+    if root.is_symlink() or not root.is_dir(): raise ValueError("app root must be a real directory")
+    def walk_error(error): raise error
+    paths = [root]
+    for directory, directories, files in os.walk(root, followlinks=False, onerror=walk_error):
+        paths.extend(pathlib.Path(directory) / name for name in sorted(directories + files))
+    entries = []
+    for path in paths:
+        state = path.lstat()
+        entry = {"path": path.relative_to(root).as_posix(), "mode": stat.S_IMODE(state.st_mode)}
+        if stat.S_ISLNK(state.st_mode):
+            target = path.resolve(strict=True)
+            if target != root.resolve() and root.resolve() not in target.parents:
+                raise ValueError("app contains an external symlink")
+            entry.update(kind="symlink", target=os.readlink(path))
+        elif stat.S_ISREG(state.st_mode): entry.update(kind="file", size=state.st_size, sha256=digest(path))
+        elif stat.S_ISDIR(state.st_mode): entry.update(kind="directory")
+        else: raise ValueError("app contains an unsupported filesystem entry")
+        entries.append(entry)
+    return sorted(entries, key=lambda entry: entry["path"])
+def manifest_digest(entries):
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+try:
+    with (app / "Info.plist").open("rb") as stream: info = plistlib.load(stream)
+    if info.get("CFBundleIdentifier") != "com.forit.openglasses.dolores":
+        raise ValueError("the tested product is not OpenGlasses")
+    if info.get("DTPlatformName") != "iphonesimulator" and "iPhoneSimulator" not in info.get("CFBundleSupportedPlatforms", []):
+        raise ValueError("the tested app is not an iOS simulator product")
+    executable = info.get("CFBundleExecutable", "")
+    if not executable or pathlib.Path(executable).name != executable or not (app / executable).is_file():
+        raise ValueError("the tested app executable is missing or invalid")
+    version, build = (str(info.get(key, "")) for key in ("CFBundleShortVersionString", "CFBundleVersion"))
+    if any(not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", value) for value in (version, build)):
+        raise ValueError("the tested app has unresolved marketing/build values")
+    resolution = pathlib.Path("OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved")
+    raw = resolution.read_bytes()
+    resolved = json.loads(raw)
+    pins = resolved.get("pins") or (resolved.get("object") or {}).get("pins") or []
+    packages = []
+    for pin in pins:
+        name, state = (pin.get("identity") or pin.get("package") or "").lower(), pin.get("state") or {}
+        revision = state.get("revision") or ""
+        if not name or not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", revision):
+            raise ValueError("the tested package resolution has an invalid pin")
+        packages.append({"identity": name, "version": state.get("version") or state.get("branch") or "-", "revision": revision})
+    packages.sort(key=lambda package: package["identity"])
+    if not any(package["identity"] == "for-icommon" for package in packages):
+        raise ValueError("the tested package resolution has no ForITCommon pin")
+    manifest = bundle_manifest(app)
+    (out / "tested-Package.resolved").write_bytes(raw)
+    (out / "tested-PACKAGES").write_text("".join(f'{p["identity"]} {p["version"]} {p["revision"]}\n' for p in packages))
+    (out / "tested-app.json").write_text(json.dumps({"source_sha": sha, "source_tree": tree, "origin": origin,
+        "app_path": str(app), "bundle_id": info["CFBundleIdentifier"], "executable": executable,
+        "executable_sha256": digest(app / executable), "version": version, "build": build,
+        "app_bundle_manifest": manifest, "app_bundle_sha256": manifest_digest(manifest),
+        "package_resolution_sha256": hashlib.sha256(raw).hexdigest(), "packages": packages,
+        "intended_upload": None}, indent=2) + "\n")
+    (out / "captured-version.tsv").write_text(version + "\t" + build + "\n")
+    print("recorded tested simulator app identity and %d package pins; intended upload build kept separately" % len(packages))
+except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+    sys.exit("tested app identity failed: " + str(error))
+PY_APP
+}
+
+matrix_proof() {
+  python3 - "$OUT" "$GATE_SCREENS_ROOT" "$1" "$SOURCE_SHA" "$SOURCE_TREE" "$SOURCE_ORIGIN" "$TESTED_APP" "$MATRIX_PR" <<'PY_PROOF'
+import csv, hashlib, json, os, pathlib, plistlib, re, shutil, stat, struct, subprocess, sys
+out, root = (pathlib.Path(value).resolve() for value in sys.argv[1:3])
+mode, sha, tree, origin, app_path, pr = sys.argv[3:]
+app = pathlib.Path(app_path)
+origins = {"https://github.com/ForITLLC/OpenGlasses", "https://github.com/ForITLLC/OpenGlasses.git",
+           "git@github.com:ForITLLC/OpenGlasses.git", "ssh://git@github.com/ForITLLC/OpenGlasses.git"}
+screens = ("gate", "home", "detail", "settings", "launch")
+devices = ("iphone", "ipad", "ipad-landscape", "ipad-split")
+gaps = ("iphone-se", "iphone-max")
+def cells(kinds):
+    return {(device, screen, look) for device in kinds for screen in screens for look in ("light", "dark", "ax5")} | {
+        (device, "profile-menu", look) for device in kinds for look in ("light", "dark")}
+expected, gap_cells = cells(devices), cells(gaps)
+names = {f"{device}-{screen}-{look}.png" for device, screen, look in expected}
+vs1 = {f"{device}-{screen}-{look}.png" for device in ("iphone", "ipad")
+       for screen in (*screens, "profile-menu") for look in ("light", "dark")}
+def digest(path):
+    value = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""): value.update(block)
+    return value.hexdigest()
+def bundle_manifest(root):
+    if root.is_symlink() or not root.is_dir(): raise ValueError("app root must be a real directory")
+    def walk_error(error): raise error
+    paths = [root]
+    for directory, directories, files in os.walk(root, followlinks=False, onerror=walk_error):
+        paths.extend(pathlib.Path(directory) / name for name in sorted(directories + files))
+    entries = []
+    for path in paths:
+        state = path.lstat()
+        entry = {"path": path.relative_to(root).as_posix(), "mode": stat.S_IMODE(state.st_mode)}
+        if stat.S_ISLNK(state.st_mode):
+            target = path.resolve(strict=True)
+            if target != root.resolve() and root.resolve() not in target.parents:
+                raise ValueError("app contains an external symlink")
+            entry.update(kind="symlink", target=os.readlink(path))
+        elif stat.S_ISREG(state.st_mode): entry.update(kind="file", size=state.st_size, sha256=digest(path))
+        elif stat.S_ISDIR(state.st_mode): entry.update(kind="directory")
+        else: raise ValueError("app contains an unsupported filesystem entry")
+        entries.append(entry)
+    return sorted(entries, key=lambda entry: entry["path"])
+def manifest_digest(entries):
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+def require(condition, reason):
+    if not condition: raise ValueError(reason)
+def rows_of(folder):
+    with (folder / "MATRIX.tsv").open(newline="") as stream: rows = list(csv.reader(stream, delimiter="\t"))
+    require(all(len(row) == 4 for row in rows), "malformed full matrix rows")
+    keys = [tuple(row[:3]) for row in rows]
+    require(len(keys) == len(set(keys)) and set(keys) == expected | gap_cells, "incomplete or duplicate full PR grid")
+    require(all(row[3] == "ok" if tuple(row[:3]) in expected else row[3].startswith("not drawn:") for row in rows),
+            "full PR grid has failures, missing captures or unapproved SE/Max captures")
+    with (folder / "CELLS.tsv").open(newline="") as stream: listed = list(csv.reader(stream, delimiter="\t"))
+    require(len(listed) == len(keys) and {tuple(row) for row in listed} == set(keys), "CELLS.tsv disagrees with the full PR grid")
+    return rows
+def source_of(identity):
+    source = identity["source_sha"]
+    require(re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", source), "invalid capture source commit")
+    result = subprocess.run(["git", "rev-parse", "--verify", source + "^{tree}"], capture_output=True, text=True)
+    require(result.returncode == 0 and result.stdout.strip() == tree == identity["source_tree"],
+            "capture source commit does not resolve to this exact Git tree")
+def identity_of(folder, fresh=False, build_folder=None):
+    identity = json.loads((folder / "tested-app.json").read_text())
+    source_of(identity)
+    require(identity["origin"] in origins and identity["bundle_id"] == "com.forit.openglasses.dolores", "wrong capture repository/app")
+    require(pathlib.Path(identity["executable"]).name == identity["executable"], "invalid executable name")
+    require(identity["executable_sha256"] == digest(app / identity["executable"]), "tested executable hash differs")
+    require(actual_manifest == identity["app_bundle_manifest"] and
+            manifest_digest(actual_manifest) == identity["app_bundle_sha256"], "complete tested app bundle differs")
+    with (app / "Info.plist").open("rb") as stream: info = plistlib.load(stream)
+    require(info.get("DTPlatformName") == "iphonesimulator" or "iPhoneSimulator" in info.get("CFBundleSupportedPlatforms", []),
+            "retained app is not an iOS simulator product")
+    require(info.get("CFBundleIdentifier") == identity["bundle_id"] and
+            info.get("CFBundleExecutable") == identity["executable"] and
+            str(info.get("CFBundleShortVersionString")) == identity["version"] and
+            str(info.get("CFBundleVersion")) == identity["build"], "tested app Info.plist differs")
+    resolution = pathlib.Path("OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved")
+    resolved_file = folder / ("tested-Package.resolved" if fresh else "Package.resolved")
+    packages_file = folder / ("tested-PACKAGES" if fresh else "PACKAGES")
+    require(digest(resolution) == digest(resolved_file) == identity["package_resolution_sha256"],
+            "tested package resolution differs")
+    resolved = json.loads(resolved_file.read_text())
+    pins = resolved.get("pins") or (resolved.get("object") or {}).get("pins") or []
+    normalized = sorted(f'{(p.get("identity") or p.get("package") or "?").lower()} '
+                        f'{p["state"].get("version") or p["state"].get("branch") or "-"} '
+                        f'{p["state"].get("revision") or "-"}' for p in pins)
+    require(packages_file.read_text() == "\n".join(normalized) + "\n", "package receipt differs from its pins")
+    require(((build_folder or folder) / "BUILD").read_text().strip() == f'{identity["version"]} ({identity["build"]}) {identity["source_sha"]}',
+            "captured Debug BUILD identity differs")
+    return identity
+def preserved_receipt(raw=None):
+    candidates = sorted((path for path in out.parent.glob("testflight-*/matrix-verification.json") if path.parent != out), reverse=True)[:20]
+    why = "no retained full PR receipt"
+    for path in candidates:
+        try:
+            receipt = json.loads(path.read_text())
+            require(receipt.get("schema_version") == 3 and receipt.get("scope") == "full-pr" and receipt.get("full_pr_grid_verified") is True,
+                    "receipt is not a verified full PR grid")
+            folder = path.parent / "matrix"
+            identity = identity_of(folder)
+            require(receipt["captured_app"] == identity and receipt["source_tree"] == tree, "receipt identity/tree mismatch")
+            rows = rows_of(folder)
+            images = {pathlib.Path(item["file"]).name: item for item in receipt["images"]}
+            require(len(receipt["images"]) == len(images) == len(names) and set(images) == names, "receipt omits full PR images")
+            for name, image in images.items():
+                saved = (path.parent / image["file"]).resolve()
+                require(saved.parent == folder.resolve() and digest(saved) == image["sha256"], "retained PNG path/hash mismatch")
+                if raw is not None: require(digest(raw / name) == image["sha256"], "shared cached PNG differs from the identity receipt")
+            return folder, identity, rows, {"receipt": str(path), "sha256": digest(path), "capture_source_sha": identity["source_sha"]}
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+            why = str(error)
+    raise ValueError(f"no matching full capture identity receipt among {len(candidates)} retained runs: {why}; "
+                     "run --matrix-pr <number> once on the merge-ready tree under the owner's capture GO")
+try:
+    actual_manifest = bundle_manifest(app)
+    with pathlib.Path("forit-app.json").open() as stream:
+        declared = [entry["name"] for entry in json.load(stream)["screens"]["list"]]
+    require(len(declared) == 5 and set(declared) == set(screens), "the five approved scenes changed")
+    reuse = None
+    if mode == "reuse":
+        source, identity, rows, reuse = preserved_receipt()
+    else:
+        source = root / "_pr" / ("OpenGlasses-" + pr)
+        with (out / "gate-matrix.log").open() as stream: lines = list(stream)
+        require(any(line.strip() == "mini-gate: GREEN " + sha[:7] for line in lines), "no green gate for this source")
+        require(not any("device matrix had failures" in line or "shards stopped early" in line for line in lines), "shared matrix failures")
+        rows = rows_of(source)
+        require({path.name for path in source.glob("*.png")} == names, "missing or unapproved actual PNGs")
+        # A warning can say an old result existed but was redrawn. Require the actual
+        # fresh full-grid summary; otherwise every reused image needs an identity receipt.
+        fresh = any(line.startswith("device-matrix: 68 taken, 0 failed, 34 not drawn (") for line in lines)
+        if not fresh:
+            _, identity, _, reuse = preserved_receipt(source)
+        else:
+            identity = json.loads((out / "tested-app.json").read_text())
+            require(identity["source_sha"] == sha and identity["source_tree"] == tree, "capture source changed")
+            source_of(identity)
+            require(digest(app / identity["executable"]) == identity["executable_sha256"], "tested executable changed")
+            identity_of(out, fresh=True, build_folder=source)
+    retained = out / "matrix"
+    retained.mkdir(exist_ok=False)
+    for name in ("BUILD", "MATRIX.tsv", "CELLS.tsv", "PACKAGES", "Package.resolved", "tested-app.json"):
+        # Shared cached metadata may name the new source; retain the original identity receipt instead.
+        if reuse:
+            original = pathlib.Path(reuse["receipt"]).parent / "matrix" / name
+        elif name in ("PACKAGES", "Package.resolved", "tested-app.json"):
+            original = out / ("tested-" + name if name != "tested-app.json" else name)
+        else:
+            original = source / name
+        shutil.copy2(original, retained / name)
+    images = []
+    for name in sorted(names):
+        path = retained / name
+        shutil.copy2(source / name, path)
+        with path.open("rb") as stream: header = stream.read(24)
+        require(len(header) == 24 and header[:8] == b"\x89PNG\r\n\x1a\n" and header[12:16] == b"IHDR" and all(struct.unpack(">II", header[16:24])), "invalid retained PNG")
+        images.append({"file": str(path.relative_to(out)), "sha256": digest(path)})
+    receipt = {"schema_version": 3, "scope": "upload-reuse" if mode == "reuse" else "full-pr", "source_tree": tree,
+        "capture_source_sha": identity["source_sha"], "release_source_sha": sha, "captured_app": identity,
+        "full_pr_grid_verified": True, "full_six_device_coverage": False, "boot_kinds": ["iPhone", "iPad"],
+        "captured_devices": devices, "not_drawn_rows": [row for row in rows if tuple(row[:3]) in gap_cells],
+        "upload_vs1_images": sorted(vs1), "cache_reuse": reuse, "images": images,
+        "uncovered_distribution": ["Mac", "Vision", "Watch"], "retained_artifact_directory": str(retained)}
+    (out / "matrix-verification.json").write_text(json.dumps(receipt, indent=2) + "\n")
+    print("retained full PR proof: 68 actual PNGs, 34 SE/Max gaps, 24 upload VS-1 cells; " +
+          ("reused with no test/boot/matrix" if mode == "reuse" else "capture verified"))
+except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+    sys.exit("matrix proof failed: " + str(error))
+PY_PROOF
+}
+
 # --- before anything runs: what the run needs is here ------------------------------------------------------------
-for f in "$KEY" "$CERT_DIR/distribution.der" "$CERT_DIR/distribution.key"; do
-  [ -r "$f" ] || { echo "missing $f"; exit 1; }
-done
+if [ -z "$MATRIX_PR" ]; then
+  for f in "$KEY" "$CERT_DIR/distribution.der" "$CERT_DIR/distribution.key"; do
+    [ -r "$f" ] || { echo "missing $f"; exit 1; }
+  done
+fi
 command -v xcodegen > /dev/null || { echo "no xcodegen on PATH (brew install xcodegen)"; exit 1; }
-python3 -c 'import jwt, cryptography' 2> /dev/null ||
-  { echo "python3 has no PyJWT or cryptography (pip3 install --user pyjwt cryptography)"; exit 1; }
+if [ -z "$MATRIX_PR" ]; then
+  python3 -c 'import jwt, cryptography' 2> /dev/null ||
+    { echo "python3 has no PyJWT or cryptography (pip3 install --user pyjwt cryptography)"; exit 1; }
+fi
 [ -x "$CI_SIM/ci-sim-lane.sh" ] || { echo "no $CI_SIM/ci-sim-lane.sh, the Mini's simulator route (CI-2)"; exit 1; }
+[ -x "$MINI_GATE" ] || { echo "no $MINI_GATE, the required shared conformance gate (CI-1)"; exit 1; }
+[ -r forit-app.json ] || { echo "no forit-app.json for the shared gate and device matrix"; exit 1; }
+# Do not adopt or end a different lane's inherited run.
+if [ -n "${FORIT_GATE_RUN:-}" ] && [ -f "$FORIT_GATE_RUN/lane" ] &&
+    [ "$(cat "$FORIT_GATE_RUN/lane")" != OpenGlasses ]; then
+  echo "the inherited shared gate run belongs to another lane; stopping"
+  exit 1
+fi
 
 # --- 1. Secrets.plist ---------------------------------------------------------------------------------------------
 if [ -n "${DOLORES_API_KEY:-}" ]; then
@@ -238,24 +542,48 @@ PLIST
 fi
 
 # --- 2. project and unit tests (CI-1: a red test stops the run here) ----------------------------------------------
+if [ -z "$MATRIX_PR" ]; then step reuse-matrix matrix_proof reuse; fi
 step xcodegen xcodegen generate
+if [ -z "$MATRIX_PR" ]; then
+  mkdir -p OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+  cp "$OUT/matrix/Package.resolved" OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved || exit 1
+fi
 
-# The route makes the lane's iPhone if it has none (and primes it, so its first boot is not paid here), takes the boot
-# slot, boots it and waits for bootstatus, each under its own time limit, and prints the UDID last.
-SIM_BOOTED=1  # from here the cleanup shuts the lane's simulator down; the route says so if it never booted
-step sim "${LANE_SIM[@]}" boot iPhone
-SIM_UDID=$(tail -1 "$OUT/sim.log")
-[[ $SIM_UDID =~ ^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$ ]] ||
-  { echo "no UDID from ci-sim-lane.sh boot (see $OUT/sim.log)"; exit 1; }
-"${LANE_SIM[@]}" list 2> /dev/null | grep -F "$SIM_UDID" | sed 's/^/simulator /'
+if [ -n "$MATRIX_PR" ]; then
 
-# -parallel-testing-enabled NO: parallel testing would clone the simulator, and no device is made here.
-step tests nice -n 10 "${LANE_SIM[@]}" xcodebuild test -project OpenGlasses.xcodeproj -scheme OpenGlasses \
-  -destination "id=$SIM_UDID" -only-testing:OpenGlassesTests -parallel-testing-enabled NO \
-  -derivedDataPath build/dd-sim -clonedSourcePackagesDirPath build/spm -scmProvider system \
-  CODE_SIGNING_ALLOWED=NO
-grep -E 'Executed [0-9]+ test|Test run with|\*\* TEST (SUCCEEDED|FAILED) \*\*' "$OUT/tests.log" | tail -3 | sed 's/^/  /'
-shutdown_sim
+  # The shared run owns the boot through tests and the matrix. The lane helper still guards xcodebuild.
+  step gate-run "$MINI_GATE" --run-begin "$PWD"
+  GATE_RUN_ASSIGNMENT=$(tail -1 "$OUT/gate-run.log")
+  case "$GATE_RUN_ASSIGNMENT" in
+    FORIT_GATE_RUN=*) export FORIT_GATE_RUN="${GATE_RUN_ASSIGNMENT#FORIT_GATE_RUN=}" ;;
+    *) echo "no run from the shared gate (see $OUT/gate-run.log)"; exit 1 ;;
+  esac
+  [ -n "$FORIT_GATE_RUN" ] && [ -f "$FORIT_GATE_RUN/lane" ] &&
+    [ "$(cat "$FORIT_GATE_RUN/lane")" = OpenGlasses ] ||
+    { echo "the shared gate did not return an OpenGlasses run"; exit 1; }
+  GATE_RUN_ACTIVE=1
+  step sim "$MINI_GATE" --sim iPhone
+  SIM_UDID=$(tail -1 "$OUT/sim.log")
+  [[ $SIM_UDID =~ ^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$ ]] ||
+    { echo "no UDID from the shared gate's --sim iPhone (see $OUT/sim.log)"; exit 1; }
+  "${LANE_SIM[@]}" list 2> /dev/null | grep -F "$SIM_UDID" | sed 's/^/simulator /'
+
+  # -parallel-testing-enabled NO: parallel testing would clone the simulator, and no device is made here.
+  step tests nice -n 10 "${LANE_SIM[@]}" xcodebuild test -jobs 2 -project OpenGlasses.xcodeproj -scheme OpenGlasses \
+    -destination "id=$SIM_UDID" -only-testing:OpenGlassesTests -parallel-testing-enabled NO \
+    -derivedDataPath build/dd-sim -clonedSourcePackagesDirPath build/spm -scmProvider system \
+    CODE_SIGNING_ALLOWED=NO
+  grep -E 'Executed [0-9]+ test|Test run with|\*\* TEST (SUCCEEDED|FAILED) \*\*' "$OUT/tests.log" | tail -3 | sed 's/^/  /'
+
+  step tested-app record_tested_app
+  IFS=$'\t' read -r GATE_VERSION CAPTURE_BUILD < "$OUT/captured-version.tsv" || exit 1
+  step gate-matrix env FORIT_VERSION="$GATE_VERSION" FORIT_BUILD="$CAPTURE_BUILD" MATRIX_APP_IOS="$TESTED_APP" \
+    MATRIX_VS1="" MATRIX_BOOT="iPhone iPad" MATRIX_MENU=1 "$MINI_GATE" "$PWD" . --pr "$MATRIX_PR" --matrix iphone ipad
+  step matrix-verify matrix_proof full
+  step gate-run-end end_gate_run
+  echo "full PR matrix retained in $OUT/matrix; this mode does not archive or upload"
+  exit 0
+fi
 
 # --- 3. App Store Connect: the app, its internal group, the build number --------------------------------------------
 ASC_KEY_BASE64=$(base64 < "$KEY" | tr -d '\n')
@@ -274,6 +602,23 @@ fi
 case "$BUILD" in '' | *[!0-9]* | 0) echo "no build number from App Store Connect (see $OUT/asc.log)"; exit 3 ;; esac
 echo "build number $BUILD (App Store Connect's latest for app $APPID, plus one)"
 ARCHIVE=$OUT/OpenGlasses-$BUILD.xcarchive
+
+# Upload reuses the retained full PR receipt; the current commit still needs a green
+# conformance gate. This mode never calls --sim, tests, or another screenshot matrix.
+[ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ] || { echo "source commit changed during the run"; exit 1; }
+step gate "$MINI_GATE" "$PWD" .
+step upload-intent python3 - "$OUT" "$SOURCE_SHA" "$SOURCE_TREE" "$BUILD" <<'PY_INTENT'
+import json, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+p = out / "matrix-verification.json"
+receipt = json.loads(p.read_text())
+receipt["intended_upload"] = {"source_sha": sys.argv[2], "source_tree": sys.argv[3], "build": sys.argv[4],
+                              "version": receipt["captured_app"]["version"]}
+p.write_text(json.dumps(receipt, indent=2) + "\n")
+(out / "intended-version").write_text(receipt["captured_app"]["version"] + "\n")
+print("recorded intended upload separately from the original Debug screenshot identity")
+PY_INTENT
+IFS= read -r VERSION < "$OUT/intended-version" || exit 1
 
 # --- 4. profiles, keychain, archive -------------------------------------------------------------------------------
 CERT=$(openssl x509 -inform der -in "$CERT_DIR/distribution.der" -noout -fingerprint -sha1 | sed 's/.*=//; s/://g')
@@ -297,20 +642,53 @@ done
 PLISTS_PATCHED=1
 for p in "${INFO_PLISTS[@]}"; do
   plutil -replace CFBundleVersion -string "$BUILD" "$p" || exit 1
+  plutil -replace CFBundleShortVersionString -string "$VERSION" "$p" || exit 1
 done
 
 archive() {
   rm -rf "$ARCHIVE"
-  nice -n 10 xcodebuild -project OpenGlasses.xcodeproj -scheme OpenGlasses -configuration Release \
+  nice -n 10 xcodebuild -jobs 2 -project OpenGlasses.xcodeproj -scheme OpenGlasses -configuration Release \
     -sdk iphoneos -destination generic/platform=iOS -derivedDataPath build/dd-iphoneos \
     -clonedSourcePackagesDirPath build/spm -scmProvider system \
+    -onlyUsePackageVersionsFromResolvedFile -disableAutomaticPackageResolution \
     -archivePath "$ARCHIVE" \
-    DEVELOPMENT_TEAM=$TEAM CURRENT_PROJECT_VERSION="$BUILD" \
+    DEVELOPMENT_TEAM=$TEAM CURRENT_PROJECT_VERSION="$BUILD" MARKETING_VERSION="$VERSION" \
     CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$CERT" OTHER_CODE_SIGN_FLAGS="--keychain $KC" \
     ENABLE_PREVIEWS=NO ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=NO \
     archive
 }
 step archive signing_retry archive
+verify_archive() {
+  python3 - "$OUT" "$ARCHIVE" "$VERSION" "$BUILD" <<'PY_ARCHIVE'
+import hashlib, json, pathlib, plistlib, sys
+out, archive = map(pathlib.Path, sys.argv[1:3])
+version, build = sys.argv[3:]
+try:
+    captured = json.loads((out / "matrix/tested-app.json").read_text())
+    receipt = json.loads((out / "matrix-verification.json").read_text())
+    if version != captured["version"] or receipt["intended_upload"]["version"] != version or receipt["intended_upload"]["build"] != build:
+        raise ValueError("intended upload version/build differs from the retained capture intent")
+    resolution = pathlib.Path("OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved")
+    current, retained = resolution.read_bytes(), (out / "matrix/Package.resolved").read_bytes()
+    package_sha = hashlib.sha256(current).hexdigest()
+    if current != retained or package_sha != captured["package_resolution_sha256"]:
+        raise ValueError("archive changed the locked tested package resolution")
+    app = archive / "Products/Applications/OpenGlasses.app"
+    bundles = ((app, "com.forit.openglasses.dolores"),
+               (app / "PlugIns/GlassesActivityWidget.appex", "com.forit.openglasses.dolores.activity-widget"))
+    for bundle, bundle_id in bundles:
+        with (bundle / "Info.plist").open("rb") as stream: info = plistlib.load(stream)
+        if info.get("CFBundleIdentifier") != bundle_id or str(info.get("CFBundleShortVersionString")) != version or str(info.get("CFBundleVersion")) != build:
+            raise ValueError("archived app/widget differs from the retained marketing version or intended build")
+    (out / "archive-Package.resolved").write_bytes(current)
+    (out / "archive-verification.json").write_text(json.dumps({"intended_upload": receipt["intended_upload"],
+        "package_resolution_sha256": package_sha, "verified_bundles": [item[1] for item in bundles]}, indent=2) + "\n")
+    print("verified locked archive packages and intended marketing/build identity on app and widget")
+except (OSError, ValueError, KeyError, TypeError) as error:
+    sys.exit("archive verification failed: " + str(error))
+PY_ARCHIVE
+}
+step archive-verify verify_archive
 restore_plists
 
 # --- 5. export, check, upload -------------------------------------------------------------------------------------
@@ -360,7 +738,6 @@ check_bundle() {
   echo "ok $id build $BUILD ($VERSION) profile $uuid"
 }
 
-VERSION=""
 verify_ipa() {
   local root=$OUT/verify ipa="" f app
   for f in "$OUT"/export/*.ipa; do [ -f "$f" ] && ipa=$f; done
@@ -371,7 +748,6 @@ verify_ipa() {
   codesign --verify --deep --strict --verbose=2 "$app" || return 1
   [ -f "$app/Assets.car" ] || { echo "FAIL no Assets.car in OpenGlasses.app (the app icon)"; return 1; }
   [ ! -e "$app/Watch" ] || { echo "FAIL OpenGlasses.app embeds a Watch app; only the app and its widget are signed here"; return 1; }
-  VERSION=$(plutil -extract CFBundleShortVersionString raw -o - "$app/Info.plist")
   check_bundle "$app" "$BUNDLE" "$UUID_APP" &&
     check_bundle "$app/PlugIns/GlassesActivityWidget.appex" "$WIDGET_BUNDLE" "$UUID_WIDGET"
 }
@@ -386,6 +762,7 @@ if [ -z "$UPLOAD" ]; then
   exit 0
 fi
 
+step pre-upload-verify verify_archive
 step upload signing_retry xcodebuild -exportArchive -archivePath "$ARCHIVE" \
   -exportOptionsPlist "$(options upload)" -exportPath "$OUT/upload" \
   -allowProvisioningUpdates -authenticationKeyPath "$KEY" \
