@@ -18,7 +18,7 @@ enum WearablesRuntime {
 
 private func processWearablesCallbackURL(_ url: URL, source: String) {
     #if DEBUG
-    guard !OpenGlassesScreenshotFixture.isActive else { return }
+    guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
     #endif
     // The ForIT Sign-in redirect is the feedback account's, never the Meta SDK's. It can arrive
     // through SwiftUI and the scene delegate both; the second is ignored.
@@ -112,7 +112,7 @@ struct OpenGlassesApp: App {
 
     init() {
         #if DEBUG
-        guard !OpenGlassesScreenshotFixture.isActive else { return }
+        guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
         #endif
         configureWearables()
     }
@@ -130,7 +130,7 @@ struct OpenGlassesApp: App {
         }
         .onChange(of: scenePhase) { _, newPhase in
             #if DEBUG
-            guard !OpenGlassesScreenshotFixture.isActive else { return }
+            guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
             #endif
             switch newPhase {
             case .background:
@@ -325,9 +325,11 @@ class AppState: ObservableObject {
 
     init() {
         #if DEBUG
-        if OpenGlassesScreenshotFixture.isActive {
+        if OpenGlassesScreenshotFixture.suppressesExternalEffects {
             AppStateProvider.shared = self
-            OpenGlassesScreenshotFixture.prepare(self)
+            if OpenGlassesScreenshotFixture.isActive {
+                OpenGlassesScreenshotFixture.prepare(self)
+            }
             return
         }
         #endif

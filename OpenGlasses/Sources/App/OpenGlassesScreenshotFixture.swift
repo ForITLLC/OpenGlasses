@@ -2,7 +2,7 @@
 import Foundation
 
 /// Opt-in sample scenes for the simulator matrix; absent from Release builds.
-/// Startup must also skip SDK/listener/location work while `isActive` is true.
+/// Startup must skip SDK/listener/location work while `suppressesExternalEffects` is true.
 enum OpenGlassesScreenshotFixture {
     enum Scene: String {
         case gate, home, detail, settings, launch
@@ -16,6 +16,12 @@ enum OpenGlassesScreenshotFixture {
     }()
 
     static var isActive: Bool { scene != nil }
+
+    /// Hosted unit tests launch the app before the screenshot process and must not
+    /// request permissions or start external services without a screenshot scene.
+    static var suppressesExternalEffects: Bool {
+        isActive || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
 
     /// Assigns only transient UI state; never stores credentials or starts services.
     @MainActor
