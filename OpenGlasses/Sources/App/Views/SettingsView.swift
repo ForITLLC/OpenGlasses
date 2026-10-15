@@ -1,176 +1,190 @@
+import ForITCommon
 import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.dismiss) var dismiss
     // listeningEnabled is driven by appState.listeningEnabled (observable)
-    @State private var speedMode: String = UserDefaults.standard.string(forKey: "speedMode") ?? "fast"
-    @State private var enabledWakePhrases: Set<String> = Set(Config.enabledWakePhrases)
-    @State private var apiKey: String = UserDefaults.standard.string(forKey: "doloresAPIKey") ?? ""
-    @State private var userEmail: String = Config.userEmail
+    @State private var speedMode: String
+    @State private var enabledWakePhrases: Set<String>
+    @State private var apiKey: String
+    @State private var userEmail: String
+
+    private var isScreenshot: Bool {
+        #if DEBUG
+        OpenGlassesScreenshotFixture.isActive
+        #else
+        false
+        #endif
+    }
+
+    init() {
+        #if DEBUG
+        let screenshot = OpenGlassesScreenshotFixture.isActive
+        #else
+        let screenshot = false
+        #endif
+        _speedMode = State(initialValue: screenshot ? "fast" : UserDefaults.standard.string(forKey: "speedMode") ?? "fast")
+        _enabledWakePhrases = State(initialValue: screenshot ? ["hey bernard", "hey dolores"] : Set(Config.enabledWakePhrases))
+        _apiKey = State(initialValue: screenshot ? "" : UserDefaults.standard.string(forKey: "doloresAPIKey") ?? "")
+        _userEmail = State(initialValue: screenshot ? "" : Config.userEmail)
+    }
 
     var body: some View {
-        NavigationView {
-            List {
-                // Account
-                Section {
+        List {
+            // Account
+            Section {
+                HStack {
+                    Image(systemName: "person.circle")
+                        .foregroundColor(Color(hex: "8EDCEF"))
+                    TextField("Email", text: $userEmail)
+                        .foregroundColor(Color(hex: "E1EFF3"))
+                        .keyboardType(.emailAddress)
+                        .textContentType(.emailAddress)
+                        .autocapitalization(.none)
+                        .onSubmit { if !isScreenshot { Config.setUserEmail(userEmail) } }
+                }
+                HStack {
+                    Image(systemName: "key")
+                        .foregroundColor(Color(hex: "8EDCEF"))
+                    SecureField("API Key", text: $apiKey)
+                        .foregroundColor(Color(hex: "E1EFF3"))
+                        .onSubmit { if !isScreenshot { Config.setAPIKey(apiKey) } }
+                }
+                if isScreenshot || (apiKey.isEmpty && Config.doloresAPIKey.isEmpty) {
+                    Text("No API key configured. Get one from your admin.")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                } else if !apiKey.isEmpty {
+                    Text("Using custom API key")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                } else {
+                    Text("Using default API key")
+                        .font(.caption)
+                        .foregroundColor(Color(hex: "8EDCEF").opacity(0.6))
+                }
+            } header: {
+                Text("Account")
+            }
+
+            // Glasses
+            Section("Glasses") {
+                HStack {
+                    Image(systemName: appState.isConnected ? "checkmark.circle.fill" : "xmark.circle")
+                        .foregroundColor(appState.isConnected ? Color(hex: "8EDCEF") : Color(hex: "E1EFF3").opacity(0.4))
+                    Text(appState.isConnected ? "Connected" : "Not Connected")
+                        .foregroundColor(Color(hex: "E1EFF3"))
+                }
+                if let name = appState.glassesService.deviceName {
                     HStack {
-                        Image(systemName: "person.circle")
+                        Image(systemName: "eyeglasses")
                             .foregroundColor(Color(hex: "8EDCEF"))
-                        TextField("Email", text: $userEmail)
+                        Text(name)
                             .foregroundColor(Color(hex: "E1EFF3"))
-                            .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
-                            .autocapitalization(.none)
-                            .onSubmit { Config.setUserEmail(userEmail) }
-                    }
-                    HStack {
-                        Image(systemName: "key")
-                            .foregroundColor(Color(hex: "8EDCEF"))
-                        SecureField("API Key", text: $apiKey)
-                            .foregroundColor(Color(hex: "E1EFF3"))
-                            .onSubmit { Config.setAPIKey(apiKey) }
-                    }
-                    if apiKey.isEmpty && Config.doloresAPIKey.isEmpty {
-                        Text("No API key configured. Get one from your admin.")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    } else if !apiKey.isEmpty {
-                        Text("Using custom API key")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    } else {
-                        Text("Using default API key")
-                            .font(.caption)
-                            .foregroundColor(Color(hex: "8EDCEF").opacity(0.6))
-                    }
-                } header: {
-                    Text("Account")
-                }
-
-                // Glasses
-                Section("Glasses") {
-                    HStack {
-                        Image(systemName: appState.isConnected ? "checkmark.circle.fill" : "xmark.circle")
-                            .foregroundColor(appState.isConnected ? Color(hex: "8EDCEF") : Color(hex: "E1EFF3").opacity(0.4))
-                        Text(appState.isConnected ? "Connected" : "Not Connected")
-                            .foregroundColor(Color(hex: "E1EFF3"))
-                    }
-                    if let name = appState.glassesService.deviceName {
-                        HStack {
-                            Image(systemName: "eyeglasses")
-                                .foregroundColor(Color(hex: "8EDCEF"))
-                            Text(name)
-                                .foregroundColor(Color(hex: "E1EFF3"))
-                        }
-                    }
-                }
-
-                // Response Speed
-                Section {
-                    Picker("Speed", selection: $speedMode) {
-                        Text("Haiku — fastest").tag("fastest")
-                        Text("Sonnet — balanced").tag("fast")
-                        Text("Opus — smartest").tag("opus")
-                    }
-                    .pickerStyle(.menu)
-                    .foregroundColor(Color(hex: "8EDCEF"))
-                    .onChange(of: speedMode) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: "speedMode")
-                    }
-                } header: {
-                    Text("Response Speed")
-                }
-
-                // Listening Master Switch
-                Section {
-                    Toggle(isOn: Binding(
-                        get: { appState.listeningEnabled },
-                        set: { appState.setListeningEnabled($0) }
-                    )) {
-                        HStack {
-                            Image(systemName: appState.listeningEnabled ? "ear.fill" : "ear.badge.waveform")
-                                .foregroundColor(appState.listeningEnabled ? Color(hex: "8EDCEF") : .red)
-                            Text(appState.listeningEnabled ? "Listening Active" : "Listening Disabled")
-                                .foregroundColor(Color(hex: "E1EFF3"))
-                        }
-                    }
-                    .tint(Color(hex: "8EDCEF"))
-                } footer: {
-                    Text(appState.listeningEnabled
-                        ? "Wake word detection is running. Disable to save battery."
-                        : "All listening stopped. Wake word, mic, and Live Activity are off.")
-                        .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
-                }
-
-                // Wake Words (multi-select)
-                Section {
-                    ForEach(Config.availableWakePhrases, id: \.self) { phrase in
-                        Button {
-                            if enabledWakePhrases.contains(phrase) {
-                                if enabledWakePhrases.count > 1 {
-                                    enabledWakePhrases.remove(phrase)
-                                }
-                            } else {
-                                enabledWakePhrases.insert(phrase)
-                            }
-                            Config.setEnabledWakePhrases(Array(enabledWakePhrases))
-                        } label: {
-                            HStack {
-                                Text(phrase.split(separator: " ").map { $0.capitalized }.joined(separator: " "))
-                                    .foregroundColor(Color(hex: "E1EFF3"))
-                                Spacer()
-                                if enabledWakePhrases.contains(phrase) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(Color(hex: "8EDCEF"))
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Wake Words")
-                } footer: {
-                    Text("Select one or more. The app listens for all enabled phrases simultaneously.")
-                        .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
-                }
-
-                FeedbackSection()
-
-                // About
-                Section("About") {
-                    HStack {
-                        Text("Version")
-                            .foregroundColor(Color(hex: "E1EFF3"))
-                        Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                            .foregroundColor(Color(hex: "E1EFF3").opacity(0.5))
-                    }
-                    HStack {
-                        Text("Powered by")
-                            .foregroundColor(Color(hex: "E1EFF3"))
-                        Spacer()
-                        Text("ForIT AI")
-                            .foregroundColor(Color(hex: "8EDCEF"))
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Color(hex: "0A1A26"))
-            .feedbackDialogs()
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        // Save on dismiss
-                        if !apiKey.isEmpty { Config.setAPIKey(apiKey) }
-                        Config.setUserEmail(userEmail)
-                        dismiss()
+
+            // Response Speed
+            Section {
+                Picker("Speed", selection: $speedMode) {
+                    Text("Haiku — fastest").tag("fastest")
+                    Text("Sonnet — balanced").tag("fast")
+                    Text("Opus — smartest").tag("opus")
+                }
+                .pickerStyle(.menu)
+                .foregroundColor(Color(hex: "8EDCEF"))
+                .onChange(of: speedMode) { _, newValue in
+                    guard !isScreenshot else { return }
+                    UserDefaults.standard.set(newValue, forKey: "speedMode")
+                }
+            } header: {
+                Text("Response Speed")
+            }
+
+            // Listening Master Switch
+            Section {
+                Toggle(isOn: Binding(
+                    get: { appState.listeningEnabled },
+                    set: { if !isScreenshot { appState.setListeningEnabled($0) } }
+                )) {
+                    HStack {
+                        Image(systemName: appState.listeningEnabled ? "ear.fill" : "ear.badge.waveform")
+                            .foregroundColor(appState.listeningEnabled ? Color(hex: "8EDCEF") : .red)
+                        Text(appState.listeningEnabled ? "Listening Active" : "Listening Disabled")
+                            .foregroundColor(Color(hex: "E1EFF3"))
                     }
-                    .foregroundColor(Color(hex: "8EDCEF"))
+                }
+                .tint(Color(hex: "8EDCEF"))
+            } footer: {
+                Text(appState.listeningEnabled
+                    ? "Wake word detection is running. Disable to save battery."
+                    : "All listening stopped. Wake word, mic, and Live Activity are off.")
+                    .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
+            }
+
+            // Wake Words (multi-select)
+            Section {
+                ForEach(Config.availableWakePhrases, id: \.self) { phrase in
+                    Button {
+                        if enabledWakePhrases.contains(phrase) {
+                            if enabledWakePhrases.count > 1 {
+                                enabledWakePhrases.remove(phrase)
+                            }
+                        } else {
+                            enabledWakePhrases.insert(phrase)
+                        }
+                        if !isScreenshot { Config.setEnabledWakePhrases(Array(enabledWakePhrases)) }
+                    } label: {
+                        HStack {
+                            Text(phrase.split(separator: " ").map { $0.capitalized }.joined(separator: " "))
+                                .foregroundColor(Color(hex: "E1EFF3"))
+                            Spacer()
+                            if enabledWakePhrases.contains(phrase) {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(Color(hex: "8EDCEF"))
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Wake Words")
+            } footer: {
+                Text("Select one or more. The app listens for all enabled phrases simultaneously.")
+                    .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
+            }
+
+            FeedbackSection()
+
+            // About
+            Section("About") {
+                HStack {
+                    Text("Version")
+                        .foregroundColor(Color(hex: "E1EFF3"))
+                    Spacer()
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                        .foregroundColor(Color(hex: "E1EFF3").opacity(0.5))
+                }
+                HStack {
+                    Text("Powered by")
+                        .foregroundColor(Color(hex: "E1EFF3"))
+                    Spacer()
+                    Text("ForIT AI")
+                        .foregroundColor(Color(hex: "8EDCEF"))
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .forITScreenBackground()
+        .feedbackDialogs()
         .preferredColorScheme(.dark)
+        .onDisappear(perform: saveAccount)
+    }
+
+    /// The shared Settings sheet owns Done; save account edits when it closes.
+    private func saveAccount() {
+        guard !isScreenshot else { return }
+        if !apiKey.isEmpty { Config.setAPIKey(apiKey) }
+        Config.setUserEmail(userEmail)
     }
 }

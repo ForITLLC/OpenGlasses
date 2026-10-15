@@ -1,3 +1,4 @@
+import ForITCommon
 import SwiftUI
 
 /// Large central ambient status indicator — the visual heartbeat of the app.
@@ -47,14 +48,8 @@ struct StatusIndicator: View {
                 if active { startRingAnimation() } else { stopRingAnimation() }
             }
 
-            // ForIT logo — centered under avatar (replaces "Ready" / "ForIT AI" text)
-            Image("ForITLogo")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundColor(Color(hex: "E1EFF3"))
-                .frame(height: 24)
-                .opacity(isActive ? 0.4 : 0.9)
+            // Keep the shared white mark legible in every activity state.
+            ForITMark(size: 24, surface: .dark)
 
             // Status text — ONLY during active states
             if isActive {

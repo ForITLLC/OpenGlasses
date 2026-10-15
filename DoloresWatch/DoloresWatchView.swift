@@ -25,7 +25,7 @@ struct DoloresWatchView: View {
                     .foregroundColor(Color(red: 0.88, green: 0.94, blue: 0.95))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
-                    .background(Color(red: 0.08, green: 0.18, blue: 0.26).opacity(0.8))
+                    .background(Color.black)
                     .cornerRadius(8)
 
                 if isProcessing {
@@ -48,7 +48,7 @@ struct DoloresWatchView: View {
             }
             .padding(.horizontal, 4)
         }
-        .background(Color(red: 0.04, green: 0.10, blue: 0.15))
+        .background(Color.black)
     }
 
     func quickButton(icon: String, label: String, action: @escaping () async -> Void) -> some View {
@@ -64,7 +64,7 @@ struct DoloresWatchView: View {
             .foregroundColor(Color(red: 0.56, green: 0.86, blue: 0.94))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(Color(red: 0.08, green: 0.18, blue: 0.26).opacity(0.6))
+            .background(Color.black)
             .cornerRadius(8)
         }
         .buttonStyle(.plain)
