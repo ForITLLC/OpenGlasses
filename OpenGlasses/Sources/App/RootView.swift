@@ -69,6 +69,16 @@ struct OnboardingView: View {
     @State private var apiKey = ""
 
     var body: some View {
+        GeometryReader { viewport in
+            ScrollView {
+                onboardingContent
+                    .frame(minHeight: viewport.size.height)
+            }
+        }
+        .forITScreenBackground()
+    }
+
+    private var onboardingContent: some View {
         ZStack {
             VStack(spacing: 32) {
                 Spacer()
@@ -87,6 +97,7 @@ struct OnboardingView: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 TextField("Bernard API Key", text: $apiKey)
                     .autocapitalization(.none)
@@ -106,7 +117,6 @@ struct OnboardingView: View {
                     Text("Continue")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                        .padding()
                 }
                 .buttonStyle(.forITPrimary)
                 .padding(.horizontal, 40)
@@ -116,6 +126,5 @@ struct OnboardingView: View {
                 Spacer()
             }
         }
-        .forITScreenBackground()
     }
 }
