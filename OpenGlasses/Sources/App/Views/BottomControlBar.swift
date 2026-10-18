@@ -24,6 +24,7 @@ struct BottomControlBar: View {
                     Task { await appState.handleWakeWordDetected(manualActivation: true) }
                 }
             }
+            .accessibilityLabel(micAccessibilityLabel)
 
             // Status text below mic
             Text(micLabel)
@@ -43,6 +44,13 @@ struct BottomControlBar: View {
         if appState.speechService.isSpeaking { return "stop.fill" }
         if appState.isListening { return "mic.fill" }
         return "mic"
+    }
+
+    private var micAccessibilityLabel: String {
+        if appState.isProcessing { return "Cancel current response" }
+        if appState.speechService.isSpeaking { return "Stop speaking" }
+        if appState.isListening || appState.inConversation { return "Stop listening" }
+        return "Start listening"
     }
 
     private var micLabel: String {
