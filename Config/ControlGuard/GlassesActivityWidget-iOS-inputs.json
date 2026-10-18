@@ -1,0 +1,14 @@
+{
+  "schema": "forit.control-guard.inputs.v1",
+  "root": "../..",
+  "target": "GlassesActivityWidget",
+  "platform": "iOS",
+  "sources": [
+    "GlassesActivityWidget/DisableListeningIntent.swift",
+    "GlassesActivityWidget/GlassesActivityWidget.swift",
+    "OpenGlasses/Sources/Models/GlassesActivityAttributes.swift",
+    "TestSupport/LiveActivity/GlassesActivityFixtures.swift",
+    "TestSupport/LiveActivity/GlassesActivityWidgetPreviews.swift"
+  ],
+  "bridges": []
+}

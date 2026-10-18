@@ -1,0 +1,30 @@
+{
+  "name": "Bernard Glasses",
+  "bundleId": "com.forit.openglasses.dolores",
+  "comment": "Scoped BR-3 source integration only; other app conformance declarations and native verification remain pending. No BR-3 waiver.",
+  "controlGuard": {
+    "targets": {
+      "OpenGlasses": [
+        {
+          "platform": "iOS",
+          "inputs": "Config/ControlGuard/OpenGlasses-iOS-inputs.json",
+          "report": "/tmp/forit-openglasses-shared-controls-OpenGlasses-iOS-br3.json"
+        }
+      ],
+      "DoloresWatch": [
+        {
+          "platform": "watchOS",
+          "inputs": "Config/ControlGuard/DoloresWatch-watchOS-inputs.json",
+          "report": "/tmp/forit-openglasses-shared-controls-DoloresWatch-watchOS-br3.json"
+        }
+      ],
+      "GlassesActivityWidget": [
+        {
+          "platform": "iOS",
+          "inputs": "Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json",
+          "report": "/tmp/forit-openglasses-shared-controls-GlassesActivityWidget-iOS-br3.json"
+        }
+      ]
+    }
+  }
+}

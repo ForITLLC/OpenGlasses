@@ -28,6 +28,12 @@ packages:
 
 targets:
   OpenGlasses:
+    # Required on every compile. The maintained runner supplies the trusted shared tool.
+    preBuildScripts:
+      - name: Shared controls BR-3
+        basedOnDependencyAnalysis: false
+        script: |
+          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/OpenGlasses-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-controls-OpenGlasses-iOS-br3.json"
     type: application
     platform: iOS
     sources:
@@ -129,6 +135,12 @@ targets:
         GENERATE_INFOPLIST_FILE: "YES"
 
   DoloresWatch:
+    # Required on every compile. The maintained runner supplies the trusted shared tool.
+    preBuildScripts:
+      - name: Shared controls BR-3
+        basedOnDependencyAnalysis: false
+        script: |
+          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/DoloresWatch-watchOS-inputs.json" --report "/tmp/forit-openglasses-shared-controls-DoloresWatch-watchOS-br3.json"
     type: application
     platform: watchOS
     deploymentTarget: "11.0"
@@ -159,11 +171,19 @@ targets:
           PROVISIONING_PROFILE_SPECIFIER: "OpenGlasses Watch App Store"
 
   GlassesActivityWidget:
+    # Required on every compile. The maintained runner supplies the trusted shared tool.
+    preBuildScripts:
+      - name: Shared controls BR-3
+        basedOnDependencyAnalysis: false
+        script: |
+          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-controls-GlassesActivityWidget-iOS-br3.json"
     type: app-extension
     platform: iOS
     sources:
       - path: GlassesActivityWidget
       - path: OpenGlasses/Sources/Models/GlassesActivityAttributes.swift
+      - path: TestSupport/LiveActivity/GlassesActivityFixtures.swift
+      - path: TestSupport/LiveActivity/GlassesActivityWidgetPreviews.swift
     resources:
       - path: GlassesActivityWidget/Assets.xcassets
     info:

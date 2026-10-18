@@ -1,0 +1,71 @@
+{
+  "task": "8EDA0A3E",
+  "authorityMessage": "msg_c381aa34a6d6",
+  "status": "SOURCE_ONLY_PARTIAL_MIGRATION",
+  "base": "45b52531d64f8673429bf7131653b53b65f31470",
+  "observedUTC": "2026-10-18T18:05:44.352414+00:00",
+  "releasedAPI": {
+    "tag": "0.17.1",
+    "commit": "8e2063a94cac21721ffc525cc9beb989c1f7dd2d",
+    "source": "Official ForITLLC/for-iCommon local Git objects, no workingtree API copied",
+    "primary": {
+      "api": ".buttonStyle(.forITPrimaryOnNavy)",
+      "path": "Sources/ForITCommon/Brand/ForITBrandUI.swift:176-231",
+      "blob": "9c9e15010bee999068a5ce1e87f8e31bd77bedf7"
+    },
+    "done": {
+      "api": "ForITDoneButton(action:)",
+      "path": "Sources/ForITCommon/App/ForITSettingsEntry.swift:38-58",
+      "blob": "f0242b093d5c512112b49fab95ea11b2dcf3ed73"
+    }
+  },
+  "changes": [
+    "RootView.swift:76 Continue uses shared navy-gate primary; removed app font/foreground/inner padding/fill/radius14. Label/full-width form layout, outer margin40, disabled predicate and credential/onComplete closure retained. Shared style owns capsule/cyan fill/navy text/min44/disabled0.4.",
+    "SettingsView.swift:165 uses shared Done; exact API key/email saves and dismiss closure retained. Shared labelDone and OS26confirm role; removed local foreground override.",
+    "Added accessibility labels/values to icon-only settings/mic/camera/listening/LiveActivitypower. Mic label matches actual priority: processingCancel currentresponse; speakingStop speaking; listening/conversationStop listening; otherwiseStart listening. Actual cancelCurrentResponse stops speech atOpenGlassesApp.swift:534."
+  ],
+  "staticChecks": [
+    {
+      "path": "GlassesActivityWidget/GlassesActivityWidget.swift",
+      "presentationOnlyProjection": "PASS",
+      "sha256": "c16a054188f2fdce6ba644b9cb5ea71c1ffd0530c806db3d720a6481a34ceac4"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/RootView.swift",
+      "presentationOnlyProjection": "PASS",
+      "sha256": "a2f96525dd959d0101d6b8130ded061a14353046a5687b0d9426fcd6f5c27c90"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/BottomControlBar.swift",
+      "presentationOnlyProjection": "PASS",
+      "sha256": "d6d8ee33f9a145871c0ed5b947fd0907331b0ad033fa0e271fcb2d96ce0f1c4d"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/ConnectionBanner.swift",
+      "presentationOnlyProjection": "PASS",
+      "sha256": "b72afb5396506168f7ab3777248586ded6dfd84fe5462744dd440b047919d347"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/MainView.swift",
+      "presentationOnlyProjection": "PASS",
+      "sha256": "58b96b6c1e95ac6e3a945b3282ae3091d55f790b5416f2f559e297e05a0b3252"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/SettingsView.swift",
+      "presentationOnlyProjection": "PASS",
+      "sha256": "337837b64c7fe35660eb15d79ea5ec7c717732dc5540e02136845880fbc9e9dd"
+    }
+  ],
+  "diffCheck": "PASS",
+  "packageManifestUnchanged": "PASS",
+  "sourceDiffSHA256": "84c656f83917794835526fcbac5b615120c00ccf812c20a4fe2030c6b25912f9",
+  "remainingBlockers": [
+    "No proven released role equivalent in0.17.1 for circular/stateful mic, status/permission actions, selectedON/OFF pill, icon-caption radial/Watch actions; retain pending tested upstream roles.",
+    "Widget/Watch do not linkCommon; new dependency/role surface remains upstream release blocker, no implementation copied or forked.",
+    "RootView.swift:77 original outer40 margin preserved as form layout. If guard treats it as control chrome, report policy/layout blocker; no wrapper added to evade checker. No BR3/conformance PASS claimed.",
+    "Main app iOS26 floor (Package.swift:7/project.yml:5); no explicit TARGETED_DEVICE_FAMILY onmain. Do not inherit frozenlogo iOS18/family1,2. NativeMac/Vision targets absent; widget is ActivityKit-only.",
+    "Widget screenshots/AXgeometry/intentinteraction/appactive-state coverage and release validation require authorized nativeowner.",
+    "No guard integration PASS; parent owns concurrent project.yml/newforit-app.json work. Sourceonly0.17.1 pin retained; moving Common candidate API not adopted."
+  ],
+  "limits": "No native/SDK/Mini/build/typecheck/runtime/testflight. No commit/push. Only six appSwift plus thisJSON written by subtask; frozen PR9worktree untouched."
+}
