@@ -1,5 +1,5 @@
 {
-  "comment": "OpenGlasses single-mark and gate adoption work order AEB115CE; screenshots require the shared capture owner's GO.",
+  "comment": "Source continuation for ask52289/Common0.31.3 from frozen PR9. Existing platform waiver is historical; no current native/guard/upload approval is claimed.",
   "name": "ForIT Glasses",
   "bundleId": "com.forit.openglasses.dolores",
   "textScreens": [],
@@ -16,14 +16,70 @@
     "scheme": "OpenGlasses",
     "project": "project.yml",
     "list": [
-      {"name": "gate", "args": ["-screenshot-scene", "gate"]},
-      {"name": "home", "args": ["-screenshot-scene", "home"]},
-      {"name": "detail", "args": ["-screenshot-scene", "detail"]},
-      {"name": "settings", "args": ["-screenshot-scene", "settings"]},
-      {"name": "launch", "args": ["-screenshot-scene", "launch"]}
+      {
+        "name": "gate",
+        "args": [
+          "-screenshot-scene",
+          "gate"
+        ]
+      },
+      {
+        "name": "home",
+        "args": [
+          "-screenshot-scene",
+          "home"
+        ]
+      },
+      {
+        "name": "detail",
+        "args": [
+          "-screenshot-scene",
+          "detail"
+        ]
+      },
+      {
+        "name": "settings",
+        "args": [
+          "-screenshot-scene",
+          "settings"
+        ]
+      },
+      {
+        "name": "launch",
+        "args": [
+          "-screenshot-scene",
+          "launch"
+        ]
+      }
     ]
   },
   "waivers": {
     "PL-2..5": "Native Mac and Vision Pro targets and Watch distribution were already missing on baseline 45b52531. Dispatch 2026-10-14 directs those existing gaps to open task 5BBB3471-E5DA-48AD-B1BB-2A83A5B0D4E2 under epic 73E7B446, without an invented future due date. This mark release updates and compiles the Watch source but claims delivery only on the existing iOS channel; Dispatch is starting the platform worker."
+  },
+  "controlGuard": {
+    "commonRevision": "31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50",
+    "targets": {
+      "OpenGlasses": [
+        {
+          "platform": "iOS",
+          "inputs": "Config/ControlGuard/OpenGlasses-iOS-inputs.json",
+          "report": "/tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json"
+        }
+      ],
+      "DoloresWatch": [
+        {
+          "platform": "watchOS",
+          "inputs": "Config/ControlGuard/DoloresWatch-watchOS-inputs.json",
+          "report": "/tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json"
+        }
+      ],
+      "GlassesActivityWidget": [
+        {
+          "platform": "iOS",
+          "inputs": "Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json",
+          "report": "/tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json"
+        }
+      ]
+    }
   }
 }

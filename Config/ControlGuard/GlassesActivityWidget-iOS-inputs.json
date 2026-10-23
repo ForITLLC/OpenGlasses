@@ -1,0 +1,25 @@
+{
+  "schema": "forit.control-guard.inputs.v1",
+  "root": "../..",
+  "target": "GlassesActivityWidget",
+  "platform": "iOS",
+  "sources": [
+    ".build/forit-bridges/GlassesActivityWidget/Controls/ForITBrand.swift",
+    ".build/forit-bridges/GlassesActivityWidget/Controls/ForITControlMetrics.swift",
+    ".build/forit-bridges/GlassesActivityWidget/Controls/ForITControls.swift",
+    ".build/forit-bridges/GlassesActivityWidget/Mark/ForITMark.swift",
+    ".build/forit-bridges/GlassesActivityWidget/Mark/ForITMarkBridgePalette.swift",
+    "GlassesActivityWidget/DisableListeningIntent.swift",
+    "GlassesActivityWidget/GlassesActivityWidget.swift",
+    "OpenGlasses/Sources/Models/GlassesActivityAttributes.swift"
+  ],
+  "bridges": [
+    ".build/forit-bridges/GlassesActivityWidget/Controls/controls-manifest.json"
+  ],
+  "markBridges": [
+    {
+      "manifest": ".build/forit-bridges/GlassesActivityWidget/Mark/mark-auth-manifest.json",
+      "version": "0.31.3"
+    }
+  ]
+}

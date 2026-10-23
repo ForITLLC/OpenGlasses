@@ -3,12 +3,13 @@
   "task": "AEB115CE-C81E-4A93-8811-3FB92AEC08CF",
   "native_mark": {
     "repository": "ForITLLC/for-iCommon",
-    "tag": "0.30.0",
-    "commit": "60b93054b93e072950b2a7e43337bca9a26b614e",
+    "tag": "0.31.3",
+    "commit": "31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50",
     "contexts": [
       "launch",
       "status",
-      "shared profile panel"
+      "shared profile panel",
+      "Watch heading via authenticated generated mark bridge"
     ]
   },
   "lapel_standard": {
@@ -122,5 +123,16 @@
     "original alpha globally",
     "asset catalog JSON"
   ],
-  "runtime_validation": "Recorded separately in PR and simulator capture provenance; source pixel audits do not prove a build or release."
+  "runtime_validation": "Recorded separately in PR and simulator capture provenance; source pixel audits do not prove a build or release.",
+  "source_continuation": {
+    "assignment": "msg_4f80f7fbcb30",
+    "base": "1efaec59991458b222615216e6e001a579865f17",
+    "frozenPRs": [
+      9,
+      10
+    ],
+    "native_validation": "UNVERIFIED; historical V4/0.30.0 packet cannot validate this source",
+    "bridge_version": "0.31.3",
+    "bridge_revision": "31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50"
+  }
 }

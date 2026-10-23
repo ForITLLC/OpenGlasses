@@ -598,6 +598,13 @@ fi
 
 # --- 2. project and unit tests (CI-1: a red test stops the run here) ----------------------------------------------
 if [ -z "$MATRIX_PR" ]; then step reuse-matrix matrix_proof reuse; fi
+# The maintained source owner must provision the official frozen 0.31.3 tool
+# checkout. The package's cache checkout is not a substitute for that authority.
+: "${FORIT_COMMON_ROOT:?set the admitted official Common 0.31.3 tool checkout}"
+step watch-shared-bridges python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
+  --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/DoloresWatch"
+step activity-shared-bridges python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
+  --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/GlassesActivityWidget"
 step xcodegen xcodegen generate
 if [ -z "$MATRIX_PR" ]; then
   mkdir -p OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm

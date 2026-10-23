@@ -37,17 +37,17 @@ struct SettingsView: View {
                     Image(systemName: "person.circle")
                         .foregroundColor(Color(hex: "8EDCEF"))
                     TextField("Email", text: $userEmail)
-                        .foregroundColor(Color(hex: "E1EFF3"))
+                        .forITField(on: .navy)
                         .keyboardType(.emailAddress)
                         .textContentType(.emailAddress)
-                        .autocapitalization(.none)
+                        .textInputAutocapitalization(.never)
                         .onSubmit { if !isScreenshot { Config.setUserEmail(userEmail) } }
                 }
                 HStack {
                     Image(systemName: "key")
                         .foregroundColor(Color(hex: "8EDCEF"))
                     SecureField("API Key", text: $apiKey)
-                        .foregroundColor(Color(hex: "E1EFF3"))
+                        .forITField(on: .navy)
                         .onSubmit { if !isScreenshot { Config.setAPIKey(apiKey) } }
                 }
                 if isScreenshot || (apiKey.isEmpty && Config.doloresAPIKey.isEmpty) {
@@ -110,12 +110,10 @@ struct SettingsView: View {
                 )) {
                     HStack {
                         Image(systemName: appState.listeningEnabled ? "ear.fill" : "ear.badge.waveform")
-                            .foregroundColor(appState.listeningEnabled ? Color(hex: "8EDCEF") : .red)
                         Text(appState.listeningEnabled ? "Listening Active" : "Listening Disabled")
-                            .foregroundColor(Color(hex: "E1EFF3"))
                     }
                 }
-                .tint(Color(hex: "8EDCEF"))
+                .toggleStyle(.forITToggle(on: .navy))
             } footer: {
                 Text(appState.listeningEnabled
                     ? "Wake word detection is running. Disable to save battery."
@@ -138,14 +136,13 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Text(phrase.split(separator: " ").map { $0.capitalized }.joined(separator: " "))
-                                .foregroundColor(Color(hex: "E1EFF3"))
                             Spacer()
                             if enabledWakePhrases.contains(phrase) {
                                 Image(systemName: "checkmark")
-                                    .foregroundColor(Color(hex: "8EDCEF"))
                             }
                         }
                     }
+                    .buttonStyle(.forITChoice(isSelected: enabledWakePhrases.contains(phrase), on: .navy))
                 }
             } header: {
                 Text("Wake Words")

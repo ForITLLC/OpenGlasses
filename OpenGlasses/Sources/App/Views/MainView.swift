@@ -12,7 +12,7 @@ struct MainView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject private var feedbackAccount = FeedbackAccount.shared
 
-    // 5 quick actions arranged in a circle around the avatar
+    // Six quick actions arranged around the avatar.
     // Quick actions — voice-first starting prompts around the ring
     private let quickActions: [(icon: String, label: String, action: QuickActionType)] = [
         ("calendar", "Meetings", .prompt("Give me a summary of my meetings today")),
@@ -33,6 +33,7 @@ struct MainView: View {
         NavigationStack {
             content
                 .navigationTitle("ForIT Glasses")
+                .forITInlineTitle()
                 .forITProfileMenu(
                     account: feedbackAccount.profileAccount,
                     isSettingsPresented: $appState.showSettings,
@@ -52,7 +53,7 @@ struct MainView: View {
                 .environment(\.forITFeedback, feedbackAccount.signedIn ? feedbackAccount.center : nil)
                 .feedbackDialogs(isEnabled: !appState.showSettings)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .forITBarTrailing) {
                         powerButton
                     }
                 }
@@ -130,7 +131,7 @@ struct MainView: View {
         } label: {
             Image(systemName: "power")
         }
-        .tint(appState.listeningEnabled ? .green : Color(hex: "8EDCEF"))
+        .buttonStyle(.forITToolbar(isSelected: appState.listeningEnabled))
         .accessibilityLabel(appState.listeningEnabled ? "Turn listening off" : "Turn listening on")
         .accessibilityValue(appState.listeningEnabled ? "On" : "Off")
     }
@@ -142,23 +143,13 @@ struct MainView: View {
             Task { await action() }
         } label: {
             VStack(spacing: 3) {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: "142F43").opacity(0.8))
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Circle().stroke(Color(hex: "8EDCEF").opacity(0.25), lineWidth: 1)
-                        )
-                    Image(systemName: icon)
-                        .font(.system(size: 17))
-                        .foregroundColor(Color(hex: "8EDCEF"))
-                }
+                Image(systemName: icon)
                 Text(label)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(Color(hex: "E1EFF3").opacity(0.7))
+                    .font(.caption2)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.forITIntrinsic(on: .navy))
+        .accessibilityLabel(label)
     }
 }
 

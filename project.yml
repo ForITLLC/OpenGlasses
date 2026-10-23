@@ -18,15 +18,69 @@ packages:
     # so the version MUST be pinned here to stay reproducible.
     exactVersion: "0.5.0"
   # Shared ForIT code by URL (for-iCommon, private): ForIT Sign-in and Send feedback (FB-1).
-  # The phone app only; DoloresWatch and the widget don't link it (it doesn't build for watchOS).
+  # The phone app links the package; Watch/activity use the matching generated bridges.
   # Pinned exact like the SDK above, for the same reason: Scripts/mini-testflight.sh runs the App
   # Shared mark, profile panel and App Store provisioning from the tested release.
   ForITCommon:
     url: https://github.com/ForITLLC/for-iCommon.git
-    exactVersion: "0.30.0"
+    exactVersion: "0.31.3"
+
+# Generate these required inputs before XcodeGen, as mini-testflight.sh does.
+# The maintained mark adapter requires explicit regular records without optional/group
+# overrides. Actual Sources/Resources membership still needs native verification.
+targetTemplates:
+  PackageFreeSharedBridges:
+    sources:
+      - path: .build/forit-bridges/${target_name}/Mark/ForITMark.swift
+        type: file
+        buildPhase: sources
+      - path: .build/forit-bridges/${target_name}/Mark/ForITMarkBridgePalette.swift
+        type: file
+        buildPhase: sources
+      - path: .build/forit-bridges/${target_name}/Controls/ForITBrand.swift
+        type: file
+        buildPhase: sources
+      - path: .build/forit-bridges/${target_name}/Controls/ForITControlMetrics.swift
+        type: file
+        buildPhase: sources
+      - path: .build/forit-bridges/${target_name}/Controls/ForITControls.swift
+        type: file
+        buildPhase: sources
+      - path: .build/forit-bridges/${target_name}/Mark/forit-hex.png
+        type: file
+        buildPhase: resources
+    settings:
+      base:
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) FORIT_MARK_BRIDGE"
+    preBuildScripts:
+      - name: Export published Common mark and Controls bridges
+        script: |
+          set -eu
+          python3 "$SRCROOT/Scripts/prepare-shared-bridges.py" --output "$SRCROOT/.build/forit-bridges/$TARGET_NAME"
+        basedOnDependencyAnalysis: false
+        showEnvVars: false
+        inputFiles:
+          - $(SRCROOT)/Scripts/prepare-shared-bridges.py
+        outputFiles:
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Mark/ForITMark.swift
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Mark/ForITMarkBridgePalette.swift
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Mark/forit-hex.png
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Mark/manifest.json
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Mark/mark-auth-manifest.json
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Controls/ForITBrand.swift
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Controls/ForITControlMetrics.swift
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Controls/ForITControls.swift
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/Controls/controls-manifest.json
+          - $(SRCROOT)/.build/forit-bridges/$(TARGET_NAME)/bridge-manifest.json
 
 targets:
   OpenGlasses:
+    preBuildScripts:
+      - name: Maintained shared control source guard (iOS)
+        script: |
+          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/OpenGlasses-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json" --common-revision 31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50
+        basedOnDependencyAnalysis: false
+        showEnvVars: false
     type: application
     platform: iOS
     sources:
@@ -129,6 +183,13 @@ targets:
         GENERATE_INFOPLIST_FILE: "YES"
 
   DoloresWatch:
+    preBuildScripts:
+      - name: Maintained shared control source guard (watchOS)
+        script: |
+          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/DoloresWatch-watchOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json" --common-revision 31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50
+        basedOnDependencyAnalysis: false
+        showEnvVars: false
+    templates: [PackageFreeSharedBridges]
     type: application
     platform: watchOS
     deploymentTarget: "11.0"
@@ -159,6 +220,13 @@ targets:
           PROVISIONING_PROFILE_SPECIFIER: "OpenGlasses Watch App Store"
 
   GlassesActivityWidget:
+    preBuildScripts:
+      - name: Maintained shared control source guard (iOS)
+        script: |
+          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json" --common-revision 31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50
+        basedOnDependencyAnalysis: false
+        showEnvVars: false
+    templates: [PackageFreeSharedBridges]
     type: app-extension
     platform: iOS
     sources:

@@ -1,0 +1,25 @@
+{
+  "schema": "forit.control-guard.inputs.v1",
+  "root": "../..",
+  "target": "DoloresWatch",
+  "platform": "watchOS",
+  "sources": [
+    ".build/forit-bridges/DoloresWatch/Controls/ForITBrand.swift",
+    ".build/forit-bridges/DoloresWatch/Controls/ForITControlMetrics.swift",
+    ".build/forit-bridges/DoloresWatch/Controls/ForITControls.swift",
+    ".build/forit-bridges/DoloresWatch/Mark/ForITMark.swift",
+    ".build/forit-bridges/DoloresWatch/Mark/ForITMarkBridgePalette.swift",
+    "DoloresWatch/DoloresWatchApp.swift",
+    "DoloresWatch/DoloresWatchView.swift",
+    "DoloresWatch/WatchDoloresService.swift"
+  ],
+  "bridges": [
+    ".build/forit-bridges/DoloresWatch/Controls/controls-manifest.json"
+  ],
+  "markBridges": [
+    {
+      "manifest": ".build/forit-bridges/DoloresWatch/Mark/mark-auth-manifest.json",
+      "version": "0.31.3"
+    }
+  ]
+}
