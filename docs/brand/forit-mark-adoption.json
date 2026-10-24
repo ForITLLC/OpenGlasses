@@ -3,8 +3,8 @@
   "task": "AEB115CE-C81E-4A93-8811-3FB92AEC08CF",
   "native_mark": {
     "repository": "ForITLLC/for-iCommon",
-    "tag": "0.31.5",
-    "commit": "d6f69ba013783b0aab33a8233af4a5331dd9ddc1",
+    "tag": "0.31.7",
+    "commit": "927a394b803c7c425517e35b532d44037fc279d9",
     "contexts": [
       "launch",
       "status",
@@ -132,7 +132,7 @@
       10
     ],
     "native_validation": "UNVERIFIED; historical V4/0.30.0 packet cannot validate this source",
-    "bridge_version": "0.31.5",
-    "bridge_revision": "d6f69ba013783b0aab33a8233af4a5331dd9ddc1"
+    "bridge_version": "0.31.7",
+    "bridge_revision": "927a394b803c7c425517e35b532d44037fc279d9"
   }
 }

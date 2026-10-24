@@ -15,7 +15,6 @@
     "OpenGlasses/Sources/App/Views/CircleButton.swift",
     "OpenGlasses/Sources/App/Views/ConnectionBanner.swift",
     "OpenGlasses/Sources/App/Views/MainView.swift",
-    "OpenGlasses/Sources/App/Views/RadialLayout.swift",
     "OpenGlasses/Sources/App/Views/SettingsView.swift",
     "OpenGlasses/Sources/App/Views/StatusIndicator.swift",
     "OpenGlasses/Sources/App/Views/TranscriptOverlay.swift",

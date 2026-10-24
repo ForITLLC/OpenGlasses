@@ -74,15 +74,14 @@ struct MainView: View {
                     Spacer()
 
                     // CENTER: Dolores avatar + ForIT logo + quick action ring
-                    RadialLayout {
+                    ZStack {
                         StatusIndicator()
 
                         // Quick action ring — hidden during processing/listening
+                        // Ring is 340pt wide to push icons further from avatar
                         if !appState.isProcessing && !appState.isListening {
-                            ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
-                                quickActionButton(icon: action.icon, label: action.label, action: action.action)
-                                    .transition(.opacity.combined(with: .scale))
-                            }
+                            ForITRadialActions(actions: sharedQuickActions, on: .navy)
+                            .transition(.opacity.combined(with: .scale))
                         }
                     }
                     .animation(.easeInOut(duration: 0.2), value: appState.isProcessing)
@@ -123,30 +122,26 @@ struct MainView: View {
         .accessibilityValue(appState.listeningEnabled ? "On" : "Off")
     }
 
-    // MARK: - Quick Action Button
-
-    func quickActionButton(icon: String, label: String, action: QuickActionType) -> some View {
-        Button {
-            Task {
-                switch action {
-                case .prompt(let text):
-                    await appState.handleTranscription(text)
-                case .photo:
-                    await appState.capturePhotoFromGlasses()
-                case .photoThen(let prompt):
-                    await appState.capturePhotoAndSend(prompt: prompt)
-                }
-            }
-        } label: {
-            VStack(spacing: 3) {
-                Image(systemName: icon)
-                Text(label)
-                    .font(.caption2)
+    // The shared component owns rendering and placement; the app owns action data.
+    private var sharedQuickActions: [ForITRadialAction] {
+        quickActions.map { item in
+            ForITRadialAction(systemImage: item.icon, label: item.label) {
+                await performQuickAction(item.action)
             }
         }
-        .buttonStyle(.forITIntrinsic(on: .navy))
-        .accessibilityLabel(label)
     }
+
+    private func performQuickAction(_ action: QuickActionType) async {
+        switch action {
+        case .prompt(let text):
+            await appState.handleTranscription(text)
+        case .photo:
+            await appState.capturePhotoFromGlasses()
+        case .photoThen(let prompt):
+            await appState.capturePhotoAndSend(prompt: prompt)
+        }
+    }
+
 }
 
 // MARK: - Color hex extension

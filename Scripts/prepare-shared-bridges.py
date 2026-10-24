@@ -15,13 +15,13 @@ import subprocess
 import sys
 
 REPOSITORY = "https://github.com/ForITLLC/for-iCommon.git"
-VERSION = "0.31.5"
-REVISION = "d6f69ba013783b0aab33a8233af4a5331dd9ddc1"
-TAG_OBJECT = "4a7b35a75c9384f8cabb7271185c86a43b0363e4"
+VERSION = "0.31.7"
+REVISION = "927a394b803c7c425517e35b532d44037fc279d9"
+TAG_OBJECT = "f0880ddf36b6445399cae9653dfbd95f7a4a028c"
 EXPORTERS = {
     "Mark": ("Scripts/brand-export.py", "083db68e0e7f37ae1cc1394146e177fa7d42162d1b7f3b11005c436f23fc3701", "manifest.json",
              {"ForITMark.swift", "ForITMarkBridgePalette.swift", "forit-hex.png"}),
-    "Controls": ("Scripts/controls-export.py", "441eb924e8e9fd32bd8e308e7002fa41e85493d49b7e5bec0db512125344a0ce", "controls-manifest.json",
+    "Controls": ("Scripts/controls-export.py", "5c01449a09b78e3a3eae7460637e113abcb698d7676a3c68a174a0f4b797a825", "controls-manifest.json",
                  {"ForITBrand.swift", "ForITControlMetrics.swift", "ForITControls.swift"}),
 }
 

@@ -19,7 +19,7 @@
   "markBridges": [
     {
       "manifest": ".build/forit-bridges/GlassesActivityWidget/Mark/mark-auth-manifest.json",
-      "version": "0.31.5"
+      "version": "0.31.7"
     }
   ]
 }
