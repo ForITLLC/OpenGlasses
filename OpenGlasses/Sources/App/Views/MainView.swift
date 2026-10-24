@@ -74,28 +74,15 @@ struct MainView: View {
                     Spacer()
 
                     // CENTER: Dolores avatar + ForIT logo + quick action ring
-                    ZStack {
+                    RadialLayout {
                         StatusIndicator()
 
                         // Quick action ring — hidden during processing/listening
-                        // Ring is 340pt wide to push icons further from avatar
                         if !appState.isProcessing && !appState.isListening {
-                            RadialLayout() {
-                                ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
-                                    quickActionButton(icon: action.icon, label: action.label) {
-                                        switch action.action {
-                                        case .prompt(let text):
-                                            await appState.handleTranscription(text)
-                                        case .photo:
-                                            await appState.capturePhotoFromGlasses()
-                                        case .photoThen(let prompt):
-                                            await appState.capturePhotoAndSend(prompt: prompt)
-                                        }
-                                    }
-                                }
+                            ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
+                                quickActionButton(icon: action.icon, label: action.label, action: action.action)
+                                    .transition(.opacity.combined(with: .scale))
                             }
-                            .frame(width: 340, height: 340)
-                            .transition(.opacity.combined(with: .scale))
                         }
                     }
                     .animation(.easeInOut(duration: 0.2), value: appState.isProcessing)
@@ -138,9 +125,18 @@ struct MainView: View {
 
     // MARK: - Quick Action Button
 
-    func quickActionButton(icon: String, label: String, action: @escaping () async -> Void) -> some View {
+    func quickActionButton(icon: String, label: String, action: QuickActionType) -> some View {
         Button {
-            Task { await action() }
+            Task {
+                switch action {
+                case .prompt(let text):
+                    await appState.handleTranscription(text)
+                case .photo:
+                    await appState.capturePhotoFromGlasses()
+                case .photoThen(let prompt):
+                    await appState.capturePhotoAndSend(prompt: prompt)
+                }
+            }
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: icon)

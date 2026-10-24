@@ -42,12 +42,27 @@ are tracked at the Xcode project's consumed SwiftPM location. The generic
 adoption generator then returned its documented existing-bridge-proof HOLD;
 that does not invalidate the successful resolver or replace this adapter.
 
-The production app guard now binds that genuine lock and reports `FAIL` with
-29 findings. The sealed ownership review assigns 18 to shared native/canonical
-contracts, ten to unsupported radial contracts with the app behavior owner,
-and one to the genuine app-owned 340-point frame. Common's shared geometry
-repair and the app integration must preserve the reviewed six actions and
-viewport behavior. Watch and Live Activity still pass fresh source checks.
+The app-owned fixed frame and rendering-helper callback have been repaired.
+`RadialLayout` measures the center and controls, preserves clockwise action order,
+and uses a taller oval in constrained widths. Native preferred spacing and
+measured intrinsic minima govern placement; no 340-point constant was moved.
+The exact six prompts, three dispatch branches and visibility remain unchanged.
+Insertion uses the existing opacity/scale timing around each action's center.
+
+The released production guard still reports `FAIL`, now with 42 findings:
+18 existing canonical/native contracts, 11 unsupported measured-layout
+contracts, and 13 findings on the unchanged passive `StatusIndicator` newly
+reached through that layout. These include eleven `OWN_CHROME` failures; they
+are retained, not waived. Independent review confirms that the original fixed
+frame and caller-rendering-switch findings are absent. A new algorithm hash
+alone would not prove the passive center's role or clear these findings.
+
+Common has supplied a private `ForITRadialActions` proposal that owns the original
+ring, frame and button rendering together. Its baseline behavior mapping has
+been reviewed; it is unpublished and unqualified. The next tested release's
+consumer integration can remove the local layout and button helper altogether.
+No private API, silent pin change or second layout qualification is adopted.
+Watch and Live Activity still pass source policy.
 
 Actual compiler inputs, bundled PNG, displayed controls, accessibility and
 intent interactions remain unverified. The source policy binds the official frozen tool root and actual logical

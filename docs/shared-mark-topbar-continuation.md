@@ -32,21 +32,34 @@ membership, matching manifests/pins, action preservation, supported APIs,
 unconditional phase wiring and rejection of invalid tool/output paths. The
 published production guard accepts Watch and Live Activity source policy.
 The genuine canonical dependency lock is now retained from the admitted A0
-resolver. The production app guard binds it and reports 29 failures. No current
+resolver. The production app guard binds it; the current repaired source reports 42 failures. No current
 app compiler, rendering, accessibility, WidgetKit or intent proof exists.
 
 Common 0.31.5 fixes the published runtime/current policy pairing. It still does
 not admit this app's radial algorithm or its action builder. The historical
 0.31.4 scanner returned 46 findings before seven direct Combine imports. Those
 imports clarify existing Published/ObservableObject ownership without changing
-service bodies. After actual package resolution, the production guard confirms
-29 failures. The sealed review assigns 18 to shared native/canonical contracts,
-ten to unsupported radial contracts with the app behavior owner, and one to the
-genuine app-owned 340-point frame. The shared owner must provide a reviewed
-geometry/composition route for app integration, preserving the six actions and
-viewport behavior. The published package has no equivalent radial API. A source
-bound behavior contract has been supplied to that owner; the frame is retained
-as a finding. No production policy pass is claimed.
+service bodies. The actual resolved baseline had 29 production findings.
+Dispatch then directed the app-owned frame and radial repair. The fixed frame
+is removed; the native layout measures center and controls and uses a natural
+circle or constrained-width oval with vertical scrolling. Action data, order,
+three service branches, visibility, shared style and accessibility labels remain
+unchanged. The same opacity/scale timing now applies to individual actions.
+Measured content minima can exceed physically impossible width offers; native
+narrow/AX behavior still needs qualification.
+
+Source projections and independent geometry checks pass. The released guard
+still fails with 42 findings: 18 prior canonical/native contracts, 11 unsupported
+layout data/proxy/cache contracts and 13 unchanged passive-center findings.
+The original fixed-frame and caller-rendering-switch findings are gone. All
+remaining diagnostics, including eleven passive-center `OWN_CHROME` labels,
+remain enforced. No app policy or native pass is claimed.
+
+Common's private `ForITRadialActions` proposal now has source behavior acceptance
+against the original 340-point baseline. Once tested and published, its exact
+consumer patch can replace the local layout/frame/button renderer with action
+values while keeping the original ring behavior. The private API is not adopted;
+publication and producer qualification are the remaining shared prerequisites.
 
 ## Current build packet boundary
 
