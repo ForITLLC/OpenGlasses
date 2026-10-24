@@ -31,20 +31,22 @@ Local verification covers authenticated deterministic exports, exact source
 membership, matching manifests/pins, action preservation, supported APIs,
 unconditional phase wiring and rejection of invalid tool/output paths. The
 published production guard accepts Watch and Live Activity source policy.
-The app guard refuses the missing genuine resolved dependency input. No current
-consumer compiler, rendering, accessibility, WidgetKit or intent proof exists.
+The genuine canonical dependency lock is now retained from the admitted A0
+resolver. The production app guard binds it and reports 29 failures. No current
+app compiler, rendering, accessibility, WidgetKit or intent proof exists.
 
 Common 0.31.5 fixes the published runtime/current policy pairing. It still does
 not admit this app's radial algorithm or its action builder. The historical
 0.31.4 scanner returned 46 findings before seven direct Combine imports. Those
 imports clarify existing Published/ObservableObject ownership without changing
-service bodies. A fresh 0.31.5 scanner-only check returns 29 app findings. Shared-menu composition, the radial
-layout and its callback traversal, native email arguments, and standard preview/attribute
-constructs remain unevaluable. The maintained Common adapter owner must qualify
-those actual constructs or agree a behavior-preserving supported composition.
-These diagnostics authenticate no resolved dependency closure and never imply a
-production app policy pass. Resolution alone cannot be reported as making the
-app green.
+service bodies. After actual package resolution, the production guard confirms
+29 failures. The sealed review assigns 18 to shared native/canonical contracts,
+ten to unsupported radial contracts with the app behavior owner, and one to the
+genuine app-owned 340-point frame. The shared owner must provide a reviewed
+geometry/composition route for app integration, preserving the six actions and
+viewport behavior. The published package has no equivalent radial API. A source
+bound behavior contract has been supplied to that owner; the frame is retained
+as a finding. No production policy pass is claimed.
 
 ## Current build packet boundary
 
@@ -73,15 +75,21 @@ real logical dependency resolution and target graph still require authentication
 The alternate SwiftPM guard adapter and actual native rendering/interaction
 proof remain separate obligations.
 
-The current checkout has no canonical lock yet. A root `Package.swift` alone
-does not cause lock ambiguity; the released single Xcode project lock route is
-supported. No pending lock-coexistence release is a demonstrated prerequisite.
-The actual lock must be retained and committed after the admitted resolver runs.
+The one-use A0 operation `A0-OPENGLASSES0315-89E6-RESOLVE-20261024T070049Z`
+started at 07:02:26Z, generated the real project and resolved Common 0.31.5 plus
+Meta 0.5.0. Its exact retained canonical project lock is now tracked, SHA256
+`c9ee523cc6a80ab3306fc4f43665686cbb83e5862303a2cef09a07fd5cb92d6b`.
+The generic staging tool then correctly held for existing bridge-proof review;
+it does not replace the authenticated adapter. A0 retains original closure
+custody; the local body exit code remains 1. This source update grants no further
+native work. No lock-coexistence failure was observed. The source stays on 0.31.5
+under the current assignment; publication of 0.31.6 does not repin it silently.
 
 ## Delivery status
 
 Actual current rollout TestFlight build/date/platform: **unknown**. A retained
 October 15 read-only ASC observation reports an older iOS `1.0 (31)` as VALID;
-it does not prove shipment of this branch. Dispatch's October 24 ship-now request is active. No ASC read, native build,
-signing, upload or grant replay has occurred in this continuation; the app
-guard and normal A0 admission remain blocking.
+it does not prove shipment of this branch. Dispatch's October 24 ship-now request
+is active. The admitted resolver ran; no app compilation, ASC read, signing,
+upload or grant replay has occurred. The production guard failures block the
+next ordinary native qualification and upload route.
