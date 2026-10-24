@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ForITLLC/for-iCommon.git",
       "state" : {
-        "revision" : "d6f69ba013783b0aab33a8233af4a5331dd9ddc1",
-        "version" : "0.31.5"
+        "revision" : "927a394b803c7c425517e35b532d44037fc279d9",
+        "version" : "0.31.7"
       }
     },
     {

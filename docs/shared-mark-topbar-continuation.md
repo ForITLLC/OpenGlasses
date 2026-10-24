@@ -37,16 +37,17 @@ compile-input entry. This restores the shared 340-point baseline ring, not an
 adaptive narrow-window or large-type guarantee. Actual geometry, interaction
 and accessibility still need native qualification.
 
-The tracked canonical `Package.resolved` is genuine output from the earlier
-Common 0.31.5 SDK resolver, SHA256
-`c9ee523cc6a80ab3306fc4f43665686cbb83e5862303a2cef09a07fd5cb92d6b`.
-It remains byte-identical historical evidence and intentionally disagrees with
-the 0.31.7 declaration until fresh genuine resolution. No replacement lock,
-0.31.7 production app source-policy pass or native pass is claimed here.
+The tracked canonical `Package.resolved` is genuine output from A0's admitted
+Common 0.31.7 SDK resolver, SHA256
+`ba497973e9c247ff908fb3364e51141b0adc791bbcde1ece92344b429aeda851`.
+It binds `927a394b` and retains Meta 0.5.0 at `2ea30fa2`. The earlier `c9ee523c`
+0.31.5 lock is preserved externally. Applying the actual returned bytes clears
+the old lock mismatch; fresh source reports and native qualification remain
+separate requirements.
 
-Current pre-resolution checks use the genuine 0.31.7 tool and regenerated
-authenticated exports. Live Activity passes source policy. The app correctly
-refuses the earlier lock. Watch has two findings on unchanged avatar image
+The earlier pre-resolution checks used the genuine 0.31.7 tool and regenerated
+authenticated exports. Live Activity passed source policy and the app refused
+the earlier lock. Watch has two findings on unchanged avatar image
 modifiers, `.resizable()` and `.scaledToFit()` in `DoloresWatchView.swift`.
 The findings remain open for producer review; no source or shipping target is
 excluded to clear them.
@@ -70,6 +71,16 @@ was explicitly reviewed. These counts, and the older 0.31.4 scanner count of
 shared ring supersedes that prototype; new exact-source reports remain pending.
 
 ## Current build packet boundary
+
+The one-use 0.31.7 resolver operation started at 18:53:16Z and ended at
+18:53:22Z on October 24. Xcode resolution and its SDK checkout were verified;
+the combined operation kept exit code 1 and `resolverScopePass: false` because
+generic BR-3 staging held for explicit review of the existing bridge proof.
+Accepted END has no closure debt and the grant is spent. The proof and existing
+authenticated target integration remain intact under the supported owner-review
+route. Exporter logs passed; raw generated Mini bridge bytes were not separately
+retained, so source review does not establish native compiler/resource closure.
+No staging rerun, compilation or upload is authorized by that handback.
 
 Use the existing `Scripts/mini-testflight.sh` route only within a newly admitted
 A0 allocation. It provisions a job-owned genuine official frozen checkout,
@@ -110,5 +121,7 @@ Actual current rollout TestFlight build/date/platform: **unknown**. A retained
 October 15 read-only ASC observation reports an older iOS `1.0 (31)` as VALID;
 it does not prove shipment of this branch. Dispatch's October 24 ship-now request
 is active. The earlier admitted resolver ran; no app compilation, ASC read,
-signing or upload is claimed by this source update. Fresh genuine 0.31.7
-resolution, source reports and ordinary native qualification/upload remain.
+signing or upload is claimed by this source update. Genuine 0.31.7 resolution
+has now run through A0; current source policy, native qualification and upload
+remain. Common owns the unreleased Watch asset-image pipeline repair; its
+private proposal is not an adopted dependency or a new native grant.

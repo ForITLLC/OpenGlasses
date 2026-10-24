@@ -6,13 +6,14 @@ This continuation selects published Common `0.31.7`, frozen at
 the maintained official checkout. A caller-edited origin or fabricated lock
 cannot supply that authority.
 
-The genuine tracked canonical project lock still records the earlier admitted
-Common **0.31.5** resolution, SHA256
-`c9ee523cc6a80ab3306fc4f43665686cbb83e5862303a2cef09a07fd5cb92d6b`.
-Its original bytes are preserved and do not match the new 0.31.7 declaration.
-Fresh genuine SDK resolution in the existing admitted workflow must replace
-that lock before current app production reports or native qualification can
-pass. No 0.31.7 lock or app guard pass is claimed by this source update.
+The tracked canonical project lock is actual output from A0's admitted 0.31.7
+SDK resolver, SHA256
+`ba497973e9c247ff908fb3364e51141b0adc791bbcde1ece92344b429aeda851`.
+It binds Common 0.31.7 at `927a394b` and retains Meta 0.5.0 at `2ea30fa2`.
+The earlier genuine 0.31.5 lock `c9ee523c` remains preserved externally.
+Only the returned canonical bytes are applied; no resolver pins are synthesized.
+Current source reports must be regenerated after this owner commit. Actual
+resolution is not app source-policy or native acceptance.
 
 Every shipping target has an unconditional precompile phase with an explicit
 input/report pair in `forit-app.json`. The app links the full package. Watch and
@@ -49,12 +50,22 @@ and button renderer are removed with the layout's compile-input entry. This
 adopts the shared baseline ring; it does not claim adaptive narrow-width or
 large-type behavior. Actual layout, target containment and AX remain unverified.
 
-Fresh 0.31.7 checks with regenerated authenticated bridges accept Live Activity
-as `PASS_SOURCE_POLICY_ONLY`. The app refuses the stale genuine 0.31.5 lock,
-as expected before fresh SDK resolution. Watch currently fails on the unchanged
+Pre-resolution 0.31.7 checks with regenerated authenticated bridges accepted Live
+Activity source policy and refused the then-stale app lock. Watch fails on the unchanged
 named avatar image's `.resizable()` and `.scaledToFit()` modifiers in
 `DoloresWatchView.swift`; both findings are retained for producer review.
 No target is dropped and no artwork or modifier is removed to clear policy.
+
+A0's `A0-OPENGLASSES0317-RESOLVE-20261024T185222Z` operation started at
+18:53:16Z and ended at 18:53:22Z on October 24. Xcode resolved the real package
+graph and its actual SDK checkout was verified. The combined operation retained
+exit code 1 and `resolverScopePass: false` because final generic BR-3 staging
+held on the existing bridge proof. Its accepted END has no closure debt; its
+one-use grant is permanently spent and grants no compile, test or upload.
+The documented owner review retains the authenticated manifests and exact
+target integration; it does not delete proof, rerun staging or rewrite that END.
+A0's exporter logs passed, but raw Mini bridge bytes were not independently
+retained. Local source proof is not actual compiler or bundle closure.
 
 Historical evidence remains bounded. Published 0.31.5 source checks accepted
 Watch and Live Activity as `PASS_SOURCE_POLICY_ONLY`. The one-use operation
