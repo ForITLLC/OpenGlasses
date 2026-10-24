@@ -1,7 +1,7 @@
 # ForIT v3 brand icons (WO#2014)
 
 Ben, 2026-09-11: "ForIT-Dolores-Bernard-Icons use this … you know all the places
-these need to go." Source of truth is `ForITLLC/forit-ai` `main`,
+these need to go." Source of truth is `ForITLLC/for-AI` `main`,
 `assets/brand-icons/source/forit-icons-v3/` (18 files). The whole set was pulled
 from GitHub and checked with `sha256sum -c SHA256SUMS`: 18 of 18 OK. Per the
 set's `README.txt` the icons are transparent RGBA on a shared hex frame in the
