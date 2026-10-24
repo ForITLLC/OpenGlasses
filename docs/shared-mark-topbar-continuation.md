@@ -10,9 +10,9 @@ diff; PR #9, PR #10 at `58afd4a1`, their original evidence and the V4 capture
 packet retain their recorded identities. This is a new conversation that read
 the old history, rather than a restoration of the removed worktree's session.
 
-Both app manifests now select published Common `0.31.4`, exact commit
-`de99b5701b0287314b3e1d60ebbee495812ea16e`, annotated tag object
-`c5100c0038f6480a83945b3348c7dc2777df5ee2`. The existing shared profile panel
+Both app manifests now select published Common `0.31.5`, exact commit
+`d6f69ba013783b0aab33a8233af4a5331dd9ddc1`, annotated tag object
+`4a7b35a75c9384f8cabb7271185c86a43b0363e4`. The existing shared profile panel
 owns account, Settings and feedback. The app adds the shared inline-title and
 trailing-toolbar adapters, without app-owned top-bar geometry. Launch/status
 marks and all five canonical lapel composites continue from PR #9; the composite
@@ -34,12 +34,12 @@ published production guard accepts Watch and Live Activity source policy.
 The app guard refuses the missing genuine resolved dependency input. No current
 consumer compiler, rendering, accessibility, WidgetKit or intent proof exists.
 
-Common 0.31.4 adds finite Layout adapters but does not admit this app's
-radial algorithm or its action builder. A fresh independent scanner-only check
-initially returned 46 app findings. Seven direct Combine imports clarify existing
-Published/ObservableObject ownership without changing service bodies and reduce
-that diagnostic to 29 findings. Shared-menu composition, the radial layout and
-its callback traversal, native email arguments, and standard preview/attribute
+Common 0.31.5 fixes the published runtime/current policy pairing. It still does
+not admit this app's radial algorithm or its action builder. The historical
+0.31.4 scanner returned 46 findings before seven direct Combine imports. Those
+imports clarify existing Published/ObservableObject ownership without changing
+service bodies. A fresh 0.31.5 scanner-only check returns 29 app findings. Shared-menu composition, the radial
+layout and its callback traversal, native email arguments, and standard preview/attribute
 constructs remain unevaluable. The maintained Common adapter owner must qualify
 those actual constructs or agree a behavior-preserving supported composition.
 These diagnostics authenticate no resolved dependency closure and never imply a
@@ -51,7 +51,9 @@ app green.
 Use the existing `Scripts/mini-testflight.sh` route only within a newly admitted
 A0 allocation. It now provisions a job-owned genuine official frozen tool checkout, prepares
 authenticated bridge inputs before XcodeGen and genuinely resolves packages
-before build. The same tool path is bound into the actual Xcode invocation.
+before build. Fresh reports for every target/platform must be generated after
+resolution and before the first report-consuming gate. The same tool path is bound into the actual Xcode
+invocation.
 Do not run the frozen V4 launcher or reuse its old grants for this successor
 source. Current source identity, resolved dependencies and the official frozen
 tool checkout must be bound to a newly reviewed normal packet and original
@@ -70,6 +72,11 @@ not a new prerequisite, controller or receipt. The official frozen tool root,
 real logical dependency resolution and target graph still require authentication.
 The alternate SwiftPM guard adapter and actual native rendering/interaction
 proof remain separate obligations.
+
+The current checkout has no canonical lock yet. A root `Package.swift` alone
+does not cause lock ambiguity; the released single Xcode project lock route is
+supported. No pending lock-coexistence release is a demonstrated prerequisite.
+The actual lock must be retained and committed after the admitted resolver runs.
 
 ## Delivery status
 

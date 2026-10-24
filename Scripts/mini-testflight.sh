@@ -106,9 +106,9 @@ LANE_SIM=("$CI_SIM/ci-sim-lane.sh" --lane OpenGlasses)  # this lane's simulator,
 MINI_GATE=/Users/Shared/forit-gate/mini-gate.sh
 ASC_PROVISION=build/spm/checkouts/for-iCommon/Scripts/asc/asc_provision.py  # ForITCommon's, resolved by the tests
 COMMON_REPOSITORY=https://github.com/ForITLLC/for-iCommon.git
-COMMON_VERSION=0.31.4
-COMMON_REVISION=de99b5701b0287314b3e1d60ebbee495812ea16e
-COMMON_TAG_OBJECT=c5100c0038f6480a83945b3348c7dc2777df5ee2
+COMMON_VERSION=0.31.5
+COMMON_REVISION=d6f69ba013783b0aab33a8233af4a5331dd9ddc1
+COMMON_TAG_OBJECT=4a7b35a75c9384f8cabb7271185c86a43b0363e4
 COMMON_JOB_TEMP=""
 PACKAGE_RESOLUTION=OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 OUT=build/testflight-$(date -u +%Y%m%dT%H%M%SZ)
@@ -677,6 +677,21 @@ fi
 step resolve-packages xcodebuild -resolvePackageDependencies -project OpenGlasses.xcodeproj -scheme OpenGlasses \
   -clonedSourcePackagesDirPath build/spm -scmProvider system "${RESOLUTION_FLAGS[@]}" FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT"
 step package-resolution retain_package_resolution
+
+# The first maintained gate consumes reports, before any build phase has run.
+# Prepare every configured shipping target/platform in this exact workspace after
+# genuine resolution. Each step propagates guard failure before simulator/build work;
+# unconditional Xcode phases still repeat the same checks before compilation.
+step br3-report-parents mkdir -p /tmp
+step br3-app /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
+  --inputs "$PWD/Config/ControlGuard/OpenGlasses-iOS-inputs.json" \
+  --report /tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json --common-revision "$COMMON_REVISION"
+step br3-watch /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
+  --inputs "$PWD/Config/ControlGuard/DoloresWatch-watchOS-inputs.json" \
+  --report /tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json --common-revision "$COMMON_REVISION"
+step br3-activity /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
+  --inputs "$PWD/Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json" \
+  --report /tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json --common-revision "$COMMON_REVISION"
 
 if [ -n "$MATRIX_PR" ]; then
 
