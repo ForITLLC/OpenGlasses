@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// Dolores-only LLM service. All requests go to the ForIT AI Engine voice endpoint.

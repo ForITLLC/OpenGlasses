@@ -15,9 +15,9 @@ import subprocess
 import sys
 
 REPOSITORY = "https://github.com/ForITLLC/for-iCommon.git"
-VERSION = "0.31.3"
-REVISION = "31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50"
-TAG_OBJECT = "5e566b8c797462d4731d6e1572c71ff12edfe5bb"
+VERSION = "0.31.4"
+REVISION = "de99b5701b0287314b3e1d60ebbee495812ea16e"
+TAG_OBJECT = "c5100c0038f6480a83945b3348c7dc2777df5ee2"
 EXPORTERS = {
     "Mark": ("Scripts/brand-export.py", "083db68e0e7f37ae1cc1394146e177fa7d42162d1b7f3b11005c436f23fc3701", "manifest.json",
              {"ForITMark.swift", "ForITMarkBridgePalette.swift", "forit-hex.png"}),

@@ -105,6 +105,12 @@ CI_SIM=/Users/Shared/ci-sim
 LANE_SIM=("$CI_SIM/ci-sim-lane.sh" --lane OpenGlasses)  # this lane's simulator, and nobody else's
 MINI_GATE=/Users/Shared/forit-gate/mini-gate.sh
 ASC_PROVISION=build/spm/checkouts/for-iCommon/Scripts/asc/asc_provision.py  # ForITCommon's, resolved by the tests
+COMMON_REPOSITORY=https://github.com/ForITLLC/for-iCommon.git
+COMMON_VERSION=0.31.4
+COMMON_REVISION=de99b5701b0287314b3e1d60ebbee495812ea16e
+COMMON_TAG_OBJECT=c5100c0038f6480a83945b3348c7dc2777df5ee2
+COMMON_JOB_TEMP=""
+PACKAGE_RESOLUTION=OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 OUT=build/testflight-$(date -u +%Y%m%dT%H%M%SZ)
 TESTED_APP=$PWD/build/dd-sim/Build/Products/Debug-iphonesimulator/OpenGlasses.app
 GATE_SCREENS_ROOT=${FORIT_SCREENS_ROOT:-/Users/Shared/forit-screens}
@@ -183,10 +189,70 @@ cleanup() {
     security list-keychains -d user -s $rest
     security delete-keychain "$KC" 2>/dev/null
   fi
+  # Preserve source if the maintained run could not end; never remove another job's checkout.
+  if [ -n "$COMMON_JOB_TEMP" ] && [ -z "$GATE_RUN_ACTIVE" ]; then
+    rm -rf "$COMMON_JOB_TEMP" || { [ "$rc" -ne 0 ] || rc=1; }
+  fi
   exit "$rc"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
+
+prepare_common_source() {
+  COMMON_JOB_TEMP=$(mktemp -d "${TMPDIR:-/tmp}/openglasses-common.XXXXXXXX") || return 1
+  COMMON_JOB_TEMP=$(cd "$COMMON_JOB_TEMP" && pwd -P) || return 1
+  case "$COMMON_JOB_TEMP/" in
+    "$PWD/"*) echo "Common tool checkout must be outside the app repository"; return 1 ;;
+  esac
+  export FORIT_COMMON_ROOT="$COMMON_JOB_TEMP/for-iCommon"
+  # Use the runner's existing Git credentials. Keep the official stored origin;
+  # suppress transport diagnostics rather than risk logging credential rewrites.
+  GIT_TERMINAL_PROMPT=0 git clone -q --no-checkout "$COMMON_REPOSITORY" "$FORIT_COMMON_ROOT" > /dev/null 2>&1 ||
+    { echo "official Common clone failed using the runner's existing Git credentials"; return 1; }
+  git -C "$FORIT_COMMON_ROOT" checkout -q --detach "$COMMON_REVISION" || return 1
+  [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse HEAD)" = "$COMMON_REVISION" ] &&
+    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$COMMON_VERSION")" = "$COMMON_TAG_OBJECT" ] &&
+    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$COMMON_VERSION^{commit}")" = "$COMMON_REVISION" ] ||
+    { echo "Common checkout or published tag differs from the bound release"; return 1; }
+  local status
+  status=$(git -C "$FORIT_COMMON_ROOT" status --porcelain=v1 --untracked-files=all) || return 1
+  [ -z "$status" ] || { echo "Common tool checkout is not clean"; return 1; }
+  # The existing helper authenticates the stored official origin, annotated tag,
+  # exporter working bytes and canonical Git objects before either exporter runs.
+  python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
+    --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/DoloresWatch" || return 1
+  python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
+    --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/GlassesActivityWidget" || return 1
+  status=$(git -C "$FORIT_COMMON_ROOT" status --porcelain=v1 --untracked-files=all) || return 1
+  [ -z "$status" ] || { echo "Common exporter changed its source checkout"; return 1; }
+}
+
+retain_package_resolution() {
+  python3 -I -B - "$PACKAGE_RESOLUTION" "$OUT/Package.resolved" "$COMMON_VERSION" "$COMMON_REVISION" "$MATRIX_PR" "$OUT/matrix/Package.resolved" <<'PY_RESOLUTION'
+import json, pathlib, sys
+source, retained = map(pathlib.Path, sys.argv[1:3])
+def pins_of(resolution):
+    return resolution.get("pins") or (resolution.get("object") or {}).get("pins") or []
+def closure(resolution):
+    return sorted(((pin.get("identity") or pin.get("package") or "").lower(),
+                   pin.get("location") or pin.get("repositoryURL") or "",
+                   json.dumps(pin.get("state") or {}, sort_keys=True, separators=(",", ":")))
+                  for pin in pins_of(resolution))
+try:
+    raw = source.read_bytes()
+    resolution = json.loads(raw)
+    pins = pins_of(resolution)
+    common = [pin for pin in pins if (pin.get("identity") or pin.get("package") or "").lower() == "for-icommon"]
+    if len(common) != 1 or common[0].get("state", {}).get("version") != sys.argv[3] or common[0].get("state", {}).get("revision") != sys.argv[4]:
+        raise ValueError("actual resolution does not bind the published Common release")
+    if not sys.argv[5] and closure(resolution) != closure(json.loads(pathlib.Path(sys.argv[6]).read_bytes())):
+        raise ValueError("upload resolution changed the tested matrix package closure")
+    retained.write_bytes(raw)
+    print("retained actual Xcode Package.resolved with the exact Common release")
+except (OSError, ValueError, TypeError, AttributeError) as error:
+    sys.exit("package resolution failed: " + str(error))
+PY_RESOLUTION
+}
 
 # signing_retry <cmd...>: $KC first in the search list before each try. -exportArchive has no keychain option and
 # another job can reorder the list mid-run, so only errSecInternalComponent is retried, up to 3 tries.
@@ -598,18 +664,19 @@ fi
 
 # --- 2. project and unit tests (CI-1: a red test stops the run here) ----------------------------------------------
 if [ -z "$MATRIX_PR" ]; then step reuse-matrix matrix_proof reuse; fi
-# The maintained source owner must provision the official frozen 0.31.3 tool
-# checkout. The package's cache checkout is not a substitute for that authority.
-: "${FORIT_COMMON_ROOT:?set the admitted official Common 0.31.3 tool checkout}"
-step watch-shared-bridges python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
-  --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/DoloresWatch"
-step activity-shared-bridges python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
-  --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/GlassesActivityWidget"
+step common-source prepare_common_source
 step xcodegen xcodegen generate
+RESOLUTION_FLAGS=()
 if [ -z "$MATRIX_PR" ]; then
-  mkdir -p OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
-  cp "$OUT/matrix/Package.resolved" OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved || exit 1
+  # Reuse the tested lock, then ask Xcode to resolve that exact graph. This is
+  # actual retained resolver output, not a synthesized replacement lock.
+  mkdir -p "$(dirname "$PACKAGE_RESOLUTION")" || exit 1
+  cp "$OUT/matrix/Package.resolved" "$PACKAGE_RESOLUTION" || exit 1
+  RESOLUTION_FLAGS=(-onlyUsePackageVersionsFromResolvedFile -disableAutomaticPackageResolution)
 fi
+step resolve-packages xcodebuild -resolvePackageDependencies -project OpenGlasses.xcodeproj -scheme OpenGlasses \
+  -clonedSourcePackagesDirPath build/spm -scmProvider system "${RESOLUTION_FLAGS[@]}" FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT"
+step package-resolution retain_package_resolution
 
 if [ -n "$MATRIX_PR" ]; then
 
@@ -634,7 +701,7 @@ if [ -n "$MATRIX_PR" ]; then
   step tests nice -n 10 "${LANE_SIM[@]}" xcodebuild test -jobs 2 -project OpenGlasses.xcodeproj -scheme OpenGlasses \
     -destination "id=$SIM_UDID" -only-testing:OpenGlassesTests -parallel-testing-enabled NO \
     -derivedDataPath build/dd-sim -clonedSourcePackagesDirPath build/spm -scmProvider system \
-    CODE_SIGNING_ALLOWED=NO
+    FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT" CODE_SIGNING_ALLOWED=NO
   grep -E 'Executed [0-9]+ test|Test run with|\*\* TEST (SUCCEEDED|FAILED) \*\*' "$OUT/tests.log" | tail -3 | sed 's/^/  /'
 
   step tested-app record_tested_app
@@ -720,6 +787,7 @@ archive() {
     -clonedSourcePackagesDirPath build/spm -scmProvider system \
     -onlyUsePackageVersionsFromResolvedFile -disableAutomaticPackageResolution \
     -archivePath "$ARCHIVE" \
+    FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT" \
     DEVELOPMENT_TEAM=$TEAM CURRENT_PROJECT_VERSION="$BUILD" MARKETING_VERSION="$VERSION" \
     CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$CERT" OTHER_CODE_SIGN_FLAGS="--keychain $KC" \
     ENABLE_PREVIEWS=NO ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=NO \

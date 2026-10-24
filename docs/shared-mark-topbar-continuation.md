@@ -10,9 +10,9 @@ diff; PR #9, PR #10 at `58afd4a1`, their original evidence and the V4 capture
 packet retain their recorded identities. This is a new conversation that read
 the old history, rather than a restoration of the removed worktree's session.
 
-Both app manifests now select published Common `0.31.3`, exact commit
-`31a62ae9eab7e822cfac327a6bf3d0fcf8c12e50`, annotated tag object
-`5e566b8c797462d4731d6e1572c71ff12edfe5bb`. The existing shared profile panel
+Both app manifests now select published Common `0.31.4`, exact commit
+`de99b5701b0287314b3e1d60ebbee495812ea16e`, annotated tag object
+`c5100c0038f6480a83945b3348c7dc2777df5ee2`. The existing shared profile panel
 owns account, Settings and feedback. The app adds the shared inline-title and
 trailing-toolbar adapters, without app-owned top-bar geometry. Launch/status
 marks and all five canonical lapel composites continue from PR #9; the composite
@@ -34,19 +34,24 @@ published production guard accepts Watch and Live Activity source policy.
 The app guard refuses the missing genuine resolved dependency input. No current
 consumer compiler, rendering, accessibility, WidgetKit or intent proof exists.
 
-An independent scanner-only diagnostic also retains five app findings behind
-that missing-resolution hold: the signed-out feedback composition inside the
-shared profile-menu modifier (`MainView:42`), the existing `RadialLayout` call
-and declaration, and the email keyboard/content-type effects (`SettingsView:41–42`).
-These need finite maintained Common adapter support or a reviewed supported
-composition. Their behavior is preserved; this diagnostic supplies no dependency
-closure or production policy clearance. Resolution alone must not be reported as
-making the app green.
+Common 0.31.4 adds finite Layout adapters but does not admit this app's
+radial algorithm or its action builder. A fresh independent scanner-only check
+initially returned 46 app findings. Seven direct Combine imports clarify existing
+Published/ObservableObject ownership without changing service bodies and reduce
+that diagnostic to 29 findings. Shared-menu composition, the radial layout and
+its callback traversal, native email arguments, and standard preview/attribute
+constructs remain unevaluable. The maintained Common adapter owner must qualify
+those actual constructs or agree a behavior-preserving supported composition.
+These diagnostics authenticate no resolved dependency closure and never imply a
+production app policy pass. Resolution alone cannot be reported as making the
+app green.
 
 ## Current build packet boundary
 
 Use the existing `Scripts/mini-testflight.sh` route only within a newly admitted
-A0 allocation. It now prepares authenticated bridge inputs before XcodeGen.
+A0 allocation. It now provisions a job-owned genuine official frozen tool checkout, prepares
+authenticated bridge inputs before XcodeGen and genuinely resolves packages
+before build. The same tool path is bound into the actual Xcode invocation.
 Do not run the frozen V4 launcher or reuse its old grants for this successor
 source. Current source identity, resolved dependencies and the official frozen
 tool checkout must be bound to a newly reviewed normal packet and original
@@ -60,13 +65,16 @@ are historical evidence, not a new waiver. Mac and Vision have no native target
 in this repository; their existing gap stays with task
 `5BBB3471-E5DA-48AD-B1BB-2A83A5B0D4E2`. This source PR does not add either target.
 
-The known compiled-Common cache provenance gap and alternate SwiftPM guard
-adapter remain concrete upstream prerequisites. All actual compiler/resource
-closure and installed appearance claims remain pending the admitted workflow.
+The shared owner clarified that physical compiler/cache integrity is unmeasured,
+not a new prerequisite, controller or receipt. The official frozen tool root,
+real logical dependency resolution and target graph still require authentication.
+The alternate SwiftPM guard adapter and actual native rendering/interaction
+proof remain separate obligations.
 
 ## Delivery status
 
 Actual current rollout TestFlight build/date/platform: **unknown**. A retained
 October 15 read-only ASC observation reports an older iOS `1.0 (31)` as VALID;
-it does not prove shipment of this branch. No ASC read, native build, signing,
-upload or grant replay occurred during this source continuation.
+it does not prove shipment of this branch. Dispatch's October 24 ship-now request is active. No ASC read, native build,
+signing, upload or grant replay has occurred in this continuation; the app
+guard and normal A0 admission remain blocking.
