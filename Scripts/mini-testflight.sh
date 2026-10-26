@@ -71,9 +71,9 @@ done
 # Read the stored local origin without transport credential rewrites or shell NUL loss.
 # Return only a public canonical URL; never expose a stored/effective rejected URL.
 stored_origin() {
-  python3 -I -B - "$1" "$2" <<'PY_ORIGIN'
-import subprocess, sys
-root, repository = sys.argv[1:]
+  python3 -I -B - "$@" <<'PY_ORIGIN'
+import pathlib, subprocess, sys
+root, repository = sys.argv[1:3]
 if repository not in {"OpenGlasses", "for-iCommon"}:
     sys.exit("unsupported repository identity")
 canonical = "https://github.com/ForITLLC/" + repository + ".git"
@@ -84,8 +84,30 @@ try:
                                    "--get-all", "remote.origin.url"], stderr=subprocess.DEVNULL)
 except (OSError, subprocess.CalledProcessError):
     sys.exit("cannot read stored local repository origin")
-if raw not in {value.encode() + b"\0" for value in allowed}:
-    sys.exit("stored local origin must be one official repository URL")
+official = {value.encode() + b"\0" for value in allowed}
+if raw not in official:
+    # Xcode's checkout may point to its own job-local bare repository cache.
+    # Follow exactly that one authenticated hop, never an arbitrary local path.
+    try:
+        if repository != "for-iCommon" or len(sys.argv) != 5:
+            raise ValueError()
+        cache_root, revision = pathlib.Path(sys.argv[3]), sys.argv[4]
+        if not raw.endswith(b"\0") or raw.count(b"\0") != 1:
+            raise ValueError()
+        cache = pathlib.Path(raw[:-1].decode("utf-8"))
+        if (not cache.is_absolute() or cache.parent != cache_root or not cache.name.startswith("for-iCommon-")
+                or not cache_root.is_absolute() or cache_root.resolve(strict=True) != cache_root
+                or cache.resolve(strict=True) != cache or not cache.is_dir()):
+            raise ValueError()
+        def cache_git(*args):
+            return subprocess.check_output(["git", "-C", str(cache), *args], stderr=subprocess.DEVNULL)
+        if cache_git("rev-parse", "--is-bare-repository") != b"true\n":
+            raise ValueError()
+        if cache_git("config", "--local", "--null", "--get-all", "remote.origin.url") not in official:
+            raise ValueError()
+        cache_git("cat-file", "-e", revision + "^{commit}")
+    except (OSError, ValueError, UnicodeError, subprocess.CalledProcessError):
+        sys.exit("stored origin is neither official nor an authenticated job-local Common cache")
 print(canonical)
 PY_ORIGIN
 }
@@ -318,7 +340,7 @@ verify_resolved_common() {
   [ "$(git -C "$root" rev-parse --show-toplevel)" = "$expected" ] &&
     [ "$(git -C "$root" rev-parse HEAD)" = "$COMMON_REVISION" ] ||
     { echo "actual Xcode Common checkout is not the published revision"; return 1; }
-  origin=$(stored_origin "$root" for-iCommon) || return 1
+  origin=$(stored_origin "$root" for-iCommon "$PWD/build/spm/repositories" "$COMMON_REVISION") || return 1
   status=$(git -C "$root" status --porcelain=v1 --untracked-files=all) || return 1
   hidden=$(git -C "$root" ls-files -v | LC_ALL=C awk '/^[a-zS]/ { n++ } END { print n + 0 }') || return 1
   [ -z "$status" ] && [ "$hidden" -eq 0 ] ||

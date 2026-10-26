@@ -47,7 +47,7 @@ compile-input entry. This restores the shared 340-point baseline ring, not an
 adaptive narrow-window or large-type guarantee. Actual geometry, interaction
 and accessibility still need native qualification.
 
-The tracked canonical `Package.resolved` is genuine output from A0's admitted
+The previous canonical `Package.resolved` was genuine output from A0's admitted
 Common 0.31.7 SDK resolver, SHA256
 `ba497973e9c247ff908fb3364e51141b0adc791bbcde1ece92344b429aeda851`.
 It binds `927a394b` and retains Meta 0.5.0 at `2ea30fa2`. The earlier `c9ee523c`
@@ -67,8 +67,10 @@ removed to clear diagnostics. Current native execution is still pending.
 
 Common 0.31.9 was published October 26 at 02:44:30Z. The owning lane now
 selects it in every declaration and authenticated bridge binding. The normal
-SDK resolver will replace the genuine tracked 0.31.7 lock with actual output
-and retain it with this run; no lock is edited by hand. A0 admission is retired.
+SDK resolver produced the genuine tracked 0.31.9 lock in run
+`forit-openglasses-release-20261026T0251Z`, SHA256
+`3304423f61d0c59db9490a93e5ed07a535640e9792f2f5278f242f71a4541638`.
+It retains Meta 0.5.0/`2ea30fa2`. No lock was edited by hand; A0 admission is retired.
 
 Use the [published adoption recipe](https://github.com/ForITLLC/for-iCommon/blob/0.31.7/Scripts/control-guard/README.md#adoption-recipe-one-source-graph-real-resolution-then-reports)
 through the maintained release helper. After actual resolution and final project

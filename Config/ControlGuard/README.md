@@ -12,9 +12,11 @@ handling of findings, not Common's checker, findings or historical results.
 
 Current source selects Common `0.31.9` at
 `352f567e839b8faf61b6df5840c5275b016addce`, annotated tag
-`9050f4a1ce99d023e3a550ffc74f338a135d1d6c`. The normal SDK resolver
-will replace the genuine tracked 0.31.7 lock with its actual output; no lock
-is edited by hand. Runtime resolution and build results are still pending.
+`9050f4a1ce99d023e3a550ffc74f338a135d1d6c`. The normal SDK resolver produced the actual tracked 0.31.9 lock, SHA256
+`3304423f61d0c59db9490a93e5ed07a535640e9792f2f5278f242f71a4541638`,
+in run `forit-openglasses-release-20261026T0251Z`. Common is exact `352f567e`
+and Meta remains 0.5.0/`2ea30fa2`; no lock was edited by hand. Native build
+and TestFlight results remain pending.
 
 The earlier admission and blocking-policy descriptions below are historical.
 
@@ -24,7 +26,7 @@ The previous continuation selected published Common `0.31.7`, frozen at
 the maintained official checkout. A caller-edited origin or fabricated lock
 cannot supply that authority.
 
-The tracked canonical project lock is actual output from A0's admitted 0.31.7
+The previous canonical project lock was actual output from A0's admitted 0.31.7
 SDK resolver, SHA256
 `ba497973e9c247ff908fb3364e51141b0adc791bbcde1ece92344b429aeda851`.
 It binds Common 0.31.7 at `927a394b` and retains Meta 0.5.0 at `2ea30fa2`.
