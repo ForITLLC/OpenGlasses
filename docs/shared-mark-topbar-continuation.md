@@ -45,12 +45,20 @@ It binds `927a394b` and retains Meta 0.5.0 at `2ea30fa2`. The earlier `c9ee523c`
 the old lock mismatch; fresh source reports and native qualification remain
 separate requirements.
 
-The earlier pre-resolution checks used the genuine 0.31.7 tool and regenerated
-authenticated exports. Live Activity passed source policy and the app refused
-the earlier lock. Watch has two findings on unchanged avatar image
-modifiers, `.resizable()` and `.scaledToFit()` in `DoloresWatchView.swift`.
-The findings remain open for producer review; no source or shipping target is
-excluded to clear them.
+The October 26 caller fix places the unchanged mixed viewport directly in
+`NavigationStack`, removing the computed canvas alias. The released 0.31.7
+production guard now reports seven unresolved contracts and zero `OWN_*`,
+down from 27 findings with 18 `OWN_CHROME`. The layout margins, viewport
+minimum, artwork, callbacks and transition remain intact. The unchanged feedback
+extension's inherited native modifier lookup remains unresolved. Watch retains
+two unresolved named-image resize/fit modifiers;
+Live Activity passes source policy. No source, Preview, action or artwork is
+removed to clear diagnostics. Current native execution is still pending.
+
+The 0.31.9 repin is prepared externally pending its official tag. Every
+declaration, helper/bridge binding and genuine canonical lock must be committed
+together after actual resolution in a fresh A0 allocation queued by for-dev.
+No lock is edited by hand or unpublished version adopted.
 
 Use the [published adoption recipe](https://github.com/ForITLLC/for-iCommon/blob/0.31.7/Scripts/control-guard/README.md#adoption-recipe-one-source-graph-real-resolution-then-reports)
 in the existing admitted workflow. After actual resolution and final project

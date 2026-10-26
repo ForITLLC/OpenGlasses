@@ -50,11 +50,25 @@ and button renderer are removed with the layout's compile-input entry. This
 adopts the shared baseline ring; it does not claim adaptive narrow-width or
 large-type behavior. Actual layout, target containment and AX remain unverified.
 
-Pre-resolution 0.31.7 checks with regenerated authenticated bridges accepted Live
-Activity source policy and refused the then-stale app lock. Watch fails on the unchanged
-named avatar image's `.resizable()` and `.scaledToFit()` modifiers in
-`DoloresWatchView.swift`; both findings are retained for producer review.
-No target is dropped and no artwork or modifier is removed to clear policy.
+The October 26 caller repair places the unchanged mixed `GeometryReader` canvas
+directly inside `NavigationStack`. This removes the extracted computed-view
+alias that the guard classified as a control. The released 0.31.7 production
+check drops from 27 findings, including 18 `OWN_CHROME`, to seven unresolved
+native/shared rendering contracts and zero `OWN_*`. All artwork, layout
+margins, viewport minimum, button styles, actions and transitions are retained.
+The existing feedback extension remains unchanged; its inherited native
+`View.modifier` lookup is unresolved and is not claimed as a policy pass.
+
+Watch retains two unresolved avatar image modifiers, `.resizable()` and
+`.scaledToFit()`, and Live Activity passes source policy. Remaining Common
+contracts include named image effects, nested shared radial recognition,
+native `scrollBounceBehavior` and inherited `View.modifier` lookup. No target,
+Preview, artwork, modifier or diagnostic is excluded to clear policy.
+
+Common 0.31.9 adoption is prepared externally. The app stays on the published
+0.31.7 declaration and genuine lock until the official successor tag exists.
+The repin must commit every declaration and the actual A0-resolved canonical
+locks together; no lock is hand-edited and no private pin is adopted.
 
 A0's `A0-OPENGLASSES0317-RESOLVE-20261024T185222Z` operation started at
 18:53:16Z and ended at 18:53:22Z on October 24. Xcode resolved the real package
