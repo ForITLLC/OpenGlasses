@@ -1,6 +1,24 @@
 # Shared source checks
 
-This continuation selects published Common `0.31.7`, frozen at
+Current policy (October 26, Ben's ship-all instruction, A0 handoff
+`ff155c9db230`): BR-3 and Dark/Light/VS-1 findings are advisory at this app's
+build/release boundary. A0 is retired; the owning lane uses its normal workflow
+and published Common 0.31.9, released October 26 at 02:44:30Z.
+The three unconditional BR-3 phases keep the original JSON reports and write
+the guard's actual status beside each report as `.exit-code`; Xcode diagnostics
+are printed as warnings and the advisory phases return zero. Compiler, signing,
+export and upload command failures remain failures. This changes the app's
+handling of findings, not Common's checker, findings or historical results.
+
+Current source selects Common `0.31.9` at
+`352f567e839b8faf61b6df5840c5275b016addce`, annotated tag
+`9050f4a1ce99d023e3a550ffc74f338a135d1d6c`. The normal SDK resolver
+will replace the genuine tracked 0.31.7 lock with its actual output; no lock
+is edited by hand. Runtime resolution and build results are still pending.
+
+The earlier admission and blocking-policy descriptions below are historical.
+
+The previous continuation selected published Common `0.31.7`, frozen at
 `927a394b803c7c425517e35b532d44037fc279d9`, annotated tag object
 `f0880ddf36b6445399cae9653dfbd95f7a4a028c`. `FORIT_COMMON_ROOT` must identify
 the maintained official checkout. A caller-edited origin or fabricated lock
@@ -37,8 +55,8 @@ unchanged.
 
 Five generated Swift files and the loose PNG retain explicit regular target
 membership; mark generation retains `mark-auth-manifest.json`. Both Debug and
-Release enable `FORIT_MARK_BRIDGE`. The guard stays direct, with no wrapper,
-waiver or ignored failure. The app input list follows actual source membership
+Release enable `FORIT_MARK_BRIDGE`. The guard stays direct and always runs;
+its findings and original exit code are retained under the current advisory policy. The app input list follows actual source membership
 after removal of the local layout. Watch and Live Activity each have eight Swift
 inputs after generation.
 
@@ -65,10 +83,9 @@ contracts include named image effects, nested shared radial recognition,
 native `scrollBounceBehavior` and inherited `View.modifier` lookup. No target,
 Preview, artwork, modifier or diagnostic is excluded to clear policy.
 
-Common 0.31.9 adoption is prepared externally. The app stays on the published
-0.31.7 declaration and genuine lock until the official successor tag exists.
-The repin must commit every declaration and the actual A0-resolved canonical
-locks together; no lock is hand-edited and no private pin is adopted.
+Common 0.31.9 is now published and selected. The owning lane runs genuine
+SDK resolution through the maintained helper and retains its actual lock.
+The old A0 allocation prerequisite is retired.
 
 A0's `A0-OPENGLASSES0317-RESOLVE-20261024T185222Z` operation started at
 18:53:16Z and ended at 18:53:22Z on October 24. Xcode resolved the real package

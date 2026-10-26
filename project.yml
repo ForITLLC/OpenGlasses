@@ -23,7 +23,7 @@ packages:
   # Shared mark, profile panel and App Store provisioning from the tested release.
   ForITCommon:
     url: https://github.com/ForITLLC/for-iCommon.git
-    exactVersion: "0.31.7"
+    exactVersion: "0.31.9"
 
 # Generate these required inputs before XcodeGen, as mini-testflight.sh does.
 # The maintained mark adapter requires explicit regular records without optional/group
@@ -78,7 +78,19 @@ targets:
     preBuildScripts:
       - name: Maintained shared control source guard (iOS)
         script: |
-          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/OpenGlasses-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json" --common-revision 927a394b803c7c425517e35b532d44037fc279d9
+          # Ben's October 26 ship-all instruction makes BR-3 advisory for this app.
+          {
+            if /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/OpenGlasses-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json" --common-revision 352f567e839b8faf61b6df5840c5275b016addce; then
+              br3_exit=0
+            else
+              br3_exit=$?
+            fi
+            printf '%s\n' "$br3_exit" > "/tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json.exit-code"
+            if [ "$br3_exit" -ne 0 ]; then
+              printf 'warning: BR-3 advisory check exited %s; raw report: %s\n' "$br3_exit" "/tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json"
+            fi
+          } 2>&1 | sed 's/: error: BR-3 /: warning: BR-3 /g'
+          exit 0
         basedOnDependencyAnalysis: false
         showEnvVars: false
     type: application
@@ -186,7 +198,19 @@ targets:
     preBuildScripts:
       - name: Maintained shared control source guard (watchOS)
         script: |
-          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/DoloresWatch-watchOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json" --common-revision 927a394b803c7c425517e35b532d44037fc279d9
+          # Ben's October 26 ship-all instruction makes BR-3 advisory for this app.
+          {
+            if /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/DoloresWatch-watchOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json" --common-revision 352f567e839b8faf61b6df5840c5275b016addce; then
+              br3_exit=0
+            else
+              br3_exit=$?
+            fi
+            printf '%s\n' "$br3_exit" > "/tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json.exit-code"
+            if [ "$br3_exit" -ne 0 ]; then
+              printf 'warning: BR-3 advisory check exited %s; raw report: %s\n' "$br3_exit" "/tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json"
+            fi
+          } 2>&1 | sed 's/: error: BR-3 /: warning: BR-3 /g'
+          exit 0
         basedOnDependencyAnalysis: false
         showEnvVars: false
     templates: [PackageFreeSharedBridges]
@@ -223,7 +247,19 @@ targets:
     preBuildScripts:
       - name: Maintained shared control source guard (iOS)
         script: |
-          exec /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json" --common-revision 927a394b803c7c425517e35b532d44037fc279d9
+          # Ben's October 26 ship-all instruction makes BR-3 advisory for this app.
+          {
+            if /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" --inputs "$SRCROOT/Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json" --report "/tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json" --common-revision 352f567e839b8faf61b6df5840c5275b016addce; then
+              br3_exit=0
+            else
+              br3_exit=$?
+            fi
+            printf '%s\n' "$br3_exit" > "/tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json.exit-code"
+            if [ "$br3_exit" -ne 0 ]; then
+              printf 'warning: BR-3 advisory check exited %s; raw report: %s\n' "$br3_exit" "/tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json"
+            fi
+          } 2>&1 | sed 's/: error: BR-3 /: warning: BR-3 /g'
+          exit 0
         basedOnDependencyAnalysis: false
         showEnvVars: false
     templates: [PackageFreeSharedBridges]

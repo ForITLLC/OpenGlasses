@@ -1,5 +1,15 @@
 # Glasses shared mark and top bar continuation
 
+Current shipping direction, October 26: Ben's ship-all instruction retires the
+A0 admission/GO and sealed-recipe waits. The owning lane runs its maintained
+release helper directly on published Common 0.31.9. BR-3 and visual/contact-sheet
+findings are advisory at the app boundary; their raw reports and exit statuses
+remain evidence. Current unit tests, genuine SDK resolution, compilation,
+signing, archive/export identity checks and actual internal TestFlight
+availability remain required. No unchecked checklist item is relabelled as
+passed. Earlier admission and source-policy holds below describe history and
+are superseded as shipping prerequisites by this instruction.
+
 Source assignment: `msg_4f80f7fbcb30` for the October 23, 2026 rollout,
 parent `4D12F44F-B0E7-4417-BE35-17321BA6E3B8`, continuing source task
 `8EDA0A3E-3D2D-4704-B348-5F2E0D883105`.
@@ -10,9 +20,9 @@ diff; PR #9, PR #10 at `58afd4a1`, their original evidence and V4 capture
 packet retain their identities. This conversation read the old history; it
 does not restore the removed worktree's session.
 
-Both app manifests select published Common `0.31.7`, exact commit
-`927a394b803c7c425517e35b532d44037fc279d9`, annotated tag object
-`f0880ddf36b6445399cae9653dfbd95f7a4a028c`. The shared profile panel owns
+Both app manifests select published Common `0.31.9`, exact commit
+`352f567e839b8faf61b6df5840c5275b016addce`, annotated tag object
+`9050f4a1ce99d023e3a550ffc74f338a135d1d6c`. The shared profile panel owns
 account, Settings and feedback. The app uses shared inline-title and trailing
 adapters without app-owned top-bar geometry. Launch/status marks and all five
 canonical lapel composites continue from PR #9; their bytes and immutable lapel
@@ -55,13 +65,13 @@ two unresolved named-image resize/fit modifiers;
 Live Activity passes source policy. No source, Preview, action or artwork is
 removed to clear diagnostics. Current native execution is still pending.
 
-The 0.31.9 repin is prepared externally pending its official tag. Every
-declaration, helper/bridge binding and genuine canonical lock must be committed
-together after actual resolution in a fresh A0 allocation queued by for-dev.
-No lock is edited by hand or unpublished version adopted.
+Common 0.31.9 was published October 26 at 02:44:30Z. The owning lane now
+selects it in every declaration and authenticated bridge binding. The normal
+SDK resolver will replace the genuine tracked 0.31.7 lock with actual output
+and retain it with this run; no lock is edited by hand. A0 admission is retired.
 
 Use the [published adoption recipe](https://github.com/ForITLLC/for-iCommon/blob/0.31.7/Scripts/control-guard/README.md#adoption-recipe-one-source-graph-real-resolution-then-reports)
-in the existing admitted workflow. After actual resolution and final project
+through the maintained release helper. After actual resolution and final project
 and source edits, retain the real canonical lock and regenerate every production
 target/platform report. Preserve existing authenticated bridge proofs when
 generic staging holds; a plan is not a report. Multiple genuine resolver locks,
