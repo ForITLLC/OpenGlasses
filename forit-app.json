@@ -1,5 +1,5 @@
 {
-  "comment": "Same source continuation for ask52289/Common0.31.7 from frozen PR9. Existing platform waiver is historical; actual source guard, native conformance and installable TestFlight proof remain required.",
+  "comment": "Continuation for ask 52289 on Common 0.31.9, based on frozen PR9. TestFlight build 32 shipped from 0347d543; this later metadata and route documentation do not change that provenance. BR3/visual findings remain advisory; current visual and action acceptance is unverified.",
   "name": "ForIT Glasses",
   "bundleId": "com.forit.openglasses.dolores",
   "textScreens": [],
@@ -57,7 +57,7 @@
     "PL-2..5": "Native Mac and Vision Pro targets and Watch distribution were already missing on baseline 45b52531. Dispatch 2026-10-14 directs those existing gaps to open task 5BBB3471-E5DA-48AD-B1BB-2A83A5B0D4E2 under epic 73E7B446, without an invented future due date. This mark release updates and compiles the Watch source but claims delivery only on the existing iOS channel; Dispatch is starting the platform worker."
   },
   "controlGuard": {
-    "commonRevision": "927a394b803c7c425517e35b532d44037fc279d9",
+    "commonRevision": "352f567e839b8faf61b6df5840c5275b016addce",
     "targets": {
       "OpenGlasses": [
         {

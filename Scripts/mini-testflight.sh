@@ -10,10 +10,12 @@
 # Run it from a copy of the repo on the Mini (rsync the worktree there first):
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh'              tests, archive, export, upload, wait for VALID
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh --no-upload'  stops once the signed IPA is exported and checked
-#   Scripts/mini-testflight.sh --matrix-pr <number>                  tests and full PR matrix only; capture GO required
+#   Scripts/mini-testflight.sh --matrix-pr <number>                  legacy mode; not a capture route on Common 0.31.9
 # The normal route resolves current packages, runs current unit tests, and archives/exports/uploads that source.
 # BR-3 and the maintained conformance/visual gate are advisory, with actual status retained. Visual acceptance
-# stays unverified; no receipt or checklist PASS is inferred. Optional --matrix-pr still requires its capture GO.
+# stays unverified; no receipt or checklist PASS is inferred. Published 0.31.9 mini-gate disables --matrix;
+# use the separately opt-in device-matrix helper documented in docs/shared-mark-topbar-continuation.md.
+# The legacy mode below retains historical slot/proof code; it creates no current capture authority or release gate.
 # Each step prints "step <name> rc=<rc> <seconds>s"; its log is build/testflight-<UTC time>/<name>.log.
 #
 # 1. OpenGlasses/Secrets.plist: DOLORES_API_KEY from the environment, written as the workflow wrote it. With no key

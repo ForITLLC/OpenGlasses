@@ -35,6 +35,43 @@ icon/status/quick actions, onboarding field/action and settings fields, toggle
 and choices use shared roles. Mic, pairing, camera, Watch commands and the
 disable-listening intent preserve their callbacks.
 
+## Existing capture route and current proof gap
+
+Source-only correction, October 26, following `msg_db6c1f9c17cf`:
+published Common `352f567e` clears `MATRIX` and emits
+`UNRUN_DISABLED_WARNING` in `Scripts/forit-gate/mini-gate.sh:202–204`.
+Consequently this app's legacy `mini-testflight.sh --matrix-pr 11` path
+through that wrapper does not capture a matrix. Its historical slot/proof
+code is not current authority, and screenshots remain advisory follow-up.
+
+The existing opt-in capture entrypoint is the separate published
+`Scripts/device-matrix/device-matrix.sh <actual app dir> <out dir> iphone ipad`.
+For OpenGlasses, the actual app directory is the checkout root containing
+`forit-app.json` and `project.yml`. Its configured scheme is `OpenGlasses`;
+its scene arguments are `-screenshot-scene` with `gate`, `home`, `detail`,
+`settings` and `launch`. The helper reads that file directly, records cells
+and package provenance, and writes real simulator PNGs plus shard sheets.
+Use `MATRIX_LANE=OpenGlasses`, the existing lane-owned simulator/resource
+controls, and explicit `iphone ipad` shards. Missing lane devices stay gaps;
+compatible iPad use supplies no native Mac/Vision shipment evidence.
+The helper supports a retained `MATRIX_APP_IOS` instead of an app rebuild,
+but its project/menu tooling can still perform native work. Merely recording
+this route executes none of it.
+
+The open-panel path is the same helper's profile-menu detection and UI-test
+rotator, controlled by `MATRIX_MENU`. Its actual cell outcome must establish
+that the panel opened; declared scenes or source control labels do not prove
+that. Icon, status/launch mark/background, flush toolbar/panel, AX5 target fit
+and six-action interaction acceptance remain separate actual review work.
+No current contact sheet or native visual/AX/action PASS is claimed here.
+No A0/capture-GO prerequisite, new controller or release gate is introduced.
+
+`forit-app.json` diagnostic `controlGuard.commonRevision` now matches genuine
+Common `352f567e`; scene inventory and target/report membership are unchanged.
+This metadata/documentation successor is not the source of already-shipped
+build 32. The retained simulator app is Debug `1.0 (1)` at the shipped source
+and package; it must not be relabelled as release `1.0 (32)`.
+
 ## Current source and resolver boundary
 
 The canonical `ForITRadialActions` component owns the original ring canvas,
@@ -90,7 +127,7 @@ was explicitly reviewed. These counts, and the older 0.31.4 scanner count of
 46 before seven direct Combine imports, are historical snapshots. The canonical
 shared ring supersedes that prototype; new exact-source reports remain pending.
 
-## Current build packet boundary
+## Historical build packet boundary (retired admission wording)
 
 The one-use 0.31.7 resolver operation started at 18:53:16Z and ended at
 18:53:22Z on October 24. Xcode resolution and its SDK checkout were verified;
@@ -102,8 +139,10 @@ route. Exporter logs passed; raw generated Mini bridge bytes were not separately
 retained, so source review does not establish native compiler/resource closure.
 No staging rerun, compilation or upload is authorized by that handback.
 
-Use the existing `Scripts/mini-testflight.sh` route only within a newly admitted
-A0 allocation. It provisions a job-owned genuine official frozen checkout,
+The historical handback required a newly admitted A0 allocation for
+`Scripts/mini-testflight.sh`. That restriction is retired by the current
+October 26 direction. The maintained release helper provisions a job-owned
+genuine official frozen checkout,
 exports authenticated mark/Controls inputs before XcodeGen, and genuinely
 resolves dependencies before build. Reports for every configured target and
 platform are generated after resolution and before the first report-consuming
@@ -137,11 +176,17 @@ native execution. No lock-coexistence failure was observed in that run.
 
 ## Delivery status
 
-Actual current rollout TestFlight build/date/platform: **unknown**. A retained
-October 15 read-only ASC observation reports an older iOS `1.0 (31)` as VALID;
-it does not prove shipment of this branch. Dispatch's October 24 ship-now request
-is active. The earlier admitted resolver ran; no app compilation, ASC read,
-signing or upload is claimed by this source update. Genuine 0.31.7 resolution
-has now run through A0; current source policy, native qualification and upload
-remain. Common owns the unreleased Watch asset-image pipeline repair; its
-private proposal is not an adopted dependency or a new native grant.
+ForIT Glasses iOS `1.0 (32)` shipped from exact source
+`0347d5434120bcc9a8e2947d754d3039f3adff43` with Common `0.31.9` at
+`352f567e`. The maintained Mini run `forit-openglasses-release-20261026T0254Z`
+passed 82 tests, signed archive/export and IPA checks, uploaded successfully,
+and ended at `2026-10-26T03:06:07Z` with exit 0. Apple records uploadedDate
+`03:04:43Z`; readback at `03:06:18Z` confirms VALID, export compliance,
+INTERNAL_ONLY and IN_BETA_TESTING with ForIT Internal access. Upload-command
+completion `03:03:03Z` is retained separately from Apple's uploadedDate.
+
+Original receipts remain under
+`/home/runner/handoffs/OpenGlasses/ship-all-20261026/actual-runs/0254-final`.
+The source-only route/metadata follow-up has not been built, captured or
+uploaded. Current visual/contact-sheet, native AX/actions and Ben install/open
+remain unverified; those gaps do not alter the retained shipment receipt.
