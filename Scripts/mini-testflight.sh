@@ -68,14 +68,31 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Read the stored local origin without transport credential rewrites or shell NUL loss.
+# Return only a public canonical URL; never expose a stored/effective rejected URL.
+stored_origin() {
+  python3 -I -B - "$1" "$2" <<'PY_ORIGIN'
+import subprocess, sys
+root, repository = sys.argv[1:]
+if repository not in {"OpenGlasses", "for-iCommon"}:
+    sys.exit("unsupported repository identity")
+canonical = "https://github.com/ForITLLC/" + repository + ".git"
+allowed = {canonical, canonical[:-4], "git@github.com:ForITLLC/" + repository + ".git",
+           "ssh://git@github.com/ForITLLC/" + repository + ".git"}
+try:
+    raw = subprocess.check_output(["git", "-C", root, "config", "--local", "--null",
+                                   "--get-all", "remote.origin.url"], stderr=subprocess.DEVNULL)
+except (OSError, subprocess.CalledProcessError):
+    sys.exit("cannot read stored local repository origin")
+if raw not in {value.encode() + b"\0" for value in allowed}:
+    sys.exit("stored local origin must be one official repository URL")
+print(canonical)
+PY_ORIGIN
+}
+
 # Establish source identity before writing secrets, logs or generated project files. A copied tree
 # without its real Git metadata, a dirty checkout, or hidden tracked changes cannot name a build.
-SOURCE_ORIGIN=$(git remote get-url origin) || { echo "no genuine Git origin"; exit 1; }
-case "$SOURCE_ORIGIN" in
-  https://github.com/ForITLLC/OpenGlasses | https://github.com/ForITLLC/OpenGlasses.git | \
-  git@github.com:ForITLLC/OpenGlasses.git | ssh://git@github.com/ForITLLC/OpenGlasses.git) ;;
-  *) echo "origin must be exactly ForITLLC/OpenGlasses on github.com"; exit 1 ;;
-esac
+SOURCE_ORIGIN=$(stored_origin "$PWD" OpenGlasses) || exit 1
 [ "$(git rev-parse --show-toplevel)" = "$PWD" ] || { echo "run from the genuine repository root"; exit 1; }
 SOURCE_SHA=$(git rev-parse --verify HEAD) || exit 1
 SOURCE_TREE=$(git rev-parse "$SOURCE_SHA^{tree}") || exit 1
@@ -301,12 +318,7 @@ verify_resolved_common() {
   [ "$(git -C "$root" rev-parse --show-toplevel)" = "$expected" ] &&
     [ "$(git -C "$root" rev-parse HEAD)" = "$COMMON_REVISION" ] ||
     { echo "actual Xcode Common checkout is not the published revision"; return 1; }
-  origin=$(git -C "$root" remote get-url origin) || return 1
-  case "$origin" in
-    https://github.com/ForITLLC/for-iCommon.git | https://github.com/ForITLLC/for-iCommon | \
-    git@github.com:ForITLLC/for-iCommon.git | ssh://git@github.com/ForITLLC/for-iCommon.git) ;;
-    *) echo "actual Xcode Common checkout has an unofficial origin"; return 1 ;;
-  esac
+  origin=$(stored_origin "$root" for-iCommon) || return 1
   status=$(git -C "$root" status --porcelain=v1 --untracked-files=all) || return 1
   hidden=$(git -C "$root" ls-files -v | LC_ALL=C awk '/^[a-zS]/ { n++ } END { print n + 0 }') || return 1
   [ -z "$status" ] && [ "$hidden" -eq 0 ] ||
