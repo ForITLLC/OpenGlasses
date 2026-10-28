@@ -3,7 +3,7 @@ import UIKit
 
 /// DEBUG fixture proof only. These samples suppress external services and disable
 /// main-canvas hit testing; they do not test glasses, microphone, camera, transport
-/// or account mutations. No product state or credential is reset by this suite.
+/// or account mutations. No credential or persisted preference is reset here.
 ///
 /// Run the requested-light/dark methods separately with the simulator's appearance
 /// set by the owning runner. Launch arguments are requests, not appearance proof:
@@ -125,6 +125,10 @@ final class OpenGlassesVisualProofTests: XCTestCase {
         guard !app.windows.firstMatch.frame.isEmpty else {
             XCTFail("Fixture app window has no drawable extent")
             throw FixtureFailure.notReady("window extent")
+        }
+        guard app.windows.firstMatch.frame.height >= app.windows.firstMatch.frame.width else {
+            XCTFail("Requested portrait fixture still has a landscape window")
+            throw FixtureFailure.notReady("portrait window extent")
         }
     }
 
