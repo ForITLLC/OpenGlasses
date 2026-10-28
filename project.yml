@@ -194,6 +194,25 @@ targets:
         CODE_SIGN_STYLE: "Automatic"
         GENERATE_INFOPLIST_FILE: "YES"
 
+  # UI proof has its own scheme; the normal OpenGlasses scheme keeps unit tests only.
+  OpenGlassesUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: OpenGlassesUITests
+    dependencies:
+      - target: OpenGlasses
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores.uitests
+        TEST_TARGET_NAME: OpenGlasses
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: UUSSWWML2A
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_STYLE: "Automatic"
+        GENERATE_INFOPLIST_FILE: "YES"
+
   DoloresWatch:
     preBuildScripts:
       - name: Maintained shared control source guard (watchOS)
@@ -289,3 +308,20 @@ targets:
         Release:
           CODE_SIGN_STYLE: "Manual"
           PROVISIONING_PROFILE_SPECIFIER: "OpenGlasses Widget App Store"
+
+# Deliberate UI proof entry point; not used by mini-testflight.sh's unit-test route.
+schemes:
+  OpenGlasses-VisualProof:
+    build:
+      targets:
+        OpenGlasses: [test]
+        OpenGlassesUITests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - name: OpenGlassesUITests
+          parallelizable: false
+          randomExecutionOrder: false
+    management:
+      shared: true
