@@ -12,7 +12,7 @@ struct MainView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject private var feedbackAccount = FeedbackAccount.shared
 
-    // 5 quick actions arranged in a circle around the avatar
+    // Six quick actions arranged around the avatar.
     // Quick actions — voice-first starting prompts around the ring
     private let quickActions: [(icon: String, label: String, action: QuickActionType)] = [
         ("calendar", "Meetings", .prompt("Give me a summary of my meetings today")),
@@ -31,8 +31,52 @@ struct MainView: View {
 
     var body: some View {
         NavigationStack {
-            content
+            GeometryReader { geometry in
+                ScrollView(.vertical) {
+                    // Main content stack
+                    VStack(spacing: 0) {
+                        // Device status stays below the shared navigation bar.
+                        ConnectionBanner()
+                            .padding(.top, 4)
+                            .padding(.horizontal, 8)
+
+                        Spacer()
+
+                        // CENTER: Dolores avatar + ForIT logo + quick action ring
+                        ZStack {
+                            StatusIndicator()
+
+                            // Quick action ring — hidden during processing/listening
+                            // Ring is 340pt wide to push icons further from avatar
+                            if !appState.isProcessing && !appState.isListening {
+                                ForITRadialActions(actions: sharedQuickActions, on: .navy)
+                                .transition(.opacity.combined(with: .scale))
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.2), value: appState.isProcessing)
+                        .animation(.easeInOut(duration: 0.2), value: appState.isListening)
+
+                        Spacer()
+
+                        // Transcript cards floating above the mic button
+                        TranscriptOverlay()
+                            .padding(.bottom, 8)
+
+                        // Bottom: single mic button
+                        BottomControlBar()
+                            .padding(.bottom, 8)
+                    }
+                    // Keep portrait centering; shorter viewports can scroll the full content.
+                    .frame(minHeight: geometry.size.height)
+                    #if DEBUG
+                    .allowsHitTesting(!OpenGlassesScreenshotFixture.isActive)
+                    #endif
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+                .forITScreenBackground()
                 .navigationTitle("ForIT Glasses")
+                .forITInlineTitle()
                 .forITProfileMenu(
                     account: feedbackAccount.profileAccount,
                     isSettingsPresented: $appState.showSettings,
@@ -52,73 +96,12 @@ struct MainView: View {
                 .environment(\.forITFeedback, feedbackAccount.signedIn ? feedbackAccount.center : nil)
                 .feedbackDialogs(isEnabled: !appState.showSettings)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .forITBarTrailing) {
                         powerButton
                     }
                 }
         }
         .preferredColorScheme(.dark)
-    }
-
-    private var content: some View {
-        GeometryReader { geometry in
-            ScrollView(.vertical) {
-                // Main content stack
-                VStack(spacing: 0) {
-                    // Device status stays below the shared navigation bar.
-                    ConnectionBanner()
-                        .padding(.top, 4)
-                        .padding(.horizontal, 8)
-
-                    Spacer()
-
-                    // CENTER: Dolores avatar + ForIT logo + quick action ring
-                    ZStack {
-                        StatusIndicator()
-
-                        // Quick action ring — hidden during processing/listening
-                        // Ring is 340pt wide to push icons further from avatar
-                        if !appState.isProcessing && !appState.isListening {
-                            RadialLayout() {
-                                ForEach(Array(quickActions.enumerated()), id: \.offset) { _, action in
-                                    quickActionButton(icon: action.icon, label: action.label) {
-                                        switch action.action {
-                                        case .prompt(let text):
-                                            await appState.handleTranscription(text)
-                                        case .photo:
-                                            await appState.capturePhotoFromGlasses()
-                                        case .photoThen(let prompt):
-                                            await appState.capturePhotoAndSend(prompt: prompt)
-                                        }
-                                    }
-                                }
-                            }
-                            .frame(width: 340, height: 340)
-                            .transition(.opacity.combined(with: .scale))
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.2), value: appState.isProcessing)
-                    .animation(.easeInOut(duration: 0.2), value: appState.isListening)
-
-                    Spacer()
-
-                    // Transcript cards floating above the mic button
-                    TranscriptOverlay()
-                        .padding(.bottom, 8)
-
-                    // Bottom: single mic button
-                    BottomControlBar()
-                        .padding(.bottom, 8)
-                }
-                // Keep portrait centering; shorter viewports can scroll the full content.
-                .frame(minHeight: geometry.size.height)
-                #if DEBUG
-                .allowsHitTesting(!OpenGlassesScreenshotFixture.isActive)
-                #endif
-            }
-            .scrollBounceBehavior(.basedOnSize)
-        }
-        .forITScreenBackground()
     }
 
     private var powerButton: some View {
@@ -130,36 +113,31 @@ struct MainView: View {
         } label: {
             Image(systemName: "power")
         }
-        .tint(appState.listeningEnabled ? .green : Color(hex: "8EDCEF"))
+        .buttonStyle(.forITToolbar(isSelected: appState.listeningEnabled))
         .accessibilityLabel(appState.listeningEnabled ? "Turn listening off" : "Turn listening on")
         .accessibilityValue(appState.listeningEnabled ? "On" : "Off")
     }
 
-    // MARK: - Quick Action Button
-
-    func quickActionButton(icon: String, label: String, action: @escaping () async -> Void) -> some View {
-        Button {
-            Task { await action() }
-        } label: {
-            VStack(spacing: 3) {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: "142F43").opacity(0.8))
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Circle().stroke(Color(hex: "8EDCEF").opacity(0.25), lineWidth: 1)
-                        )
-                    Image(systemName: icon)
-                        .font(.system(size: 17))
-                        .foregroundColor(Color(hex: "8EDCEF"))
-                }
-                Text(label)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(Color(hex: "E1EFF3").opacity(0.7))
+    // The shared component owns rendering and placement; the app owns action data.
+    private var sharedQuickActions: [ForITRadialAction] {
+        quickActions.map { item in
+            ForITRadialAction(systemImage: item.icon, label: item.label) {
+                await performQuickAction(item.action)
             }
         }
-        .buttonStyle(.plain)
     }
+
+    private func performQuickAction(_ action: QuickActionType) async {
+        switch action {
+        case .prompt(let text):
+            await appState.handleTranscription(text)
+        case .photo:
+            await appState.capturePhotoFromGlasses()
+        case .photoThen(let prompt):
+            await appState.capturePhotoAndSend(prompt: prompt)
+        }
+    }
+
 }
 
 // MARK: - Color hex extension

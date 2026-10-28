@@ -100,10 +100,9 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 TextField("Bernard API Key", text: $apiKey)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .textFieldStyle(.roundedBorder)
-                    .padding(.horizontal, 40)
+                    .forITField(on: .navy)
 
                 Button {
                     #if DEBUG
@@ -115,16 +114,15 @@ struct OnboardingView: View {
                     onComplete()
                 } label: {
                     Text("Continue")
-                        .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.forITPrimary)
-                .padding(.horizontal, 40)
+                .buttonStyle(.forITPrimaryOnNavy)
                 .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 Spacer()
                 Spacer()
             }
+            .padding(.horizontal, 40)
         }
     }
 }

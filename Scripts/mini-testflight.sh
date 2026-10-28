@@ -10,29 +10,30 @@
 # Run it from a copy of the repo on the Mini (rsync the worktree there first):
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh'              tests, archive, export, upload, wait for VALID
 #   ssh mini-lan 'cd <copy> && Scripts/mini-testflight.sh --no-upload'  stops once the signed IPA is exported and checked
-#   Scripts/mini-testflight.sh --matrix-pr <number>                  tests and full PR matrix only; capture GO required
-# Run the full PR matrix once on the merge-ready tree. Upload requires its retained identity receipt and tested app,
-# then reuses those exact images without another test, simulator boot or matrix. Keep the PR commit's Git object
-# through a squash merge so both commits can be verified to have the same tree. Nothing here grants capture GO.
+#   Scripts/mini-testflight.sh --matrix-pr <number>                  legacy mode; not a capture route on Common 0.31.9
+# The normal route resolves current packages, runs current unit tests, and archives/exports/uploads that source.
+# BR-3 and the maintained conformance/visual gate are advisory, with actual status retained. Visual acceptance
+# stays unverified; no receipt or checklist PASS is inferred. Published 0.31.9 mini-gate disables --matrix;
+# use the separately opt-in device-matrix helper documented in docs/shared-mark-topbar-continuation.md.
+# The legacy mode below retains historical slot/proof code; it creates no current capture authority or release gate.
 # Each step prints "step <name> rc=<rc> <seconds>s"; its log is build/testflight-<UTC time>/<name>.log.
 #
 # 1. OpenGlasses/Secrets.plist: DOLORES_API_KEY from the environment, written as the workflow wrote it. With no key
 #    the plist holds an empty dict and the app asks each person for their own key at onboarding. The key is never
 #    printed.
-# 2. In --matrix-pr mode: xcodegen, then unit tests (scheme OpenGlasses, -only-testing:OpenGlassesTests) on its own
+# 2. Both routes: xcodegen, genuine package resolution, then unit tests (OpenGlassesTests) on the lane's own
 #    iPhone simulator, through the Mini's route /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses (checklist
 #    CI-2): the iPhone ci-sim-lanes.conf gives the lane, else ci-OpenGlasses-iPhone, which the route creates and
 #    primes once. Since 2026-10-11 a lane may not use another lane's simulator or one that belongs to no lane. The
-#    shared gate run boots it through the boot slot and refuses a test run on any other simulator. Tests and the
-#    device matrix share that boot; --run-end releases the run's simulators on success and failure (CI-2).
+#    normal route boots and shuts down through that lane helper. Optional matrix mode uses the shared gate run
+#    and boot slot; tests and captures share its boot, released by --run-end on success and failure (CI-2).
 #    A red test stops the run before anything is signed (CI-1).
 # 3. App Store Connect (Scripts/asc_resolve.py, read-only): the app record (must be 6761319043), its internal group
 #    "ForIT Internal", and the build number: the highest build number App Store Connect has for the app, plus one,
 #    the rule the workflow used.
-#    Upload runs the current conformance gate and requires the full PR proof before signing or archiving. Captures
-#    keep the tested simulator app's actual identity; the intended upload build is recorded separately. The full PR
-#    grid has 68 actual PNGs (own iPhone and three iPad layouts, including AX5) and 34 SE/Max gap rows; its 24 standard
-#    light/dark iPhone/iPad cells are the upload's VS-1 subset. Mac/Vision/Watch distribution stays uncovered.
+#    Upload retains the current tested app/source/package identity separately from its intended upload build.
+#    The conformance gate's real exit status is advisory. Normal upload requires no old matrix or visual receipt.
+#    Optional matrix captures retain their own proof; Mac/Vision/Watch distribution stays uncovered.
 # 4. Signing, the for-Notes way (the login keychain is locked over ssh, and Xcode's automatic signing would want an
 #    Apple Development identity the Mini does not have). ForITCommon's Scripts/asc/asc_provision.py (checklist CI-4),
 #    from the package the tests resolved into build/spm (the version project.yml pins), makes or reuses the two App
@@ -69,14 +70,53 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Read the stored local origin without transport credential rewrites or shell NUL loss.
+# Return only a public canonical URL; never expose a stored/effective rejected URL.
+stored_origin() {
+  python3 -I -B - "$@" <<'PY_ORIGIN'
+import pathlib, subprocess, sys
+root, repository = sys.argv[1:3]
+if repository not in {"OpenGlasses", "for-iCommon"}:
+    sys.exit("unsupported repository identity")
+canonical = "https://github.com/ForITLLC/" + repository + ".git"
+allowed = {canonical, canonical[:-4], "git@github.com:ForITLLC/" + repository + ".git",
+           "ssh://git@github.com/ForITLLC/" + repository + ".git"}
+try:
+    raw = subprocess.check_output(["git", "-C", root, "config", "--local", "--null",
+                                   "--get-all", "remote.origin.url"], stderr=subprocess.DEVNULL)
+except (OSError, subprocess.CalledProcessError):
+    sys.exit("cannot read stored local repository origin")
+official = {value.encode() + b"\0" for value in allowed}
+if raw not in official:
+    # Xcode's checkout may point to its own job-local bare repository cache.
+    # Follow exactly that one authenticated hop, never an arbitrary local path.
+    try:
+        if repository != "for-iCommon" or len(sys.argv) != 5:
+            raise ValueError()
+        cache_root, revision = pathlib.Path(sys.argv[3]), sys.argv[4]
+        if not raw.endswith(b"\0") or raw.count(b"\0") != 1:
+            raise ValueError()
+        cache = pathlib.Path(raw[:-1].decode("utf-8"))
+        if (not cache.is_absolute() or cache.parent != cache_root or not cache.name.startswith("for-iCommon-")
+                or not cache_root.is_absolute() or cache_root.resolve(strict=True) != cache_root
+                or cache.resolve(strict=True) != cache or not cache.is_dir()):
+            raise ValueError()
+        def cache_git(*args):
+            return subprocess.check_output(["git", "-C", str(cache), *args], stderr=subprocess.DEVNULL)
+        if cache_git("rev-parse", "--is-bare-repository") != b"true\n":
+            raise ValueError()
+        if cache_git("config", "--local", "--null", "--get-all", "remote.origin.url") not in official:
+            raise ValueError()
+        cache_git("cat-file", "-e", revision + "^{commit}")
+    except (OSError, ValueError, UnicodeError, subprocess.CalledProcessError):
+        sys.exit("stored origin is neither official nor an authenticated job-local Common cache")
+print(canonical)
+PY_ORIGIN
+}
+
 # Establish source identity before writing secrets, logs or generated project files. A copied tree
 # without its real Git metadata, a dirty checkout, or hidden tracked changes cannot name a build.
-SOURCE_ORIGIN=$(git remote get-url origin) || { echo "no genuine Git origin"; exit 1; }
-case "$SOURCE_ORIGIN" in
-  https://github.com/ForITLLC/OpenGlasses | https://github.com/ForITLLC/OpenGlasses.git | \
-  git@github.com:ForITLLC/OpenGlasses.git | ssh://git@github.com/ForITLLC/OpenGlasses.git) ;;
-  *) echo "origin must be exactly ForITLLC/OpenGlasses on github.com"; exit 1 ;;
-esac
+SOURCE_ORIGIN=$(stored_origin "$PWD" OpenGlasses) || exit 1
 [ "$(git rev-parse --show-toplevel)" = "$PWD" ] || { echo "run from the genuine repository root"; exit 1; }
 SOURCE_SHA=$(git rev-parse --verify HEAD) || exit 1
 SOURCE_TREE=$(git rev-parse "$SOURCE_SHA^{tree}") || exit 1
@@ -105,12 +145,18 @@ CI_SIM=/Users/Shared/ci-sim
 LANE_SIM=("$CI_SIM/ci-sim-lane.sh" --lane OpenGlasses)  # this lane's simulator, and nobody else's
 MINI_GATE=/Users/Shared/forit-gate/mini-gate.sh
 ASC_PROVISION=build/spm/checkouts/for-iCommon/Scripts/asc/asc_provision.py  # ForITCommon's, resolved by the tests
+COMMON_REPOSITORY=https://github.com/ForITLLC/for-iCommon.git
+COMMON_VERSION=0.31.9
+COMMON_REVISION=352f567e839b8faf61b6df5840c5275b016addce
+COMMON_TAG_OBJECT=9050f4a1ce99d023e3a550ffc74f338a135d1d6c
+COMMON_JOB_TEMP=""
+PACKAGE_RESOLUTION=OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 OUT=build/testflight-$(date -u +%Y%m%dT%H%M%SZ)
 TESTED_APP=$PWD/build/dd-sim/Build/Products/Debug-iphonesimulator/OpenGlasses.app
 GATE_SCREENS_ROOT=${FORIT_SCREENS_ROOT:-/Users/Shared/forit-screens}
 KC=$PWD/build/signing-$$.keychain-db
 KCPW=""
-KC_MADE="" SIM_UDID="" GATE_RUN_ACTIVE="" PLISTS_PATCHED=""
+KC_MADE="" SIM_UDID="" SIM_BOOTED="" GATE_RUN_ACTIVE="" PLISTS_PATCHED=""
 INFO_PLISTS=(OpenGlasses/Info.plist GlassesActivityWidget/Info.plist)
 mkdir -p "$OUT"
 [ -n "$MATRIX_PR" ] || mkdir -p "$PROFILES_DIR"
@@ -124,6 +170,36 @@ step() {  # step <name> <cmd...>: prints "step <name> rc=<rc> <seconds>s", log i
   rc=$?
   echo "step $name rc=$rc $(( $(date +%s) - start ))s"
   [ $rc -eq 0 ] || { tail -25 "$OUT/$name.log"; exit $rc; }
+}
+
+# Ben's ship-all instruction: policy/visual findings are warnings at this app boundary.
+# Keep actual command status and diagnostics; this never prints or manufactures GREEN.
+advisory_step() {
+  local name=$1 start rc
+  shift
+  start=$(date +%s)
+  touch "$OUT/$name.started" || exit 1
+  "$@" > "$OUT/$name.log" 2>&1
+  rc=$?
+  printf '%s\n' "$rc" > "$OUT/$name.exit" || exit 1
+  echo "warning-only step $name rc=$rc $(( $(date +%s) - start ))s; see $OUT/$name.log"
+  if [ "$rc" -ne 0 ]; then tail -25 "$OUT/$name.log"; fi
+  return 0
+}
+
+retain_advisory_report() {
+  local name=$1 report=$2
+  if [ -f "$report" ] && [ "$report" -nt "$OUT/$name.started" ]; then
+    cp "$report" "$OUT/$name-report.json" || exit 1
+  else
+    echo "warning: $name produced no fresh report; retained command log and exit status only"
+  fi
+}
+
+shutdown_sim() {
+  [ -n "$SIM_BOOTED" ] || return 0
+  "${LANE_SIM[@]}" shutdown iPhone || return $?
+  SIM_BOOTED=""
 }
 
 capture_gate_matrix() {
@@ -176,6 +252,12 @@ cleanup() {
       [ "$rc" -ne 0 ] || rc=1
     }
   fi
+  if [ -n "$SIM_BOOTED" ]; then
+    shutdown_sim > "$OUT/sim-cleanup.log" 2>&1 || {
+      echo "could not shut down the lane simulator (see $OUT/sim-cleanup.log)"
+      [ "$rc" -ne 0 ] || rc=1
+    }
+  fi
   restore_plists
   if [ -n "$KC_MADE" ]; then
     rest=$(security list-keychains -d user | tr -d '"' | grep -v -F "$KC")
@@ -183,10 +265,92 @@ cleanup() {
     security list-keychains -d user -s $rest
     security delete-keychain "$KC" 2>/dev/null
   fi
+  # Preserve source if the maintained run could not end; never remove another job's checkout.
+  if [ -n "$COMMON_JOB_TEMP" ] && [ -z "$GATE_RUN_ACTIVE" ]; then
+    rm -rf "$COMMON_JOB_TEMP" || { [ "$rc" -ne 0 ] || rc=1; }
+  fi
   exit "$rc"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
+
+prepare_common_source() {
+  COMMON_JOB_TEMP=$(mktemp -d "${TMPDIR:-/tmp}/openglasses-common.XXXXXXXX") || return 1
+  COMMON_JOB_TEMP=$(cd "$COMMON_JOB_TEMP" && pwd -P) || return 1
+  case "$COMMON_JOB_TEMP/" in
+    "$PWD/"*) echo "Common tool checkout must be outside the app repository"; return 1 ;;
+  esac
+  export FORIT_COMMON_ROOT="$COMMON_JOB_TEMP/for-iCommon"
+  # Use the runner's existing Git credentials. Keep the official stored origin;
+  # suppress transport diagnostics rather than risk logging credential rewrites.
+  GIT_TERMINAL_PROMPT=0 git clone -q --no-checkout "$COMMON_REPOSITORY" "$FORIT_COMMON_ROOT" > /dev/null 2>&1 ||
+    { echo "official Common clone failed using the runner's existing Git credentials"; return 1; }
+  git -C "$FORIT_COMMON_ROOT" checkout -q --detach "$COMMON_REVISION" || return 1
+  [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse HEAD)" = "$COMMON_REVISION" ] &&
+    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$COMMON_VERSION")" = "$COMMON_TAG_OBJECT" ] &&
+    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$COMMON_VERSION^{commit}")" = "$COMMON_REVISION" ] ||
+    { echo "Common checkout or published tag differs from the bound release"; return 1; }
+  local status
+  status=$(git -C "$FORIT_COMMON_ROOT" status --porcelain=v1 --untracked-files=all) || return 1
+  [ -z "$status" ] || { echo "Common tool checkout is not clean"; return 1; }
+  # The existing helper authenticates the stored official origin, annotated tag,
+  # exporter working bytes and canonical Git objects before either exporter runs.
+  python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
+    --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/DoloresWatch" || return 1
+  python3 -I -B "$PWD/Scripts/prepare-shared-bridges.py" \
+    --source "$FORIT_COMMON_ROOT" --output "$PWD/.build/forit-bridges/GlassesActivityWidget" || return 1
+  status=$(git -C "$FORIT_COMMON_ROOT" status --porcelain=v1 --untracked-files=all) || return 1
+  [ -z "$status" ] || { echo "Common exporter changed its source checkout"; return 1; }
+}
+
+retain_package_resolution() {
+  python3 -I -B - "$PACKAGE_RESOLUTION" "$OUT/Package.resolved" "$COMMON_VERSION" "$COMMON_REVISION" <<'PY_RESOLUTION'
+import json, pathlib, sys
+source, retained = map(pathlib.Path, sys.argv[1:3])
+def pins_of(resolution):
+    return resolution.get("pins") or (resolution.get("object") or {}).get("pins") or []
+try:
+    raw = source.read_bytes()
+    resolution = json.loads(raw)
+    pins = pins_of(resolution)
+    common = [pin for pin in pins if (pin.get("identity") or pin.get("package") or "").lower() == "for-icommon"]
+    if len(common) != 1 or common[0].get("state", {}).get("version") != sys.argv[3] or common[0].get("state", {}).get("revision") != sys.argv[4]:
+        raise ValueError("actual resolution does not bind the published Common release")
+    names = [(pin.get("identity") or pin.get("package") or "").lower() for pin in pins]
+    locations = [pin.get("location") or pin.get("repositoryURL") or "" for pin in pins]
+    if len(names) != len(set(names)) or len(locations) != len(set(locations)):
+        raise ValueError("actual resolution has duplicate identities or origins")
+    if set(names) != {"for-icommon", "meta-wearables-dat-ios"}:
+        raise ValueError("actual resolution changed the supported package closure")
+    if common[0].get("location") != "https://github.com/ForITLLC/for-iCommon.git":
+        raise ValueError("actual Common origin is not official")
+    meta = [pin for pin in pins if pin.get("identity") == "meta-wearables-dat-ios"]
+    if len(meta) != 1 or meta[0].get("location") != "https://github.com/facebook/meta-wearables-dat-ios.git" or meta[0].get("state") != {"version": "0.5.0", "revision": "2ea30fa228359315baf71c404aec821472e994c1"}:
+        raise ValueError("actual Meta resolution differs from the pinned 0.5.0 API")
+    retained.write_bytes(raw)
+    print("retained actual Xcode Package.resolved with the exact Common release")
+except (OSError, ValueError, TypeError, AttributeError) as error:
+    sys.exit("package resolution failed: " + str(error))
+PY_RESOLUTION
+}
+
+# Authenticate the actual dependency checkout before its provisioning code executes.
+verify_resolved_common() {
+  local root expected status hidden origin
+  root=$PWD/build/spm/checkouts/for-iCommon
+  expected=$(cd "$root" && pwd -P) || return 1
+  [ "$(git -C "$root" rev-parse --show-toplevel)" = "$expected" ] &&
+    [ "$(git -C "$root" rev-parse HEAD)" = "$COMMON_REVISION" ] ||
+    { echo "actual Xcode Common checkout is not the published revision"; return 1; }
+  origin=$(stored_origin "$root" for-iCommon "$PWD/build/spm/repositories" "$COMMON_REVISION") || return 1
+  status=$(git -C "$root" status --porcelain=v1 --untracked-files=all) || return 1
+  hidden=$(git -C "$root" ls-files -v | LC_ALL=C awk '/^[a-zS]/ { n++ } END { print n + 0 }') || return 1
+  [ -z "$status" ] && [ "$hidden" -eq 0 ] ||
+    { echo "actual Xcode Common checkout has modified or hidden working bytes"; return 1; }
+  [ -f "$ASC_PROVISION" ] && cmp -s "$ASC_PROVISION" "$FORIT_COMMON_ROOT/Scripts/asc/asc_provision.py" ||
+    { echo "actual resolved provisioner differs from authenticated published source"; return 1; }
+  echo "verified actual Xcode Common checkout $COMMON_REVISION, official origin and clean provisioning bytes"
+}
 
 # signing_retry <cmd...>: $KC first in the search list before each try. -exportArchive has no keychain option and
 # another job can reorder the list mid-run, so only errSecInternalComponent is retried, up to 3 tries.
@@ -559,7 +723,9 @@ if [ -z "$MATRIX_PR" ]; then
     { echo "python3 has no PyJWT or cryptography (pip3 install --user pyjwt cryptography)"; exit 1; }
 fi
 [ -x "$CI_SIM/ci-sim-lane.sh" ] || { echo "no $CI_SIM/ci-sim-lane.sh, the Mini's simulator route (CI-2)"; exit 1; }
-[ -x "$MINI_GATE" ] || { echo "no $MINI_GATE, the required shared conformance gate (CI-1)"; exit 1; }
+if [ -n "$MATRIX_PR" ]; then
+  [ -x "$MINI_GATE" ] || { echo "no $MINI_GATE for optional matrix capture"; exit 1; }
+fi
 [ -r forit-app.json ] || { echo "no forit-app.json for the shared gate and device matrix"; exit 1; }
 if [ -n "$MATRIX_PR" ]; then
   [ -n "${CI_SIM_BOOT_SLOT:-}" ] && [ -x "$CI_SIM_BOOT_SLOT" ] ||
@@ -597,11 +763,50 @@ PLIST
 fi
 
 # --- 2. project and unit tests (CI-1: a red test stops the run here) ----------------------------------------------
-if [ -z "$MATRIX_PR" ]; then step reuse-matrix matrix_proof reuse; fi
+step common-source prepare_common_source
 step xcodegen xcodegen generate
+# Resolve the current checkout genuinely; no old capture receipt supplies package pins.
+step resolve-packages xcodebuild -jobs 2 -resolvePackageDependencies -project OpenGlasses.xcodeproj -scheme OpenGlasses \
+  -clonedSourcePackagesDirPath build/spm -scmProvider system FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT"
+step package-resolution retain_package_resolution
+step resolved-common verify_resolved_common
+
+# The first maintained gate consumes reports, before any build phase has run.
+# Prepare every configured shipping target/platform in this exact workspace after
+# genuine resolution. Source policy is advisory here; actual build/test/signing failures
+# remain hard failures. Unconditional Xcode phases retain their own warning reports.
+step br3-report-parents mkdir -p /tmp
+advisory_step br3-app /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
+  --inputs "$PWD/Config/ControlGuard/OpenGlasses-iOS-inputs.json" \
+  --report /tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json --common-revision "$COMMON_REVISION"
+advisory_step br3-watch /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
+  --inputs "$PWD/Config/ControlGuard/DoloresWatch-watchOS-inputs.json" \
+  --report /tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json --common-revision "$COMMON_REVISION"
+advisory_step br3-activity /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
+  --inputs "$PWD/Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json" \
+  --report /tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json --common-revision "$COMMON_REVISION"
+
+retain_advisory_report br3-app /tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json
+retain_advisory_report br3-watch /tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json
+retain_advisory_report br3-activity /tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json
+
 if [ -z "$MATRIX_PR" ]; then
-  mkdir -p OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
-  cp "$OUT/matrix/Package.resolved" OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved || exit 1
+  # The existing maintained lane route owns this one test simulator. No capture run required.
+  SIM_BOOTED=1
+  step sim "${LANE_SIM[@]}" boot iPhone
+  SIM_UDID=$(tail -1 "$OUT/sim.log")
+  [[ $SIM_UDID =~ ^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$ ]] ||
+    { echo "no lane iPhone UDID (see $OUT/sim.log)"; exit 1; }
+  step tests nice -n 10 "${LANE_SIM[@]}" xcodebuild test -jobs 2 -project OpenGlasses.xcodeproj -scheme OpenGlasses \
+    -destination "id=$SIM_UDID" -only-testing:OpenGlassesTests -parallel-testing-enabled NO \
+    -derivedDataPath build/dd-sim -clonedSourcePackagesDirPath build/spm -scmProvider system \
+    -onlyUsePackageVersionsFromResolvedFile -disableAutomaticPackageResolution \
+    FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT" CODE_SIGNING_ALLOWED=NO
+  grep -E 'Executed [0-9]+ test|Test run with|\*\* TEST (SUCCEEDED|FAILED) \*\*' "$OUT/tests.log" | tail -3 | sed 's/^/  /'
+  grep -Eq 'Executed [1-9][0-9]* tests?, with 0 failures|Test run with [1-9][0-9]* tests?.*passed' "$OUT/tests.log" ||
+    { echo "no nonzero passing unit-test count in $OUT/tests.log"; exit 1; }
+  step tested-app record_tested_app
+  step sim-shutdown shutdown_sim
 fi
 
 if [ -n "$MATRIX_PR" ]; then
@@ -627,7 +832,7 @@ if [ -n "$MATRIX_PR" ]; then
   step tests nice -n 10 "${LANE_SIM[@]}" xcodebuild test -jobs 2 -project OpenGlasses.xcodeproj -scheme OpenGlasses \
     -destination "id=$SIM_UDID" -only-testing:OpenGlassesTests -parallel-testing-enabled NO \
     -derivedDataPath build/dd-sim -clonedSourcePackagesDirPath build/spm -scmProvider system \
-    CODE_SIGNING_ALLOWED=NO
+    FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT" CODE_SIGNING_ALLOWED=NO
   grep -E 'Executed [0-9]+ test|Test run with|\*\* TEST (SUCCEEDED|FAILED) \*\*' "$OUT/tests.log" | tail -3 | sed 's/^/  /'
 
   step tested-app record_tested_app
@@ -660,24 +865,31 @@ case "$BUILD" in '' | *[!0-9]* | 0) echo "no build number from App Store Connect
 echo "build number $BUILD (App Store Connect's latest for app $APPID, plus one)"
 ARCHIVE=$OUT/OpenGlasses-$BUILD.xcarchive
 
-# Upload reuses the retained full PR receipt; the current commit still needs a green
-# conformance gate. This mode never calls --sim, tests, or another screenshot matrix.
+# Keep real conformance/visual diagnostics advisory; current tests and locked archive remain hard.
 [ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ] || { echo "source commit changed during the run"; exit 1; }
-step gate "$MINI_GATE" "$PWD" .
-grep -qxF "mini-gate: GREEN ${SOURCE_SHA:0:7}" "$OUT/gate.log" ||
-  { echo "no fresh exact-source GREEN gate for upload"; exit 1; }
+if [ -x "$MINI_GATE" ]; then
+  advisory_step gate "$MINI_GATE" "$PWD" .
+else
+  advisory_step gate /bin/sh -c 'echo "maintained conformance gate unavailable"; exit 127'
+fi
 step upload-intent python3 - "$OUT" "$SOURCE_SHA" "$SOURCE_TREE" "$BUILD" <<'PY_INTENT'
 import hashlib, json, pathlib, sys
 out = pathlib.Path(sys.argv[1])
-p = out / "matrix-verification.json"
-receipt = json.loads(p.read_text())
-receipt["upload_gate"] = {"status": "green", "source_sha": sys.argv[2],
-                          "log_sha256": hashlib.sha256((out / "gate.log").read_bytes()).hexdigest()}
-receipt["intended_upload"] = {"source_sha": sys.argv[2], "source_tree": sys.argv[3], "build": sys.argv[4],
-                              "version": receipt["captured_app"]["version"]}
-p.write_text(json.dumps(receipt, indent=2) + "\n")
-(out / "intended-version").write_text(receipt["captured_app"]["version"] + "\n")
-print("recorded intended upload separately from the original Debug screenshot identity")
+tested = json.loads((out / "tested-app.json").read_text())
+if tested["source_sha"] != sys.argv[2] or tested["source_tree"] != sys.argv[3]:
+    sys.exit("tested app source differs from intended upload")
+if (out / "tested-Package.resolved").read_bytes() != (out / "Package.resolved").read_bytes():
+    sys.exit("unit tests changed the retained genuine package resolution")
+receipt = {"schema_version": 1, "scope": "direct-current-source-release",
+           "tested_app": tested,
+           "advisory_gate": {"status": "warning-only", "exit_code": int((out / "gate.exit").read_text()),
+                             "log_sha256": hashlib.sha256((out / "gate.log").read_bytes()).hexdigest()},
+           "visual_acceptance": "UNVERIFIED_WARNING_ONLY",
+           "intended_upload": {"source_sha": sys.argv[2], "source_tree": sys.argv[3],
+                               "build": sys.argv[4], "version": tested["version"]}}
+(out / "direct-release-verification.json").write_text(json.dumps(receipt, indent=2) + "\n")
+(out / "intended-version").write_text(tested["version"] + "\n")
+print("recorded current tested source and real advisory status; no visual/checklist PASS inferred")
 PY_INTENT
 IFS= read -r VERSION < "$OUT/intended-version" || exit 1
 
@@ -687,6 +899,7 @@ CERT=$(openssl x509 -inform der -in "$CERT_DIR/distribution.der" -noout -fingerp
 echo "cert $CERT"
 [ -r "$ASC_PROVISION" ] ||
   { echo "no $ASC_PROVISION: the tests step resolves ForITCommon 0.17.1 or later there"; exit 1; }
+step provisioning-source verify_resolved_common
 profile app "$BUNDLE" "$APP_PROFILE_NAME"
 UUID_APP=$PROFILE_UUID
 profile widget "$WIDGET_BUNDLE" "$WIDGET_PROFILE_NAME"
@@ -713,6 +926,7 @@ archive() {
     -clonedSourcePackagesDirPath build/spm -scmProvider system \
     -onlyUsePackageVersionsFromResolvedFile -disableAutomaticPackageResolution \
     -archivePath "$ARCHIVE" \
+    FORIT_COMMON_ROOT="$FORIT_COMMON_ROOT" \
     DEVELOPMENT_TEAM=$TEAM CURRENT_PROJECT_VERSION="$BUILD" MARKETING_VERSION="$VERSION" \
     CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$CERT" OTHER_CODE_SIGN_FLAGS="--keychain $KC" \
     ENABLE_PREVIEWS=NO ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=NO \
@@ -725,12 +939,12 @@ import hashlib, json, pathlib, plistlib, sys
 out, archive = map(pathlib.Path, sys.argv[1:3])
 version, build = sys.argv[3:]
 try:
-    captured = json.loads((out / "matrix/tested-app.json").read_text())
-    receipt = json.loads((out / "matrix-verification.json").read_text())
+    captured = json.loads((out / "tested-app.json").read_text())
+    receipt = json.loads((out / "direct-release-verification.json").read_text())
     if version != captured["version"] or receipt["intended_upload"]["version"] != version or receipt["intended_upload"]["build"] != build:
-        raise ValueError("intended upload version/build differs from the retained capture intent")
+        raise ValueError("intended upload version/build differs from the current tested release intent")
     resolution = pathlib.Path("OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved")
-    current, retained = resolution.read_bytes(), (out / "matrix/Package.resolved").read_bytes()
+    current, retained = resolution.read_bytes(), (out / "tested-Package.resolved").read_bytes()
     package_sha = hashlib.sha256(current).hexdigest()
     if current != retained or package_sha != captured["package_resolution_sha256"]:
         raise ValueError("archive changed the locked tested package resolution")

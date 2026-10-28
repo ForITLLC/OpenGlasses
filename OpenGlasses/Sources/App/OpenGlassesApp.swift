@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import AVFoundation
 import MWDATCore

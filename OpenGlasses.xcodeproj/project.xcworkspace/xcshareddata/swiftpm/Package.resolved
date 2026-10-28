@@ -1,0 +1,24 @@
+{
+  "originHash" : "591777c6dbb5660be12c96b3800417cd10f349585dd381fed66a5c00277cdd92",
+  "pins" : [
+    {
+      "identity" : "for-icommon",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ForITLLC/for-iCommon.git",
+      "state" : {
+        "revision" : "352f567e839b8faf61b6df5840c5275b016addce",
+        "version" : "0.31.9"
+      }
+    },
+    {
+      "identity" : "meta-wearables-dat-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/facebook/meta-wearables-dat-ios.git",
+      "state" : {
+        "revision" : "2ea30fa228359315baf71c404aec821472e994c1",
+        "version" : "0.5.0"
+      }
+    }
+  ],
+  "version" : 3
+}
