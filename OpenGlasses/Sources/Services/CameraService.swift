@@ -23,7 +23,7 @@ class CameraService: ObservableObject {
         case streaming, waiting, stopped
     }
 
-    // Core SDK objects — created ONCE, reused.
+    // A live DeviceSession can be reused; each camera/stream is one burst only.
     // Optional because `Wearables.shared` hard-traps when configure() failed; in
     // that case the service is constructed inert and every entry point throws
     // `.sdkNotRegistered` instead of crashing the app.
@@ -32,11 +32,14 @@ class CameraService: ObservableObject {
     private var deviceSession: DeviceSession?
     private var stoppingSession: DeviceSession?
     private var camera: Camera?
+    private var stoppingCamera: Camera?
+    private var cameraID = UUID()
     private var streamSession: MWDATCamera.Stream?
     private var sessionStateToken: (any AnyListenerToken)?
     private var sessionErrorToken: (any AnyListenerToken)?
     private var lifecycleID = UUID()
     private var isStartingSession = false
+    private var pendingPermissionRequests = 0
 
     // Listener tokens
     private var stateListenerToken: (any AnyListenerToken)?
@@ -78,16 +81,16 @@ class CameraService: ObservableObject {
         }
     }
 
-    private func attachStreamListeners(_ stream: MWDATCamera.Stream, lifecycle: UUID) {
+    private func attachStreamListeners(_ stream: MWDATCamera.Stream, lifecycle: UUID, burst: UUID) {
         stateListenerToken = stream.statePublisher.listen { [weak self] state in
             Task { @MainActor [weak self] in
-                guard let self, self.lifecycleID == lifecycle else { return }
+                guard let self, self.lifecycleID == lifecycle, self.cameraID == burst else { return }
                 self.updateStatusFromState(state)
             }
         }
         videoFrameListenerToken = stream.videoFramePublisher.listen { [weak self] frame in
             Task { @MainActor [weak self] in
-                guard let self, self.lifecycleID == lifecycle,
+                guard let self, self.lifecycleID == lifecycle, self.cameraID == burst,
                       let image = frame.makeUIImage() else { return }
                 self.latestFrame = image
                 self.onVideoFrame?(image)
@@ -95,14 +98,14 @@ class CameraService: ObservableObject {
         }
         errorListenerToken = stream.errorPublisher.listen { [weak self] error in
             Task { @MainActor [weak self] in
-                guard let self, self.lifecycleID == lifecycle else { return }
+                guard let self, self.lifecycleID == lifecycle, self.cameraID == burst else { return }
                 self.lastError = error.localizedDescription
                 self.finishPhoto(throwing: error)
             }
         }
         photoDataListenerToken = stream.photoDataPublisher.listen { [weak self] photoData in
             Task { @MainActor [weak self] in
-                guard let self, self.lifecycleID == lifecycle else { return }
+                guard let self, self.lifecycleID == lifecycle, self.cameraID == burst else { return }
                 self.lastPhoto = UIImage(data: photoData.data)
                 let continuation = self.photoContinuation
                 self.photoContinuation = nil
@@ -119,22 +122,36 @@ class CameraService: ObservableObject {
         continuation?.resume(throwing: error)
     }
 
-    private func releaseSession() {
-        lifecycleID = UUID()
+    /// Detach a burst immediately, retaining its camera until the SDK confirms
+    /// `.stopped`. Queued callbacks from this burst cannot touch the next one.
+    private func detachCamera() {
+        cameraID = UUID()
         let tokens = [stateListenerToken, videoFrameListenerToken, errorListenerToken,
-                      photoDataListenerToken, sessionStateToken, sessionErrorToken]
+                      photoDataListenerToken]
         stateListenerToken = nil
         videoFrameListenerToken = nil
         errorListenerToken = nil
         photoDataListenerToken = nil
-        sessionStateToken = nil
-        sessionErrorToken = nil
+        if let camera {
+            camera.stop()
+            stoppingCamera = camera
+        }
         camera = nil
         streamSession = nil
-        deviceSession = nil
-        isStartingSession = false
+        latestFrame = nil
         streamingStatus = .stopped
         isStreaming = false
+        Task { for token in tokens { await token?.cancel() } }
+    }
+
+    private func releaseSession() {
+        lifecycleID = UUID()
+        detachCamera()
+        let tokens = [sessionStateToken, sessionErrorToken]
+        sessionStateToken = nil
+        sessionErrorToken = nil
+        deviceSession = nil
+        isStartingSession = false
         Task { for token in tokens { await token?.cancel() } }
     }
 
@@ -146,6 +163,8 @@ class CameraService: ObservableObject {
         guard let wearables else { throw CameraError.sdkNotRegistered }
         if deviceSession?.state == .stopped { releaseSession() }
         let permissionLifecycle = lifecycleID
+        pendingPermissionRequests += 1
+        defer { pendingPermissionRequests -= 1 }
 
         // iOS camera permission first
         let iosStatus = AVCaptureDevice.authorizationStatus(for: .video)
@@ -204,12 +223,21 @@ class CameraService: ObservableObject {
         guard let wearables, let deviceSelector else { return }
         if deviceSession?.state == .stopped { releaseSession() }
         guard !isStartingSession else { return }
-        if let streamSession, deviceSession?.state == .started {
-            streamSession.start()
-            return
+        // Starting a previously stopped stream is unreliable in DAT 1.0.x.
+        // Leave an already-live burst alone; otherwise detach it and acquire a
+        // fresh Camera below, after the old camera actually reaches `.stopped`.
+        if let camera, let streamSession {
+            switch streamSession.state {
+            case .streaming, .starting, .waitingForDevice, .paused:
+                if camera.state == .started || camera.state == .starting { return }
+            case .stopped, .stopping:
+                break
+            @unknown default:
+                break
+            }
+            detachCamera()
         }
-        // A pause belongs to the glasses. Wait for resume instead of opening a
-        // competing session. A stopped session, in contrast, must be replaced.
+        // A pause belongs to the glasses. Do not open a competing session.
         if deviceSession?.state == .paused { return }
         isStartingSession = true
         lastError = nil
@@ -227,28 +255,45 @@ class CameraService: ObservableObject {
                     }
                     try await Task.sleep(nanoseconds: 100_000_000)
                 }
+                guard lifecycleID == lifecycle else { return }
                 stoppingSession = nil
             }
+            if let stopping = stoppingCamera {
+                let deadline = ContinuousClock.now + .seconds(20)
+                while stopping.state != .stopped {
+                    guard lifecycleID == lifecycle, ContinuousClock.now < deadline else {
+                        throw CameraError.streamNotReady
+                    }
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
+                guard lifecycleID == lifecycle else { return }
+                stoppingCamera = nil
+            }
             guard lifecycleID == lifecycle else { return }
-            let session = try wearables.createSession(deviceSelector: deviceSelector)
-            deviceSession = session
-            sessionStateToken = session.statePublisher.listen { [weak self] state in
-                Task { @MainActor [weak self] in
-                    guard let self, self.lifecycleID == lifecycle else { return }
-                    if state == .stopped {
-                        self.finishPhoto(throwing: CameraError.streamNotReady)
-                        self.releaseSession()
+            let session: DeviceSession
+            if let current = deviceSession {
+                session = current
+            } else {
+                session = try wearables.createSession(deviceSelector: deviceSelector)
+                deviceSession = session
+                sessionStateToken = session.statePublisher.listen { [weak self] state in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.lifecycleID == lifecycle else { return }
+                        if state == .stopped {
+                            self.finishPhoto(throwing: CameraError.streamNotReady)
+                            self.releaseSession()
+                        }
                     }
                 }
-            }
-            sessionErrorToken = session.errorPublisher.listen { [weak self] error in
-                Task { @MainActor [weak self] in
-                    guard let self, self.lifecycleID == lifecycle else { return }
-                    self.lastError = error.localizedDescription
-                    self.finishPhoto(throwing: error)
+                sessionErrorToken = session.errorPublisher.listen { [weak self] error in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.lifecycleID == lifecycle else { return }
+                        self.lastError = error.localizedDescription
+                        self.finishPhoto(throwing: error)
+                    }
                 }
+                try session.start()
             }
-            try session.start()
             let deadline = ContinuousClock.now + .seconds(20)
             while session.state != .started {
                 guard lifecycleID == lifecycle, session.state != .stopped,
@@ -263,7 +308,9 @@ class CameraService: ObservableObject {
             }
             self.camera = camera
             self.streamSession = camera.stream
-            attachStreamListeners(camera.stream, lifecycle: lifecycle)
+            let burst = UUID()
+            cameraID = burst
+            attachStreamListeners(camera.stream, lifecycle: lifecycle, burst: burst)
             camera.stream.start()
         } catch {
             guard lifecycleID == lifecycle else { return }
@@ -283,11 +330,11 @@ class CameraService: ObservableObject {
     }
 
     func stopStreaming() async {
-        if isStartingSession || photoContinuation != nil {
-            // Invalidate a pending start/capture, so it cannot resume after Stop.
+        if isStartingSession || pendingPermissionRequests > 0 || photoContinuation != nil {
+            // Invalidate a pending permission/start/capture, so it cannot resume after Stop.
             endDeviceSession(throwing: CameraError.streamNotReady)
         } else {
-            streamSession?.stop()
+            detachCamera()
         }
         latestFrame = nil
         isStreaming = false
@@ -323,18 +370,17 @@ class CameraService: ObservableObject {
 
         guard lifecycleID == operationLifecycle, !Task.isCancelled else { throw CancellationError() }
 
-        guard let streamSession else { throw CameraError.streamNotReady }
+        guard let streamSession, let captureCamera = camera else { throw CameraError.streamNotReady }
         let captureLifecycle = lifecycleID
+        let captureBurst = cameraID
         var captured = false
         defer {
-            // The stream belongs to this capture even if a newer session has
-            // replaced the service's property while the capture was suspended.
-            streamSession.stop()
-            if lifecycleID == captureLifecycle {
-                latestFrame = nil
-                isStreaming = false
-                streamingStatus = .stopped
+            if lifecycleID == captureLifecycle, cameraID == captureBurst {
+                detachCamera()
                 if !captured { endDeviceSession(throwing: CameraError.captureFailed) }
+            } else if captureCamera.state != .stopped, captureCamera.state != .stopping {
+                // A cancelled old operation may only stop its own camera.
+                captureCamera.stop()
             }
         }
 
@@ -343,7 +389,7 @@ class CameraService: ObservableObject {
             ErrorReporter.shared.report("Waiting for streaming state (currently \(streamingStatus.rawValue))...", source: "camera", level: "info")
             let waitStart = ContinuousClock.now
             while streamingStatus != .streaming {
-                guard lifecycleID == captureLifecycle else { throw CameraError.streamNotReady }
+                guard lifecycleID == captureLifecycle, cameraID == captureBurst else { throw CameraError.streamNotReady }
                 if ContinuousClock.now - waitStart > .seconds(20) {
                     ErrorReporter.shared.report("Timed out waiting for streaming (stuck at \(streamingStatus.rawValue))", source: "camera", level: "error")
                     throw CameraError.streamNotReady
@@ -352,7 +398,7 @@ class CameraService: ObservableObject {
             }
         }
 
-        guard lifecycleID == captureLifecycle else { throw CameraError.streamNotReady }
+        guard lifecycleID == captureLifecycle, cameraID == captureBurst else { throw CameraError.streamNotReady }
         ErrorReporter.shared.report("Stream is live — capturing photo...", source: "camera", level: "info")
 
         // Capture from the running stream (from sample app line 158-159)
@@ -391,8 +437,8 @@ class CameraService: ObservableObject {
         })
 
         captured = true
-        // The defer stops the exact stream on success, error, timeout or cancel.
-        ErrorReporter.shared.report("Photo captured: \(photoData.count) bytes, stream stopped", source: "camera", level: "info")
+        // The defer detaches this camera on success, error, timeout or cancel.
+        ErrorReporter.shared.report("Photo captured: \(photoData.count) bytes, stopping camera", source: "camera", level: "info")
         return photoData
     }
 

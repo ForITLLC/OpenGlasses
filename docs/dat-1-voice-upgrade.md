@@ -24,7 +24,11 @@ The engine's configured default need not appear in the account's current catalog
 
 DAT 1.0 is stable, but Voice Invocations remains **experimental and beta-only**. Updating the SDK alone does not enable or prove “Hey Meta” launch. Meta's current instructions and later maintainer correction require a release channel rather than Developer Mode for voice launch. Use the registered spoken app name, the correct beta version/channel and invited account, current glasses firmware and Meta AI app, and the “Launch with Hey Meta” setting. English (US) is the validated launch language in the maintainer's reply. Earlier permission-approval wording conflicts with that reply, so inspect the actual current developer-console state before changing it.
 
-Meta's published supported models are Ray-Ban Meta Gen 1 and Gen 2, Meta Ray-Ban Display, Oakley Meta HSTN and Oakley Meta Vanguard. Gen 3 is not listed. **Ben's exact model/generation is not yet confirmed.** A device's display name does not prove its generation. Confirm the model in Meta AI device details before claiming support for Ben's pair.
+Meta's FAQ lists Ray-Ban Meta Gen 1 and Gen 2, Meta Ray-Ban Display, Oakley Meta HSTN and Oakley Meta Vanguard. Its omission of Gen 3 is superseded by an October 2 reply from a collaborator on Meta's official SDK repository confirming DAT 1.0 support. Some models may enumerate as `rayBanMetaOptics`; do not filter them out by accepting only `rayBanMeta`.
+
+Ben's October 25 store receipt identifies RW4011 and UPC 8056266264771. The manufacturer's store maps that exact product to **Ray-Ban Meta Gen 3 Wayfarer, 690680, size 53-22**. A separate same-day delivery receipt also explicitly identifies Gen 3 Wayfarers. These establish the purchased model; neither receipt is a live pairing or firmware observation. The receipts remain private evidence outside the repository.
+
+The same SDK collaborator's October 16 correction says iOS 1.0.x must create a fresh camera for each burst rather than restart a stopped stream. Stop/detach the camera and wait for its stopped state before attaching another. Opening the Bluetooth microphone can end an active DAT session on some glasses firmware; repeated microphone/camera switching still needs physical testing. Vendor guidance does not establish that our particular hardware sequence works.
 
 Physical acceptance must include launch with the phone locked, missing permissions, disabled listening, reconnect, a failed launch acknowledgement, two successive camera captures, camera Stop during startup, and a changed engine voice. Do not use an always-on app wake recognizer or silent audio as a substitute for failed Meta background activation.
 
@@ -45,5 +49,8 @@ The checked-in historical canonical package lock still describes the prior Meta 
 - [Official voice-invocation instructions](https://github.com/facebook/meta-wearables-dat-ios/blob/main/plugins/mwdat-ios/skills/voice-invocations/SKILL.md)
 - [Meta maintainer's release-channel clarification](https://github.com/meta/meta-wearables-dat-ios/discussions/326)
 - [Meta supported-device FAQ](https://developers.meta.com/wearables/faq/)
+- [Gen 3 support clarification](https://github.com/meta/meta-wearables-dat-ios/discussions/323#discussioncomment-18723983)
+- [Camera lifecycle and microphone switching correction](https://github.com/meta/meta-wearables-dat-ios/discussions/323#discussioncomment-18984603)
+- [Manufacturer store: exact RW4011 product](https://www.sunglasshut.com/us/ray-ban-meta/rw4011-8056266264771)
 - [Our upstream MIT base](https://raw.githubusercontent.com/straff2002/OpenGlasses/129cfeb862818871dcdddb58c2c4c4589a3f68cc/LICENSE)
 - [Pinned current upstream BSL licence](https://raw.githubusercontent.com/straff2002/OpenGlasses/8d1b9215b438317a2722950eaccaec8fa4df4318/LICENSE)
