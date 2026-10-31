@@ -13,7 +13,7 @@ class GlassesConnectionService: ObservableObject {
 
     private var devicesListenerToken: (any AnyListenerToken)?
     private var connectedDeviceId: DeviceIdentifier?
-    private var deviceStateSession: DeviceStateSession?
+    private var deviceStateToken: (any AnyListenerToken)?
 
     init() {
         observeDevices()
@@ -30,6 +30,7 @@ class GlassesConnectionService: ObservableObject {
                 self?.handleDevicesChanged(deviceIds)
             }
         }
+        handleDevicesChanged(Wearables.shared.devices)
     }
 
     private func handleDevicesChanged(_ deviceIds: [DeviceIdentifier]) {
@@ -39,18 +40,37 @@ class GlassesConnectionService: ObservableObject {
         // traps on an unconfigured SDK. Guard here too so a future direct caller is safe.
         guard WearablesRuntime.isConfigured else { return }
 
-        if let firstId = deviceIds.first {
-            let device = Wearables.shared.deviceForIdentifier(firstId)
+        let previousToken = deviceStateToken
+        deviceStateToken = nil
+        Task { await previousToken?.cancel() }
+        if let firstId = deviceIds.first,
+           let device = Wearables.shared.deviceForIdentifier(firstId) {
             connectedDeviceId = firstId
-            isConnected = true
-            deviceName = device?.name
-            connectionStatus = "Connected to \(device?.nameOrId() ?? "glasses")"
+            deviceName = device.name
+            applyDeviceState(linkState: device.linkState, battery: device.batteryLevel)
+            deviceStateToken = device.addDeviceStateListener { [weak self] state in
+                Task { @MainActor [weak self] in
+                    guard let self, self.connectedDeviceId == firstId else { return }
+                    self.applyDeviceState(linkState: state.linkState, battery: state.batteryLevel)
+                }
+            }
         } else {
             connectedDeviceId = nil
             isConnected = false
             deviceName = nil
             batteryLevel = nil
             connectionStatus = "Disconnected"
+        }
+    }
+
+    private func applyDeviceState(linkState: LinkState, battery: Int?) {
+        isConnected = linkState == .connected
+        batteryLevel = battery
+        switch linkState {
+        case .connected: connectionStatus = "Connected to \(deviceName ?? "glasses")"
+        case .connecting: connectionStatus = "Connecting to \(deviceName ?? "glasses")"
+        case .disconnected: connectionStatus = "Disconnected"
+        @unknown default: connectionStatus = "Waiting for glasses"
         }
     }
 
@@ -78,6 +98,9 @@ class GlassesConnectionService: ObservableObject {
     }
 
     func disconnect() {
+        let token = deviceStateToken
+        deviceStateToken = nil
+        Task { await token?.cancel() }
         connectedDeviceId = nil
         isConnected = false
         deviceName = nil

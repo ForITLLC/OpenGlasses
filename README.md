@@ -1,3 +1,5 @@
+> DAT 1.0 migration (2026-10-31): Meta voice launch and Bernard’s engine voice picker replace the app’s idle custom wake word. This is source preparation; native qualification, Meta beta setup and Ben’s exact glasses model remain unverified. See [migration and acceptance state](docs/dat-1-voice-upgrade.md). The older setup sections below describe the inherited preview app.
+
 > Identity update (2026-09-10): this is the **Bernard Glasses** internal operator client, including the Bernard watch companion. Dolores is the external receptionist in for-Dolores. The bundle ID `com.forit.openglasses.dolores`, saved keys, target names and Shortcuts types remain stable. Fresh installs listen for “Hey Bernard” and accept “Hey Dolores” as a compatibility phrase. Existing saved wake-phrase choices are preserved. Avatar artwork is the ForIT v3 icon set: `for-AI/assets/brand-icons/source/forit-icons-v3/bernard-forit-1024.png` (see `docs/2026-09-11-forit-icons-v3.md`). The app icon (iOS and Watch) is the Bernard smart-glasses variant `docs/brand/bernard-smart-glasses-1024.png` (see `docs/2026-09-11-openglasses-icon-glasses.md`).
 
 # OpenGlasses

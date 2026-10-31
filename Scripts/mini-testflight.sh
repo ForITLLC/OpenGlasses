@@ -325,8 +325,8 @@ try:
     if common[0].get("location") != "https://github.com/ForITLLC/for-iCommon.git":
         raise ValueError("actual Common origin is not official")
     meta = [pin for pin in pins if pin.get("identity") == "meta-wearables-dat-ios"]
-    if len(meta) != 1 or meta[0].get("location") != "https://github.com/facebook/meta-wearables-dat-ios.git" or meta[0].get("state") != {"version": "0.5.0", "revision": "2ea30fa228359315baf71c404aec821472e994c1"}:
-        raise ValueError("actual Meta resolution differs from the pinned 0.5.0 API")
+    if len(meta) != 1 or meta[0].get("location") != "https://github.com/facebook/meta-wearables-dat-ios.git" or meta[0].get("state") != {"version": "1.0.1", "revision": "0bd369298eef6a980ad0bdb6c8a5502f2c02a08c"}:
+        raise ValueError("actual Meta resolution differs from the pinned DAT 1.0.1 API")
     retained.write_bytes(raw)
     print("retained actual Xcode Package.resolved with the exact Common release")
 except (OSError, ValueError, TypeError, AttributeError) as error:

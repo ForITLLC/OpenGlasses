@@ -10,13 +10,9 @@ options:
 packages:
   meta-wearables-dat-ios:
     url: https://github.com/facebook/meta-wearables-dat-ios.git
-    # PINNED EXACT — do not float. The app source targets the 0.5.0 API
-    # (StreamSession, StreamSessionConfig, DeviceStateSession, VideoFrame…).
-    # A floating `from: "0.3.0"` let a fresh CI resolve drift to 0.8.0, whose
-    # API renamed/removed those types → archive compile-failed (run 30123851437).
-    # xcodegen regenerates the .xcodeproj and discards the pinned Package.resolved,
-    # so the version MUST be pinned here to stay reproducible.
-    exactVersion: "0.5.0"
+    # Pin the DAT 1.0 patch release. DeviceSession + Camera replace the preview
+    # StreamSession API. Voice invocations require Meta's beta release channel.
+    exactVersion: "1.0.1"
   # Shared ForIT code by URL (for-iCommon, private): ForIT Sign-in and Send feedback (FB-1).
   # The phone app links the package; Watch/activity use the matching generated bridges.
   # Pinned exact like the SDK above, for the same reason: Scripts/mini-testflight.sh runs the App
@@ -115,8 +111,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSSupportsLiveActivities: true
-        NSMicrophoneUsageDescription: "Bernard needs microphone access to listen for wake words and transcribe your voice commands."
-        NSSpeechRecognitionUsageDescription: "Bernard uses speech recognition to detect the wake word and transcribe your questions."
+        NSMicrophoneUsageDescription: "Bernard needs microphone access to transcribe your questions after you open it."
+        NSSpeechRecognitionUsageDescription: "Bernard uses speech recognition to transcribe your questions and hear Stop while replying."
         NSPhotoLibraryUsageDescription: "Glasses saves photos to a dedicated album in your photo library."
         NSPhotoLibraryAddUsageDescription: "Glasses saves photos taken with your Ray-Ban Meta glasses to your photo library."
         NSCameraUsageDescription: "Bernard needs camera access to capture photos and video for the AI to analyze."

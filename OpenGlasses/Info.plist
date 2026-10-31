@@ -61,13 +61,13 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Bernard uses your location to provide contextually relevant answers based on where you are.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Bernard needs microphone access to listen for wake words and transcribe your voice commands.</string>
+	<string>Bernard needs microphone access to transcribe your questions after you open it.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Glasses saves photos taken with your Ray-Ban Meta glasses to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Glasses saves photos to a dedicated album in your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Bernard uses speech recognition to detect the wake word and transcribe your questions.</string>
+	<string>Bernard uses speech recognition to transcribe your questions and hear Stop while replying.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

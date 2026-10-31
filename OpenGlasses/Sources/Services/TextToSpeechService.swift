@@ -7,6 +7,7 @@ import AVFoundation
 @MainActor
 class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     @Published var isSpeaking: Bool = false
+    @Published private(set) var playbackNotice: String?
 
     private let synthesizer = AVSpeechSynthesizer()
     private var audioPlayer: AVAudioPlayer?
@@ -15,9 +16,13 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
 
     /// Track if ElevenLabs quota is exhausted to skip future attempts
     private var elevenLabsDisabled: Bool = false
+    private var playbackGeneration = UUID()
 
     /// Pre-fetched audio from server (set by LLMService when server returns audio)
     var preloadedAudio: Data? = nil
+    /// The selection captured for this response, even if Settings changes while
+    /// its request is in flight. Consumed together with its audio.
+    var requestedEngineVoiceID: String?
 
     override init() {
         super.init()
@@ -38,6 +43,11 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
 
     func speak(_ text: String) async {
         guard !text.isEmpty else { return }
+        playbackNotice = nil
+        let requestedVoice = requestedEngineVoiceID
+        requestedEngineVoiceID = nil
+        let serverAudio = preloadedAudio
+        preloadedAudio = nil
 
         print("[TTS] speak() called with \(text.count) chars")
 
@@ -47,31 +57,45 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
 
         // Cancel any in-progress speech
         stopSpeaking()
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        let generation = playbackGeneration
+        do { try await Task.sleep(nanoseconds: 50_000_000) } catch { return }
+        guard playbackGeneration == generation else { return }
 
         isSpeaking = true
 
         // Check for server-provided audio first (fastest — no extra API call)
-        if let audioData = preloadedAudio {
-            preloadedAudio = nil
+        if let audioData = serverAudio {
             print("[TTS] Using server-provided audio (\(audioData.count) bytes)")
             do {
                 try await playAudioData(audioData)
+                guard playbackGeneration == generation else { return }
                 isSpeaking = false
                 print("[TTS] Finished speaking (server audio)")
                 return
             } catch {
+                guard playbackGeneration == generation else { return }
                 print("[TTS] Server audio playback failed: \(error)")
                 ErrorReporter.shared.report("TTS server audio crash: \(error.localizedDescription)", source: "tts")
             }
+        }
+
+        // A selected Bernard voice belongs to the engine. Do not silently play
+        // a different legacy phone-side voice when its audio is unavailable.
+        if requestedVoice != nil || !Config.bernardVoiceID.isEmpty {
+            playbackNotice = "Bernard's selected voice is unavailable. Using the device voice."
+            await speakWithiOS(text: text)
+            guard playbackGeneration == generation else { return }
+            isSpeaking = false
+            return
         }
 
         let elevenLabsKey = Config.elevenLabsAPIKey
         if !elevenLabsKey.isEmpty && !elevenLabsDisabled {
             print("[TTS] Trying ElevenLabs...")
             do {
-                try await speakWithElevenLabs(text: text, apiKey: elevenLabsKey)
+                try await speakWithElevenLabs(text: text, apiKey: elevenLabsKey, generation: generation)
             } catch {
+                guard playbackGeneration == generation else { return }
                 print("[TTS] ElevenLabs failed: \(error)")
                 ErrorReporter.shared.report("TTS ElevenLabs crash: \(error.localizedDescription)", source: "tts")
                 print("[TTS] Trying iOS TTS fallback...")
@@ -85,11 +109,13 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
             await speakWithiOS(text: text)
         }
 
+        guard playbackGeneration == generation else { return }
         isSpeaking = false
         print("[TTS] Finished speaking")
     }
 
     func stopSpeaking() {
+        playbackGeneration = UUID()
         audioPlayer?.stop()
         audioPlayer = nil
         synthesizer.stopSpeaking(at: .immediate)
@@ -271,7 +297,7 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
 
     // MARK: - ElevenLabs TTS
 
-    private func speakWithElevenLabs(text: String, apiKey: String) async throws {
+    private func speakWithElevenLabs(text: String, apiKey: String, generation: UUID) async throws {
         let voiceId = Config.elevenLabsVoiceId
         let urlString = "https://api.elevenlabs.io/v1/text-to-speech/\(voiceId)"
 
@@ -301,6 +327,7 @@ class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelega
         let startTime = Date()
 
         let (data, response) = try await URLSession.shared.data(for: request)
+        guard playbackGeneration == generation, !Task.isCancelled else { throw CancellationError() }
 
         let elapsed = Date().timeIntervalSince(startTime)
         print("🔊 ElevenLabs: Received \(data.count) bytes in \(String(format: "%.1f", elapsed))s")

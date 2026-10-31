@@ -15,6 +15,7 @@ final class ConfigTests: XCTestCase {
         "elevenLabsAPIKey",
         "elevenLabsVoiceId",
         "listeningEnabled",
+        "bernardVoiceID",
     ]
 
     override func setUp() {
@@ -41,6 +42,21 @@ final class ConfigTests: XCTestCase {
     func testDoloresBaseURLIsValid() {
         XCTAssertTrue(Config.doloresBaseURL.hasPrefix("https://"))
         XCTAssertNotNil(URL(string: Config.doloresBaseURL))
+    }
+
+    func testBernardVoiceUsesEngineDefaultUntilSelected() {
+        XCTAssertEqual(Config.bernardVoiceID, "")
+        Config.setElevenLabsVoiceId("legacy-fallback")
+        XCTAssertEqual(Config.bernardVoiceID, "")
+    }
+
+    func testBernardVoicePersistsSeparatelyAndCanReturnToDefault() {
+        Config.setBernardVoiceID("  account-voice  ")
+        XCTAssertEqual(Config.bernardVoiceID, "account-voice")
+        XCTAssertNotEqual(Config.elevenLabsVoiceId, "account-voice")
+        Config.setBernardVoiceID(" ")
+        XCTAssertEqual(Config.bernardVoiceID, "")
+        XCTAssertNil(UserDefaults.standard.object(forKey: "bernardVoiceID"))
     }
 
     // MARK: - Wake Word
