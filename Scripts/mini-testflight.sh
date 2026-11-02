@@ -243,9 +243,42 @@ end_gate_run() {
   return "$rc"
 }
 
+# The shared job collector retains .log files before removing its staged source.
+# Copy only these non-secret app receipts, preserving their original bytes even
+# when a later compile, signing or upload step fails.
+retain_release_receipts() {
+  python3 -I -B - "$OUT" <<'PY_RECEIPTS'
+import hashlib, json, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+names = (
+    "Package.resolved", "tested-Package.resolved", "archive-Package.resolved",
+    "tested-app.json", "direct-release-verification.json", "archive-verification.json",
+    "matrix-verification.json", "br3-app-report.json", "br3-watch-report.json",
+    "br3-activity-report.json", "br3-app.exit", "br3-watch.exit", "br3-activity.exit",
+    "gate.exit", "gate-matrix.exit", "captured-version.tsv", "asc.out", "intended-version",
+)
+retained = []
+for name in names:
+    source = out / name
+    if source.is_symlink():
+        sys.exit("refusing symlink release receipt: " + name)
+    if not source.exists():
+        continue
+    raw = source.read_bytes()
+    (out / (name + ".log")).write_bytes(raw)
+    retained.append({"original": name, "collected": name + ".log",
+                     "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()})
+(out / "retained-receipts.log").write_text(json.dumps({"receipts": retained}, indent=2) + "\n")
+PY_RECEIPTS
+}
+
 cleanup() {
   local rc=$? rest
   trap '' INT TERM HUP
+  retain_release_receipts > "$OUT/receipt-retention.log" 2>&1 || {
+    echo "could not retain release receipts (see $OUT/receipt-retention.log)"
+    [ "$rc" -ne 0 ] || rc=1
+  }
   if [ -n "$GATE_RUN_ACTIVE" ]; then
     end_gate_run > "$OUT/gate-run-cleanup.log" 2>&1 || {
       echo "could not end the shared gate run (see $OUT/gate-run-cleanup.log)"
@@ -328,6 +361,7 @@ try:
     if len(meta) != 1 or meta[0].get("location") != "https://github.com/facebook/meta-wearables-dat-ios.git" or meta[0].get("state") != {"version": "1.0.1", "revision": "0bd369298eef6a980ad0bdb6c8a5502f2c02a08c"}:
         raise ValueError("actual Meta resolution differs from the pinned DAT 1.0.1 API")
     retained.write_bytes(raw)
+    retained.with_name(retained.name + ".log").write_bytes(raw)
     print("retained actual Xcode Package.resolved with the exact Common release")
 except (OSError, ValueError, TypeError, AttributeError) as error:
     sys.exit("package resolution failed: " + str(error))
@@ -1038,7 +1072,10 @@ if [ -z "$UPLOAD" ]; then
 fi
 
 step pre-upload-verify verify_archive
-step upload signing_retry xcodebuild -exportArchive -archivePath "$ARCHIVE" \
+# Apple may accept a build before the client reports an error. Prepare the
+# keychain once, then upload once; reconcile an uncertain result before retrying.
+step upload-keychain keychain_first
+step upload xcodebuild -exportArchive -archivePath "$ARCHIVE" \
   -exportOptionsPlist "$(options upload)" -exportPath "$OUT/upload" \
   -allowProvisioningUpdates -authenticationKeyPath "$KEY" \
   -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
