@@ -54,7 +54,9 @@
 # Env (defaults are the team's): ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH, CERT_DIR, DOLORES_API_KEY, WHATS_NEW (the
 # build's What to Test text; none by default), BETA_GROUP_NAME.
 set -uo pipefail
-cd "$(dirname "$0")/.." || exit 1
+# Mini job roots may be linked to the external SSD. Normalize once so the Git
+# identity check and all Xcode, proof, bridge and keychain paths use the same root.
+cd -P "$(dirname "$0")/.." || exit 1
 export PATH=/opt/homebrew/bin:$PATH  # xcodegen and python3 with PyJWT; a non-login ssh shell does not have them
 
 USAGE="usage: Scripts/mini-testflight.sh [--no-upload | --matrix-pr <number>]"
