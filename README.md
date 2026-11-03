@@ -1,16 +1,16 @@
-> DAT 1.0 migration (2026-10-31): Meta voice launch and Bernard’s engine voice picker replace the app’s idle custom wake word. This is source preparation; native qualification, Meta beta setup and Ben’s exact glasses model remain unverified. See [migration and acceptance state](docs/dat-1-voice-upgrade.md). The older setup sections below describe the inherited preview app.
+> Current ForIT DAT 1.0 setup: use the existing ForIT Meta project and HTTPS callback described below. The remaining upstream feature descriptions are historical; they do not establish current device behavior. See [migration, release and acceptance state](docs/dat-1-voice-upgrade.md).
 
-> Identity update (2026-09-10): this is the **Bernard Glasses** internal operator client, including the Bernard watch companion. Dolores is the external receptionist in for-Dolores. The bundle ID `com.forit.openglasses.dolores`, saved keys, target names and Shortcuts types remain stable. Fresh installs listen for “Hey Bernard” and accept “Hey Dolores” as a compatibility phrase. Existing saved wake-phrase choices are preserved. Avatar artwork is the ForIT v3 icon set: `for-AI/assets/brand-icons/source/forit-icons-v3/bernard-forit-1024.png` (see `docs/2026-09-11-forit-icons-v3.md`). The app icon (iOS and Watch) is the Bernard smart-glasses variant `docs/brand/bernard-smart-glasses-1024.png` (see `docs/2026-09-11-openglasses-icon-glasses.md`).
+> Identity update (2026-09-10): this is the **Bernard Glasses** internal operator client, including the Bernard watch companion. Dolores is the external receptionist in for-Dolores. The bundle ID `com.forit.openglasses.dolores`, saved keys, target names and Shortcuts types remain stable. The DAT 1.0 integration uses Meta voice launch; earlier custom wake-phrase descriptions are historical. Avatar artwork is the ForIT v3 icon set: `for-AI/assets/brand-icons/source/forit-icons-v3/bernard-forit-1024.png` (see `docs/2026-09-11-forit-icons-v3.md`). The app icon (iOS and Watch) is the Bernard smart-glasses variant `docs/brand/bernard-smart-glasses-1024.png` (see `docs/2026-09-11-openglasses-icon-glasses.md`).
 
 # OpenGlasses
 
-Voice-powered AI assistant for Ray-Ban Meta smart glasses using Claude AI and on-device wake word detection.
+ForIT’s Bernard smart-glasses client. The upstream overview and feature list below are retained historical descriptions, not claims about the current ForIT runtime.
 
-## Overview
+## Inherited upstream overview (historical)
 
 OpenGlasses transforms your Ray-Ban Meta smart glasses into a hands-free AI assistant. Say "Hey Claude" to activate voice recognition, ask questions, and receive responses directly through your glasses' speakers. Built with SwiftUI and leveraging Meta's Wearables SDK, this app provides a seamless AR-enhanced experience.
 
-## Features
+## Inherited upstream features (historical)
 
 ### Core Capabilities
 - **Wake Word Detection**: On-device "Hey Claude" activation using custom wake word model
@@ -32,103 +32,45 @@ OpenGlasses transforms your Ray-Ban Meta smart glasses into a hands-free AI assi
 - Silence timeout detection to end natural conversations
 - Background audio session management for uninterrupted operation
 
-## Requirements
+## Current ForIT requirements
 
-- iOS 26.0+ (iOS 18.0+ technically, configured for 26)
-- Xcode 16.0+
-- Ray-Ban Meta smart glasses (paired via Meta View app)
-- Anthropic API key ([get one here](https://console.anthropic.com/))
-- Meta Developer account for Wearables SDK access
+- **The installed client:** A current ForIT Glasses iPhone build using the existing `com.forit.openglasses.dolores` bundle and ForIT profile. Actual glasses behavior still needs device acceptance.
+- **The Bernard key:** Use the existing onboarding screen’s **Bernard API Key** field and Continue, or the existing Settings account field. This is a key for Bernard’s ForIT engine; do not obtain or enter a direct Anthropic/provider key or edit `Config.swift` for setup.
+- **The paired glasses:** Meta glasses connected to the Meta AI companion app on the iPhone, with the actual consumer Meta account accepted into the correct existing private beta. A managed developer-console account is not proof of that membership.
+- **The build access:** For developers, existing read access to private ForITCommon and the maintained Mini build route below. The pinned SDK and current native evidence determine toolchain compatibility; the old upstream Xcode/iOS requirements are not release instructions.
 
-## Installation
+## ForIT DAT 1.0 setup
 
-### 1. Clone the Repository
+Use the existing ForIT integration. Do not create a new Meta project or copy the inherited upstream project identity.
 
-```bash
-git clone https://github.com/straff2002/OpenGlasses.git
-cd OpenGlasses
-```
+| Existing project value | Current ForIT integration |
+| --- | --- |
+| Apple team | `UUSSWWML2A` |
+| App bundle ID | `com.forit.openglasses.dolores` |
+| Meta application ID | `25955189420829430` |
+| HTTPS callback | `https://ai.forit.io/glasses/meta` |
+| Associated domain | `applinks:ai.forit.io` |
+| AASA application identity | `UUSSWWML2A.com.forit.openglasses.dolores` |
 
-### 2. Configure API Keys
+Keep `project.yml`, the final `OpenGlasses/Info.plist`, signing configuration and the existing Meta project's iOS configuration aligned. `MWDAT.AppLinkURLScheme` contains the exact HTTPS callback above despite its historical field name. Use the SDK ClientToken generated by that same existing project; its value is intentionally not repeated here.
 
-Edit `OpenGlasses/Sources/Utils/Config.swift`:
+The callback requires Associated Domains in the signed app and its provisioning profile, plus a valid HTTPS `apple-app-site-association` response on `ai.forit.io` identifying this app and callback path. The repository-root `index.html` and `.well-known/apple-app-site-association` are inherited GitHub Pages artifacts, not the current callback or its hosted association. Do not configure this release with an `mwdat-*` custom callback. The remaining `io.forit.glasses` custom scheme serves ForIT sign-in, not Meta registration.
 
-```swift
-struct Config {
-    static let anthropicAPIKey = "YOUR_ANTHROPIC_API_KEY_HERE"
-}
-```
+Use the existing project's corrected private beta version/channel. The consumer Meta account actually signed into Meta AI on the paired phone must have accepted that channel's invitation; a managed developer account and Apple TestFlight membership do not establish that access. Use the exact spoken app name in the selected Meta version. Meta's maintainer correction requires Developer Mode off for voice launch; its generic developer-mode examples are not this beta setup.
 
-### 3. Set Up Meta Wearables SDK
+A private beta configuration, package resolution or successful upload does not prove registration, locked-phone launch, camera/microphone switching or the selected Bernard voice on the actual glasses. Run the device acceptance described in [the integration note](docs/dat-1-voice-upgrade.md). Build and test only through the maintained authorized native release route; do not run a local fleet-server build.
 
-Use your own Meta app credentials and keep all identifiers aligned.
+Project-specific values above come from the existing integration and signing configuration. For another independently owned application, substitute that application's own values and follow current DAT 1.0 documentation; the inherited project values are not reusable placeholders.
 
-#### Meta Setup Values (copy/paste template)
+Official DAT 1.0 references: [project configuration and HTTPS Universal Links](https://wearables.developer.meta.com/docs/develop/dat/manage-projects/#ios-universal-link), [iOS callback and associated-domain setup](https://wearables.developer.meta.com/docs/develop/dat/build-integration-ios/#step-1-add-info-properties), [private beta and tester accounts](https://wearables.developer.meta.com/docs/develop/dat/set-up-release-channels/#configure-your-private-release-channel), and [Meta's release-channel voice-launch correction](https://github.com/meta/meta-wearables-dat-ios/discussions/326).
 
-Replace the placeholders below with your own values:
-
-```text
-TEAM_ID=<YOUR_APPLE_TEAM_ID>
-BUNDLE_ID=<YOUR_UNIQUE_BUNDLE_ID>
-META_APP_ID=<YOUR_META_APP_ID>
-CLIENT_TOKEN=<YOUR_META_CLIENT_TOKEN>
-UNIVERSAL_LINK=https://<YOUR_DOMAIN>/<YOUR_PATH>
-
-URL_SCHEME=mwdat-${META_APP_ID}
-AASA_APP_ID=${TEAM_ID}.${BUNDLE_ID}
-```
-
-#### Where each value goes
-
-1. **Meta dashboard (iOS app details)**
-  - Team ID → `TEAM_ID`
-  - Bundle ID → `BUNDLE_ID`
-  - Universal Link → `UNIVERSAL_LINK`
-
-2. **`project.yml`**
-  - `settings.base.PRODUCT_BUNDLE_IDENTIFIER` → `BUNDLE_ID`
-  - `info.properties.MWDAT.MetaAppID` → `META_APP_ID`
-  - `info.properties.MWDAT.ClientToken` → `CLIENT_TOKEN`
-  - `info.properties.MWDAT.TeamID` → `$(DEVELOPMENT_TEAM)` (or `TEAM_ID`)
-  - `info.properties.MWDAT.AppLinkURLScheme` → `URL_SCHEME`
-  - `info.properties.CFBundleURLTypes[].CFBundleURLSchemes[]` → `URL_SCHEME`
-
-3. **Xcode Signing**
-  - Target → Signing & Capabilities → Team = `TEAM_ID`
-  - Bundle Identifier = `BUNDLE_ID` (Debug + Release)
-
-4. **Universal Links (`.well-known/apple-app-site-association`)**
-  - `applinks.details[].appID` → `AASA_APP_ID`
-
-5. **`OpenGlasses/Info.plist` (generated/final check)**
-  - `MWDAT.MetaAppID` = `META_APP_ID`
-  - `MWDAT.ClientToken` = `CLIENT_TOKEN`
-  - `MWDAT.TeamID` = `TEAM_ID` (or resolves from `$(DEVELOPMENT_TEAM)`)
-  - `MWDAT.AppLinkURLScheme` = `URL_SCHEME`
-  - `CFBundleURLSchemes` contains `URL_SCHEME`
-
-#### Notes
-- Bundle IDs must be globally unique in Apple Developer (for example, add a suffix like `.skunk0`).
-- If Meta Wearables is running in Developer Mode for local testing, Meta may not require full app-review configuration.
-- If auth loops at registration state 1→2, one or more values above are usually misaligned.
-
-### 4. Build and Run
-
-```bash
-# Open in Xcode
-open OpenGlasses.xcodeproj
-
-# Or use Swift Package Manager
-swift build
-```
-
-**Note**: First launch will trigger Meta AI app for glasses pairing authorization.
-
-### ForIT build
+## ForIT development and distribution
 
 ForIT Glasses (`com.forit.openglasses.dolores`) gets ForIT Sign-in and Send feedback from the ForITCommon package in ForITLLC/for-iCommon. That repository is private, so resolving packages needs a GitHub account or token that can read it.
 
-Tests and internal TestFlight uploads run by hand on the Mac mini with `Scripts/mini-testflight.sh` (usage is in its header). No GitHub-hosted macOS runner builds this app.
+Native tests and internal TestFlight releases use for-dev’s maintained `infra/apple-builds/mini-build.py` launcher with `--app OpenGlasses`, an exact full `--commit` and `--platform ios`. OpenGlasses omits `--build` because its adapter allocates the next Apple build number. The launcher plans by default; `--execute` starts a job and `--upload` requests the existing upload path. Follow the [maintained launcher instructions](https://github.com/ForITLLC/for-dev/blob/main/infra/apple-builds/README.md) and reconcile an existing job before starting another.
+
+`Scripts/mini-testflight.sh` remains the app-owned adapter called by that launcher, not a separate manual release entry point. Builds and test suites run on the Mini, not on the fleet server or a GitHub-hosted macOS runner. A later README-only correction does not require another archive or release.
 
 ## Project Structure
 
@@ -198,7 +140,9 @@ Managed via Swift Package Manager:
 - Display Name: OpenGlasses
 - Version: 1.2 (Build 3)
 
-## Usage
+## Inherited preview usage (historical)
+
+These steps describe the older preview app, including its custom wake listener. Use the ForIT DAT 1.0 setup and integration note above for the current release.
 
 ### First Time Setup
 1. Launch app on iPhone
@@ -218,7 +162,7 @@ Managed via Swift Package Manager:
 - **Wake word not detecting**: Tap "Test Microphone" to restart listener
 - **No audio through glasses**: Check Bluetooth routing in iOS settings
 - **Connection issues**: Press "Connect to Glasses" to re-authorize
-- **"Internal error" when connecting**: You need to enable Developer Mode in the Meta AI app. Go to Meta AI → Settings → About → tap the version number **5 times** → toggle Developer Mode on. This is required for all third-party MWDAT apps.
+- **Meta beta registration or voice launch**: Check the current HTTPS callback, signed associated domain and accepted private-beta account described above. Do not enable Developer Mode as a blanket fix for this release.
 
 ## Development Notes
 

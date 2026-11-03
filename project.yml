@@ -139,6 +139,9 @@ targets:
               - "io.forit.glasses"
     entitlements:
       path: OpenGlasses/OpenGlasses.entitlements
+      properties:
+        com.apple.developer.associated-domains:
+          - "applinks:ai.forit.io"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores
