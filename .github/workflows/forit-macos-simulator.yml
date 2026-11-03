@@ -1,0 +1,24 @@
+name: ForIT Mini simulator
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: [self-hosted, macOS, ARM64, mini]
+    timeout-minutes: 45
+    steps:
+      - name: Boot the preserved OpenGlasses phone
+        shell: bash
+        run: |
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses check A5E302B9-7202-4C2C-BE4B-B2B7D0DD3CD4
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses boot A5E302B9-7202-4C2C-BE4B-B2B7D0DD3CD4
+      - name: Read back the OpenGlasses devices
+        if: always()
+        shell: bash
+        run: |
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses device iPhone
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses list
