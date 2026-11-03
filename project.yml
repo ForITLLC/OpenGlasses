@@ -129,13 +129,11 @@ targets:
         LSApplicationQueriesSchemes:
           - "fb-viewapp"
         MWDAT:
-          AppLinkURLScheme: "mwdat-688603774243722://"
-          MetaAppID: "688603774243722"
-          ClientToken: "AR|688603774243722|906db0d1b28450fdb718401ca16b9d60"
+          AppLinkURLScheme: "https://ai.forit.io/glasses/meta"
+          MetaAppID: "25955189420829430"
+          ClientToken: "AR|25955189420829430|00e2a3f7bb9d50605a464a5503cc528e"
           TeamID: "$(DEVELOPMENT_TEAM)"
         CFBundleURLTypes:
-          - CFBundleURLSchemes:
-              - "mwdat-688603774243722"
           # ForIT Sign-in's redirect (FeedbackAccount.redirectURI).
           - CFBundleURLSchemes:
               - "io.forit.glasses"

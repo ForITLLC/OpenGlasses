@@ -67,14 +67,38 @@ final class MetaVoiceInvocationService: ObservableObject {
         onLaunch = nil
     }
 
-    /// DAT has no public `isDATUrl` helper in 1.0.1. Match the SDK's configured
-    /// callback scheme locally, keeping ForIT sign-in and unrelated links out.
+    /// DAT has no public `isDATUrl` helper in 1.0.1. Route only the configured
+    /// callback endpoint; the SDK validates its query/fragment payload.
     static func isDATURL(_ url: URL, bundle: Bundle = .main) -> Bool {
         guard let config = bundle.object(forInfoDictionaryKey: "MWDAT") as? [String: Any],
-              let callback = config["AppLinkURLScheme"] as? String,
-              let configuredScheme = URL(string: callback)?.scheme,
-              let incomingScheme = url.scheme else { return false }
-        return incomingScheme.caseInsensitiveCompare(configuredScheme) == .orderedSame
+              let callback = config["AppLinkURLScheme"] as? String else { return false }
+        return isDATURL(url, configuredCallback: callback)
+    }
+
+    static func isDATURL(_ url: URL, configuredCallback: String) -> Bool {
+        guard let configured = URLComponents(string: configuredCallback),
+              let incoming = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let configuredScheme = configured.scheme?.lowercased(),
+              incoming.scheme?.lowercased() == configuredScheme,
+              configured.user == nil, configured.password == nil,
+              incoming.user == nil, incoming.password == nil else { return false }
+
+        // A development build may explicitly configure Meta's custom scheme.
+        // An HTTPS build must never fall back to that scheme or accept plain HTTP.
+        guard configuredScheme == "https" else { return configuredScheme != "http" }
+
+        guard let configuredHost = configured.percentEncodedHost, !configuredHost.isEmpty,
+              incoming.percentEncodedHost?.lowercased() == configuredHost.lowercased(),
+              (incoming.port ?? 443) == (configured.port ?? 443) else { return false }
+
+        let path = configured.percentEncodedPath
+        let callbackPath = path.hasSuffix("/") ? String(path.dropLast()) : path
+        guard !callbackPath.isEmpty, !callbackPath.hasSuffix("/"),
+              !callbackPath.contains("%"),
+              !callbackPath.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else { return false }
+        // Compare the encoded path itself: decoding first would admit escaped
+        // slashes, dots or letters as another spelling of the callback route.
+        return incoming.percentEncodedPath == callbackPath || incoming.percentEncodedPath == callbackPath + "/"
     }
 
     /// Used for both cold and warm URL entry. The SDK consumes the URL once;

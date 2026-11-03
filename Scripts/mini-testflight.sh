@@ -437,11 +437,19 @@ prune_installed() {  # prune_installed <profile name> <uuid to keep>
 PROFILE_UUID=""
 profile() {
   local key=$1 bundle=$2 name=$3 file
+  local profile_args=(--bundle-id "$bundle")
   file=$OUT/profile-$key.mobileprovision
   grep -q -F "PROVISIONING_PROFILE_SPECIFIER: \"$name\"" project.yml ||
     { echo "project.yml names no profile \"$name\"; the archive would not find it"; exit 1; }
+  # DAT1 release callbacks use the app's HTTPS Universal Link. The maintained
+  # provisioner enables this capability and refreshes a profile missing it,
+  # retaining the existing signing certificate. The widget needs no app links.
+  if [ "$key" = app ]; then
+    profile_args+=(--capability ASSOCIATED_DOMAINS --entitlement com.apple.developer.associated-domains)
+  fi
   step "profile-$key" python3 "$ASC_PROVISION" profile --type IOS_APP_STORE --name "$name" \
-    --bundle-id "$bundle" --cert-der "$CERT_DIR/distribution.der" --error-title "$name" --out "$file"
+    --cert-der "$CERT_DIR/distribution.der" --error-title "$name" --out "$file" \
+    "${profile_args[@]}"
   PROFILE_UUID=$(profile_field "$file" UUID)
   [ -n "$PROFILE_UUID" ] || { echo "no UUID in $file"; exit 1; }
   profile_certs "$file" | grep -q -x "$CERT" ||

@@ -201,10 +201,95 @@ final class MetaVoiceInvocationTests: XCTestCase {
     func testUnconfiguredURLHandlingDoesNotTouchSDK() async throws {
         try await unconfigured {
             let service = MetaVoiceInvocationService()
-            let handled = try await service.handleURL(URL(string: "mwdat-688603774243722://launch")!)
+            let callback = URL(string: "https://ai.forit.io/glasses/meta?code=synthetic&state=synthetic")!
+            // Exercise the SDK-availability check after the real bundle's
+            // production callback has passed classification.
+            XCTAssertTrue(MetaVoiceInvocationService.isDATURL(callback))
+            let handled = try await service.handleURL(callback)
             XCTAssertFalse(handled)
+            XCTAssertFalse(MetaVoiceInvocationService.isDATURL(URL(string: "mwdat-688603774243722://launch")!))
             XCTAssertFalse(MetaVoiceInvocationService.isDATURL(URL(string: "https://example.invalid/callback")!))
         }
+    }
+
+    func testHTTPSCallbackAcceptsPayloadAndOptionalTrailingSlash() {
+        let configured = "https://ai.forit.io/glasses/meta"
+        for incoming in [
+            "https://ai.forit.io/glasses/meta?code=synthetic&state=a%2Fb",
+            "https://ai.forit.io/glasses/meta/?code=synthetic",
+            "https://ai.forit.io/glasses/meta#synthetic-payload",
+            "https://AI.FORIT.IO:443/glasses/meta?code=synthetic#fragment",
+        ] {
+            XCTAssertTrue(MetaVoiceInvocationService.isDATURL(URL(string: incoming)!, configuredCallback: configured), incoming)
+        }
+        XCTAssertTrue(MetaVoiceInvocationService.isDATURL(
+            URL(string: "https://ai.forit.io/glasses/meta?code=synthetic")!,
+            configuredCallback: "https://ai.forit.io/glasses/meta/"))
+    }
+
+    func testHTTPSCallbackRejectsOtherRoutesAndSignInLinks() {
+        let configured = "https://ai.forit.io/glasses/meta"
+        for incoming in [
+            "https://example.invalid/glasses/meta?code=synthetic",
+            "https://ai.forit.io/",
+            "https://ai.forit.io/auth/callback?code=synthetic",
+            "https://ai.forit.io/glasses/meta-extra?code=synthetic",
+            "https://ai.forit.io/glasses/meta/child?code=synthetic",
+            "https://ai.forit.io/glasses/meta//",
+            "https://ai.forit.io/Glasses/meta",
+            "io.forit.glasses://oauth/callback?code=synthetic&state=synthetic",
+            "mwdat-test://launch?code=synthetic",
+            "http://ai.forit.io/glasses/meta",
+        ] {
+            XCTAssertFalse(MetaVoiceInvocationService.isDATURL(URL(string: incoming)!, configuredCallback: configured), incoming)
+        }
+    }
+
+    func testHTTPSCallbackRejectsLookalikeHostsCredentialsAndWrongPorts() {
+        let configured = "https://ai.forit.io/glasses/meta"
+        for incoming in [
+            "https://ai.forit.io.evil.invalid/glasses/meta",
+            "https://evil-ai.forit.io/glasses/meta",
+            "https://ai.forit.io./glasses/meta",
+            "https://%61i.forit.io/glasses/meta",
+            "https://ai.forit.io@evil.invalid/glasses/meta",
+            "https://synthetic@ai.forit.io/glasses/meta",
+            "https://synthetic:password@ai.forit.io/glasses/meta",
+            "https://ai.forit.io:80/glasses/meta",
+            "https://ai.forit.io:444/glasses/meta",
+        ] {
+            XCTAssertFalse(MetaVoiceInvocationService.isDATURL(URL(string: incoming)!, configuredCallback: configured), incoming)
+        }
+        XCTAssertTrue(MetaVoiceInvocationService.isDATURL(
+            URL(string: "https://ai.forit.io/glasses/meta")!,
+            configuredCallback: "https://ai.forit.io:443/glasses/meta"))
+    }
+
+    func testHTTPSCallbackDoesNotDecodeAlternatePathSpellings() {
+        let configured = "https://ai.forit.io/glasses/meta"
+        for path in [
+            "/%67lasses/meta", "/glasses/%6Deta", "/glasses%2Fmeta",
+            "/glasses/meta%2F", "/glasses/meta%2fchild", "/glasses/meta%00",
+            "/glasses/meta%3Fcode=synthetic", "/glasses/%2E/meta",
+            "/glasses/other/../meta", "/glasses/./meta", "/glasses//meta",
+        ] {
+            let incoming = URL(string: "https://ai.forit.io" + path)!
+            XCTAssertFalse(MetaVoiceInvocationService.isDATURL(incoming, configuredCallback: configured), path)
+        }
+    }
+
+    func testCustomCallbackRequiresAnExplicitMatchingDevelopmentConfiguration() {
+        let development = "mwdat-test://"
+        XCTAssertTrue(MetaVoiceInvocationService.isDATURL(
+            URL(string: "mwdat-test://launch?code=synthetic")!, configuredCallback: development))
+        XCTAssertFalse(MetaVoiceInvocationService.isDATURL(
+            URL(string: "mwdat-other://launch?code=synthetic")!, configuredCallback: development))
+        XCTAssertFalse(MetaVoiceInvocationService.isDATURL(
+            URL(string: "https://ai.forit.io/glasses/meta?code=synthetic")!, configuredCallback: development))
+        XCTAssertFalse(MetaVoiceInvocationService.isDATURL(
+            URL(string: "http://ai.forit.io/glasses/meta")!, configuredCallback: "http://ai.forit.io/glasses/meta"))
+        XCTAssertFalse(MetaVoiceInvocationService.isDATURL(
+            URL(string: "https://ai.forit.io/glasses/meta")!, configuredCallback: ""))
     }
 
     func testResponseStopRecognizerDoesNotStartAnIdleWakeListener() async throws {

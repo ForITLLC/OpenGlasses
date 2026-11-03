@@ -23,12 +23,6 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>mwdat-688603774243722</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
 				<string>io.forit.glasses</string>
 			</array>
 		</dict>
@@ -44,11 +38,11 @@
 	<key>MWDAT</key>
 	<dict>
 		<key>AppLinkURLScheme</key>
-		<string>mwdat-688603774243722://</string>
+		<string>https://ai.forit.io/glasses/meta</string>
 		<key>ClientToken</key>
-		<string>AR|688603774243722|906db0d1b28450fdb718401ca16b9d60</string>
+		<string>AR|25955189420829430|00e2a3f7bb9d50605a464a5503cc528e</string>
 		<key>MetaAppID</key>
-		<string>688603774243722</string>
+		<string>25955189420829430</string>
 		<key>TeamID</key>
 		<string>$(DEVELOPMENT_TEAM)</string>
 	</dict>
