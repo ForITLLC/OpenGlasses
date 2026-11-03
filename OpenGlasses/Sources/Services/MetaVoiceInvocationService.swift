@@ -20,7 +20,7 @@ final class MetaVoiceInvocationService: ObservableObject {
     private var listeningOn: DeviceIdentifier?
     private var generation = UUID()
     private var enabled = false
-    private var handlingLaunch = false
+    private var handlingLaunch: UUID?
     private var retryDelay: UInt64 = 500_000_000
 
     func start(onLaunch: @escaping @MainActor () async throws -> Void) {
@@ -50,6 +50,7 @@ final class MetaVoiceInvocationService: ObservableObject {
     func stop() {
         enabled = false
         generation = UUID()
+        handlingLaunch = nil
         registrationTask?.cancel()
         registrationTask = nil
         retryTask?.cancel()
@@ -168,19 +169,35 @@ final class MetaVoiceInvocationService: ObservableObject {
     /// listening flow may fail (for example denied microphone access), in which
     /// case Meta receives failure rather than a successful launch claim.
     func handleLaunch(_ launch: LaunchApp) async {
-        guard !handlingLaunch, let onLaunch else {
+        guard handlingLaunch == nil, let onLaunch else {
             _ = await launch.responseHandle.sendFailure(actionOutput: nil)
             return
         }
-        handlingLaunch = true
-        defer { handlingLaunch = false }
+        let lifecycle = generation
+        let invocation = UUID()
+        handlingLaunch = invocation
+        defer {
+            if handlingLaunch == invocation { handlingLaunch = nil }
+        }
         do {
             try await onLaunch()
+            // Stop may run while permission or microphone startup is suspended.
+            // A later recording belongs to the next lifecycle, not this launch.
+            guard generation == lifecycle else {
+                _ = await launch.responseHandle.sendFailure(actionOutput: nil)
+                return
+            }
             let delivered = await launch.responseHandle.sendSuccess(actionOutput: nil)
+            guard generation == lifecycle else { return }
             if !delivered { lastError = "The launch reply did not reach Meta." }
         } catch {
+            guard generation == lifecycle else {
+                _ = await launch.responseHandle.sendFailure(actionOutput: nil)
+                return
+            }
             lastError = error.localizedDescription
             let delivered = await launch.responseHandle.sendFailure(actionOutput: nil)
+            guard generation == lifecycle else { return }
             if !delivered { lastError = "The launch failed and its reply did not reach Meta." }
         }
     }

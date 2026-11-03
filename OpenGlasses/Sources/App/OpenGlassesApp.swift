@@ -544,12 +544,22 @@ class AppState: ObservableObject {
     func stopSpeakingAndResume() {
         guard listeningEnabled else { return }
         print("[MIC] stopSpeakingAndResume called. inConversation=\(inConversation) isListening=\(isListening)")
+        // Stopping speech resumes its awaiting reply task. Retire that task
+        // before it can tear down the engine now used for follow-up recording.
+        activationGeneration = UUID()
+        wakeWordService.listenForStop = false
+        wakeWordService.pauseRecognitionPublic()
         speechService.stopSpeaking()
         isProcessing = false
         if inConversation {
             print("Listening for follow-up after stop...")
-            isListening = true
             transcriptionService.startRecording()
+            isListening = transcriptionService.isRecording
+            if !isListening {
+                inConversation = false
+                wakeWordService.stopListening()
+                errorMessage = transcriptionService.errorMessage ?? "The microphone could not resume."
+            }
         } else {
             Task { await safeReturnToWakeWord() }
         }
@@ -820,16 +830,25 @@ class AppState: ObservableObject {
 
     private func startStopListener() {
         guard listeningEnabled else { return }
+        let generation = activationGeneration
         wakeWordService.listenForStop = true
         Task { @MainActor [weak self] in
-            do { try await self?.wakeWordService.startListening() }
-            catch { self?.addDebugEvent("Stop listener unavailable: \(error.localizedDescription)") }
+            guard let self, self.listeningEnabled,
+                  self.activationGeneration == generation,
+                  self.wakeWordService.listenForStop else { return }
+            do { try await self.wakeWordService.startListening() }
+            catch {
+                guard self.activationGeneration == generation else { return }
+                self.addDebugEvent("Stop listener unavailable: \(error.localizedDescription)")
+            }
         }
     }
 
     private func stopStopListener() {
         wakeWordService.listenForStop = false
-        wakeWordService.stopListening()
+        // Follow-up transcription can keep using this engine in the background.
+        // Ending the conversation owns the eventual engine teardown.
+        wakeWordService.pauseRecognitionPublic()
     }
 
     /// Dump all state to ErrorReporter (App Insights) for remote diagnostics.

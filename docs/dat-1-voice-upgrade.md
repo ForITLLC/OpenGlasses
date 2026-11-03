@@ -12,7 +12,7 @@ Settings has a shared native Voice picker. It loads real available voices from B
 
 ## Engine contract and owner
 
-for-AI owns the engine implementation and publication; OpenGlasses owns the picker and saved selection. Existing API-key authentication remains in use. No provider key moves to the phone.
+for-AI owns the engine implementation and publication; OpenGlasses owns the picker and saved selection. Existing API-key authentication remains in use. No provider key moves to the phone. The November 3 [engine publication readback](/home/runner/handoffs/OpenGlasses/ben-report-20261103/ENGINE-PUBLICATION-READBACK.json) confirms the voice contract is present in the successful normal v216 release source (`d9985328369ffe6801cd573b91306026044d83a3`), first included in v213. This is published-source evidence, not proof of the signed-in account catalogue, generated audio or a working physical voice choice.
 
 - `GET <configured voice URL>/voices`, authenticated with `X-API-Key`, returns `defaultVoiceId` and `voices: [{id, name}]`. The legacy shared key also requires `userEmail`; a per-user key supplies its own identity.
 - `POST <configured voice URL>` accepts optional `voiceId`. Omitting it retains the existing engine default. An explicit unavailable or malformed choice fails before a model turn starts.
@@ -40,7 +40,11 @@ Our fork's common ancestor `129cfeb862818871dcdddb58c2c4c4589a3f68cc` and retain
 
 Source review, YAML/plist parsing, shell syntax and embedded Python parsing are separate from native proof. Added XCTest cases cover injected invocation acknowledgements, inert/unconfigured startup, no idle Stop recognizer, configuration isolation, catalogue requests/parsing and effective-voice audio checks. Their native execution is pending.
 
-The checked-in historical canonical package lock still describes the prior Meta 0.5 resolution. It is preserved until a genuine SDK resolution replaces it; it is not hand-edited. The maintained release helper now requires actual Meta **1.0.1 / 0bd369298eef6a980ad0bdb6c8a5502f2c02a08c**. Native qualification must retain the newly resolved lock, verify the current Xcode can consume the distributed Swift 6.3.3 interfaces, and run the unit/UI checks on the existing serial build route. No new TestFlight upload or working physical Meta launch is claimed by this source change. Existing build 1.0 (32) and old screenshot evidence retain their original source identity.
+Commit `bc130a910a7c7d3e8215c64bde01e37cdc8f1e90` already retains the genuine Xcode-resolved canonical package lock: Meta **1.0.1 / 0bd369298eef6a980ad0bdb6c8a5502f2c02a08c** and Common **0.31.9 / 352f567e839b8faf61b6df5840c5275b016addce**. The actual November 3 job `apple-OpenGlasses-bc130a910a7c-2a5e8ae39b32` passed package resolution and retained lock bytes identical to that commit. The pins were not hand-edited; the lock SHA-256 is `377eb8e3cd13e30f0e3407633abfdbfb4001c2cf10d7dad3e7845f063b22293c`.
+
+That job ran from 03:23:44 to 03:49:02 UTC and exited 1 when the owned iPhone simulator's first boot failed to finish its data migration. It stopped before app compilation, tests, signing, archive, export or upload. Resolving the SDK does not prove the compiler can consume its Swift 6.3.3 interfaces. The [independent native result review](/home/runner/handoffs/OpenGlasses/ben-report-20261103/NATIVE-INDEPENDENT-RESULT-REVIEW.json) binds the exact source, raw lock, failure and cleanup receipts; the [actual job result](/home/runner/handoffs/OpenGlasses/ben-report-20261103/native-jobs/apple-OpenGlasses-bc130a910a7c-2a5e8ae39b32/result.json) records the failed execution.
+
+No new TestFlight upload or working physical Meta launch or selected-voice playback is claimed. Existing build 1.0 (32) and old screenshot evidence retain their original source identity. The [voice device acceptance plan](/home/runner/handoffs/OpenGlasses/ben-report-20261103/VOICE-DEVICE-ACCEPTANCE-PLAN.json) separates existing contract tests from the unrun signed-in UI, persisted Undo, confirmed audio and cancellation checks; it uses ordinary app requests coordinated with for-AI, without duplicate standalone provider probes.
 
 ## Primary sources
 

@@ -434,6 +434,9 @@ class WakeWordService: NSObject, ObservableObject {
 
     /// Public version of pauseRecognition — stops recognition but keeps engine alive
     func pauseRecognitionPublic() {
+        // A permission request or retry may still be awaiting. It must not
+        // restart Stop recognition after transcription has taken the engine.
+        listeningGeneration = UUID()
         pauseRecognition()
     }
 
