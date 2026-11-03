@@ -9,14 +9,26 @@ permissions:
 jobs:
   simulator:
     runs-on: [self-hosted, macOS, ARM64, mini]
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Boot the preserved OpenGlasses phone
         shell: bash
+        env:
+          CI_SIM_LANE_LIMIT_FIRSTBOOT: 1200
         run: |
           /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses check A5E302B9-7202-4C2C-BE4B-B2B7D0DD3CD4
           /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses boot A5E302B9-7202-4C2C-BE4B-B2B7D0DD3CD4
-      - name: Read back the OpenGlasses devices
+      - name: Record the boot result
+        if: always()
+        shell: bash
+        run: |
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses device iPhone
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses list
+      - name: Shut down the preserved OpenGlasses phone
+        if: always()
+        shell: bash
+        run: /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses simctl shutdown A5E302B9-7202-4C2C-BE4B-B2B7D0DD3CD4
+      - name: Record the final OpenGlasses device state
         if: always()
         shell: bash
         run: |
