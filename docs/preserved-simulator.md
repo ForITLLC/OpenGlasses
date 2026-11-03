@@ -16,7 +16,7 @@ are the evidence of the attempt; the presence of this workflow is not proof of
 a successful boot.
 
 Before the first dispatch, for-dev must qualify a repository-eligible Mini
-runner and register the new manual workflow on the default branch. A feature
+runner, and OpenGlasses must register the new manual workflow on the default branch. A feature
 branch containing a new manual workflow alone does not satisfy GitHub's
 [default-branch requirement](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 Once both prerequisites are met, submit exactly one run:
