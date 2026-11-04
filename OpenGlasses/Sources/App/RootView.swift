@@ -1,10 +1,29 @@
 import SwiftUI
+import ForITCommon
 
 struct RootView: View {
+    @EnvironmentObject private var appState: AppState
     @State private var showLaunchScreen = true
     @State private var needsOnboarding = Config.doloresAPIKey.isEmpty
 
     var body: some View {
+        Group {
+            #if DEBUG
+            if let scene = OpenGlassesScreenshotFixture.scene {
+                fixtureContent(scene)
+                    .onAppear { OpenGlassesScreenshotFixture.prepare(appState) }
+            } else {
+                liveContent
+            }
+            #else
+            liveContent
+            #endif
+        }
+        .forITScreenBackground()
+        .forITScreenHarness()
+    }
+
+    private var liveContent: some View {
         ZStack {
             if needsOnboarding {
                 OnboardingView(onComplete: {
@@ -28,6 +47,20 @@ struct RootView: View {
             }
         }
     }
+
+    #if DEBUG
+    @ViewBuilder
+    private func fixtureContent(_ scene: OpenGlassesScreenshotFixture.Scene) -> some View {
+        switch scene {
+        case .gate:
+            OnboardingView(onComplete: {})
+        case .home, .detail, .settings:
+            MainView()
+        case .launch:
+            LaunchScreen()
+        }
+    }
+    #endif
 }
 
 /// First-launch onboarding — just API key
@@ -36,9 +69,17 @@ struct OnboardingView: View {
     @State private var apiKey = ""
 
     var body: some View {
-        ZStack {
-            Color(hex: "0A1A26").ignoresSafeArea()
+        GeometryReader { viewport in
+            ScrollView {
+                onboardingContent
+                    .frame(minHeight: viewport.size.height)
+            }
+        }
+        .forITScreenBackground()
+    }
 
+    private var onboardingContent: some View {
+        ZStack {
             VStack(spacing: 32) {
                 Spacer()
 
@@ -50,12 +91,13 @@ struct OnboardingView: View {
 
                 Text("Welcome to ForIT Glasses")
                     .font(.title2.bold())
-                    .foregroundColor(.white)
+                    .foregroundStyle(.primary)
 
                 Text("Ask Bernard in Teams for your API key.")
                     .font(.body)
-                    .foregroundColor(Color(hex: "8EDCEF").opacity(0.7))
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 TextField("Bernard API Key", text: $apiKey)
                     .autocapitalization(.none)
@@ -64,6 +106,9 @@ struct OnboardingView: View {
                     .padding(.horizontal, 40)
 
                 Button {
+                    #if DEBUG
+                    guard !OpenGlassesScreenshotFixture.isActive else { return }
+                    #endif
                     let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
                     Config.setAPIKey(trimmed)
@@ -71,12 +116,9 @@ struct OnboardingView: View {
                 } label: {
                     Text("Continue")
                         .font(.headline)
-                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(hex: "8EDCEF"))
-                        .cornerRadius(14)
                 }
+                .buttonStyle(.forITPrimary)
                 .padding(.horizontal, 40)
                 .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 

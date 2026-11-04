@@ -1,0 +1,29 @@
+{
+  "comment": "OpenGlasses single-mark and gate adoption work order AEB115CE; screenshots require the shared capture owner's GO.",
+  "name": "ForIT Glasses",
+  "bundleId": "com.forit.openglasses.dolores",
+  "textScreens": [],
+  "textScreensWhy": "The AEB115CE work order covers a voice client: speech transcripts and generated replies are transient, with no retained user-authored document to edit; settings edit their values directly.",
+  "offline": {
+    "mode": "live",
+    "why": "Voice replies require the live ForIT AI Engine, and glasses control requires connected hardware. There is no retained document collection to synchronize; API and voice preferences remain local."
+  },
+  "hosts": {
+    "forit-ai-engine.azurewebsites.net": "own backend: the voice endpoint and its error-log endpoint",
+    "api.elevenlabs.io": "external speech synthesis provider selected by the person's ElevenLabs API key"
+  },
+  "screens": {
+    "scheme": "OpenGlasses",
+    "project": "project.yml",
+    "list": [
+      {"name": "gate", "args": ["-screenshot-scene", "gate"]},
+      {"name": "home", "args": ["-screenshot-scene", "home"]},
+      {"name": "detail", "args": ["-screenshot-scene", "detail"]},
+      {"name": "settings", "args": ["-screenshot-scene", "settings"]},
+      {"name": "launch", "args": ["-screenshot-scene", "launch"]}
+    ]
+  },
+  "waivers": {
+    "PL-2..5": "Native Mac and Vision Pro targets and Watch distribution were already missing on baseline 45b52531. Dispatch 2026-10-14 directs those existing gaps to open task 5BBB3471-E5DA-48AD-B1BB-2A83A5B0D4E2 under epic 73E7B446, without an invented future due date. This mark release updates and compiles the Watch source but claims delivery only on the existing iOS channel; Dispatch is starting the platform worker."
+  }
+}

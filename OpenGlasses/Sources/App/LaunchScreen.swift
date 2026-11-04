@@ -1,3 +1,4 @@
+import ForITCommon
 import SwiftUI
 
 struct LaunchScreen: View {
@@ -5,8 +6,6 @@ struct LaunchScreen: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "0A1A26").ignoresSafeArea()
-
             VStack(spacing: 16) {
                 Spacer()
 
@@ -22,18 +21,15 @@ struct LaunchScreen: View {
                     .scaleEffect(isAnimating ? 1.0 : 0.8)
                     .opacity(isAnimating ? 1.0 : 0)
 
-                // ForIT logo
-                Image("ForITLogo")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundColor(Color(hex: "E1EFF3"))
-                    .frame(height: 40)
+                // The package owns the mark's geometry and white ink.
+                ForITMark(size: 40, surface: .dark)
                     .opacity(isAnimating ? 1.0 : 0)
 
                 Spacer()
             }
         }
+        .forITScreenBackground()
+        .preferredColorScheme(.dark)
         .onAppear {
             withAnimation(.easeOut(duration: 0.6)) {
                 isAnimating = true

@@ -13,13 +13,6 @@ struct ConnectionBanner: View {
             micPill
             cameraPill
             Spacer()
-            Button {
-                appState.showSettings = true
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "8EDCEF").opacity(0.5))
-            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)

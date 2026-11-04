@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "task": "AEB115CE-C81E-4A93-8811-3FB92AEC08CF",
+  "native_mark": {
+    "repository": "ForITLLC/for-iCommon",
+    "tag": "0.30.0",
+    "commit": "60b93054b93e072950b2a7e43337bca9a26b614e",
+    "contexts": [
+      "launch",
+      "status",
+      "shared profile panel"
+    ]
+  },
+  "lapel_standard": {
+    "repository": "ForITLLC/for-iCommon",
+    "commit": "cc51e664f1f4c729ea70ffadfb20378313f5f378",
+    "overlay_path": "Brand/Badge/forit-lapel-overlay-1024.svg",
+    "overlay_sha256": "2f9f6cfd84cbb422de5d686a39f16a19f8c4492fd821f82b32aefbc2c0c14b68",
+    "placement_sha256": "7c258e53d6e548670e443b3fe9218912e0b5ea0a6a961fbb55408bc87b65b923",
+    "white_mark_width": 96,
+    "navy_circle_diameter": 128,
+    "navy": "#142F43",
+    "center": [
+      624,
+      770
+    ]
+  },
+  "generator_artifact": {
+    "name": "openglasses-AEB115CE-shared-lapel-standard-cc51e664.tgz",
+    "sha256": "153c2427d8f0a1422535233e8ee937418fbc844ad9a24b65641a70c6c723f39b",
+    "owner": "for-Health",
+    "mask_bbox": [
+      560,
+      706,
+      688,
+      834
+    ],
+    "mask_pixels": 13091,
+    "mask_rule": "Nonzero alpha of the published shared SVG; bounded by560,706\u2013688,834",
+    "alpha_rule": "Original alpha preserved globally; shared SVG source-over once",
+    "checks": "79 owner checks and two independent source/pixel audits passed",
+    "generator_sha256": "4d81321aa13fb25fc44918601c96a2440ab8ec44fd8184a15b4817560ac925ac",
+    "verification_sha256": "2ff2029b5613d21cced7b610cdfd9c419c7507a38930c4c8e6c07cdfa3b37b74"
+  },
+  "assets": {
+    "OpenGlasses/Sources/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png": {
+      "source_sha256": "09bf13c108069228fffe1a9936183990487404781a98d10c09703c58fc15568a",
+      "output_sha256": "02ce796c2bc6d3ca71ac8859b583a5c3464c5363c253a94e2c90b507af955040",
+      "catalog_sha256": "9cf2928dad89427abd581b6852db081352417f400afb65e60c479228cdc4f4da",
+      "mode": "RGB",
+      "outside_mask_sha256": "550b3f1ee7154fec2eae553fc3962cc1daade02e447e9b4747b1a7162441e9ef",
+      "alpha_identical_globally": true,
+      "rgb_difference_bbox": [
+        560,
+        706,
+        688,
+        834
+      ]
+    },
+    "DoloresWatch/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png": {
+      "source_sha256": "09bf13c108069228fffe1a9936183990487404781a98d10c09703c58fc15568a",
+      "output_sha256": "02ce796c2bc6d3ca71ac8859b583a5c3464c5363c253a94e2c90b507af955040",
+      "catalog_sha256": "1c6e5bab7178b3fbf03f7f609f22799c073efc5b32e726968a985bc1f99907d4",
+      "mode": "RGB",
+      "outside_mask_sha256": "550b3f1ee7154fec2eae553fc3962cc1daade02e447e9b4747b1a7162441e9ef",
+      "alpha_identical_globally": true,
+      "rgb_difference_bbox": [
+        560,
+        706,
+        688,
+        834
+      ]
+    },
+    "OpenGlasses/Sources/Resources/Assets.xcassets/DoloresAvatar.imageset/dolores-avatar.png": {
+      "source_sha256": "6161cc40ad6346773ed8d3bebbe9151a2ac26fca4d2a68885e732507a7c86fdf",
+      "output_sha256": "651ac268f4a258e08bf4f6b480041c8ad344e353e370e61b39e796605854ae42",
+      "catalog_sha256": "d926740938c9d71a576c8a5cf541e81702e816e3e71a01952d5d13526f9ed492",
+      "mode": "RGBA",
+      "outside_mask_sha256": "f7977440e6481823b93a64f0934dcaca36dc2476e701dfb0aa873564fb1d4605",
+      "alpha_identical_globally": true,
+      "rgb_difference_bbox": [
+        560,
+        706,
+        688,
+        834
+      ]
+    },
+    "DoloresWatch/Assets.xcassets/DoloresAvatar.imageset/dolores-avatar.png": {
+      "source_sha256": "6161cc40ad6346773ed8d3bebbe9151a2ac26fca4d2a68885e732507a7c86fdf",
+      "output_sha256": "651ac268f4a258e08bf4f6b480041c8ad344e353e370e61b39e796605854ae42",
+      "catalog_sha256": "d926740938c9d71a576c8a5cf541e81702e816e3e71a01952d5d13526f9ed492",
+      "mode": "RGBA",
+      "outside_mask_sha256": "f7977440e6481823b93a64f0934dcaca36dc2476e701dfb0aa873564fb1d4605",
+      "alpha_identical_globally": true,
+      "rgb_difference_bbox": [
+        560,
+        706,
+        688,
+        834
+      ]
+    },
+    "GlassesActivityWidget/Assets.xcassets/DoloresAvatar.imageset/dolores-avatar.png": {
+      "source_sha256": "6161cc40ad6346773ed8d3bebbe9151a2ac26fca4d2a68885e732507a7c86fdf",
+      "output_sha256": "651ac268f4a258e08bf4f6b480041c8ad344e353e370e61b39e796605854ae42",
+      "catalog_sha256": "d926740938c9d71a576c8a5cf541e81702e816e3e71a01952d5d13526f9ed492",
+      "mode": "RGBA",
+      "outside_mask_sha256": "f7977440e6481823b93a64f0934dcaca36dc2476e701dfb0aa873564fb1d4605",
+      "alpha_identical_globally": true,
+      "rgb_difference_bbox": [
+        560,
+        706,
+        688,
+        834
+      ]
+    }
+  },
+  "preserved": [
+    "face",
+    "glasses",
+    "outer navy frame",
+    "every pixel outside shared SVG alpha mask",
+    "original alpha globally",
+    "asset catalog JSON"
+  ],
+  "runtime_validation": "Recorded separately in PR and simulator capture provenance; source pixel audits do not prove a build or release."
+}

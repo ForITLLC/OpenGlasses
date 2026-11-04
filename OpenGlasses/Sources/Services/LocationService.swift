@@ -14,6 +14,9 @@ class LocationService: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
+        #endif
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         locationManager.distanceFilter = 100  // Update every 100m
@@ -21,6 +24,9 @@ class LocationService: NSObject, ObservableObject {
 
     /// Request location permissions and start updates
     func startTracking() {
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
+        #endif
         let status = locationManager.authorizationStatus
         switch status {
         case .notDetermined:
@@ -94,6 +100,9 @@ extension LocationService: CLLocationManagerDelegate {
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
+            #if DEBUG
+            guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
+            #endif
             let status = manager.authorizationStatus
             switch status {
             case .authorizedWhenInUse, .authorizedAlways:
