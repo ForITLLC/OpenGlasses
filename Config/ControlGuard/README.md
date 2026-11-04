@@ -12,11 +12,19 @@ handling of findings, not Common's checker, findings or historical results.
 
 Current source selects Common `0.31.9` at
 `352f567e839b8faf61b6df5840c5275b016addce`, annotated tag
-`9050f4a1ce99d023e3a550ffc74f338a135d1d6c`. The normal SDK resolver produced the actual tracked 0.31.9 lock, SHA256
-`3304423f61d0c59db9490a93e5ed07a535640e9792f2f5278f242f71a4541638`,
-in run `forit-openglasses-release-20261026T0251Z`. Common is exact `352f567e`
-and Meta remains 0.5.0/`2ea30fa2`; no lock was edited by hand. Native build
-and TestFlight results remain pending.
+`9050f4a1ce99d023e3a550ffc74f338a135d1d6c`, and Meta DAT `1.0.1` at
+`0bd369298eef6a980ad0bdb6c8a5502f2c02a08c`. The genuine resolver lock's SHA256
+is `377eb8e3cd13e30f0e3407633abfdbfb4001c2cf10d7dad3e7845f063b22293c`;
+matching tested/archive copies were retained for native build 35. Its 107 tests,
+signed export and internal TestFlight availability are verified. Actual phone
+and glasses acceptance remains unproved; see the [current validation note](../../docs/dat-1-voice-upgrade.md).
+
+Historical October 26 snapshot: run
+`forit-openglasses-release-20261026T0251Z` produced the earlier genuine lock
+`3304423f61d0c59db9490a93e5ed07a535640e9792f2f5278f242f71a4541638`
+with the same Common version and Meta 0.5.0/`2ea30fa2`. Native results were
+pending at that checkpoint. Neither lock was hand-edited. This documentation
+update changes no checker, policy, input list or pin.
 
 The earlier admission and blocking-policy descriptions below are historical.
 

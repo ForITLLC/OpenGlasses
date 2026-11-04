@@ -1,5 +1,18 @@
 # Glasses shared mark and top bar continuation
 
+Current release checkpoint, November 4: the DAT 1.0 follow-up has shipped as
+ForIT Glasses iOS **1.0 (35)** from `7e19f3f2`, with 107 passing tests and the
+required associated domain verified in the exported app's signature. The existing
+Meta project settings and private Beta integration **1.0.0** were saved and
+verified November 3. Actual paired-account enrollment, Ben's install/open,
+locked-phone launch and selected Bernard voice remain unverified. See the
+[current integration and validation note](dat-1-voice-upgrade.md). The November 4
+connection/error state repair is a later source follow-up with nine unrun
+regressions; it still needs native qualification and a replacement binary. The older
+release numbers and pending-native statements below retain their historical
+checkpoint scope; they do not replace that current evidence. No current visual,
+accessibility, native Mac/Vision or physical acceptance is inferred from shipment.
+
 Current shipping direction, October 26: Ben's ship-all instruction retires the
 A0 admission/GO and sealed-recipe waits. The owning lane runs its maintained
 release helper directly on published Common 0.31.9. BR-3 and visual/contact-sheet
@@ -174,7 +187,7 @@ adapter. The original local body exit code remains 1, with independent A0
 closure recorded separately. That run and producer publication grant no successor
 native execution. No lock-coexistence failure was observed in that run.
 
-## Delivery status
+## Historical delivery: October 26
 
 ForIT Glasses iOS `1.0 (32)` shipped from exact source
 `0347d5434120bcc9a8e2947d754d3039f3adff43` with Common `0.31.9` at
@@ -187,6 +200,7 @@ completion `03:03:03Z` is retained separately from Apple's uploadedDate.
 
 Original receipts remain under
 `/home/runner/handoffs/OpenGlasses/ship-all-20261026/actual-runs/0254-final`.
-The source-only route/metadata follow-up has not been built, captured or
-uploaded. Current visual/contact-sheet, native AX/actions and Ben install/open
-remain unverified; those gaps do not alter the retained shipment receipt.
+At that October 26 checkpoint, the source-only route/metadata follow-up had not
+been built, captured or uploaded. Later native DAT 1.0 shipment is recorded in the
+current checkpoint above. Visual/contact-sheet, native AX/actions and Ben
+install/open remain unverified; those gaps do not alter retained shipment receipts.

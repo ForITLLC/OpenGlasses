@@ -182,7 +182,10 @@ class AppState: ObservableObject {
     @Published var isListening: Bool = false
     @Published var currentTranscription: String = ""
     @Published var lastResponse: String = ""
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        // Any other error writer takes ownership, even if its text happens to match.
+        didSet { displayedMetaError = nil }
+    }
     @Published var showSettings: Bool = false
     @Published var listeningEnabled: Bool = Config.listeningEnabled
 
@@ -225,7 +228,7 @@ class AppState: ObservableObject {
     private var lastMetaURL: (url: URL, at: Date)?
     private var activationGeneration = UUID()
     @Published var isProcessing: Bool = false
-    private var hasEverRegistered: Bool = false
+    private var displayedMetaError: String?
     @Published var inConversation: Bool = false
 
     func addDebugEvent(_ message: String) {
@@ -293,6 +296,7 @@ class AppState: ObservableObject {
     }
 
     init() {
+        observeServiceState()
         #if DEBUG
         if OpenGlassesScreenshotFixture.suppressesExternalEffects {
             AppStateProvider.shared = self
@@ -321,6 +325,34 @@ class AppState: ObservableObject {
         }
         locationService.startTracking()
         observeLiveActivityState()
+    }
+
+    private func observeServiceState() {
+        // Registration permits a connection; only the actual device link proves one.
+        cancellables.append(glassesService.$isConnected.removeDuplicates().sink { [weak self] connected in
+            self?.isConnected = connected
+        })
+        cancellables.append(metaVoiceService.$lastError.sink { [weak self] message in
+            self?.presentMetaVoiceError(message)
+        })
+    }
+
+    private func presentMetaVoiceError(_ message: String?) {
+        guard listeningEnabled, let message else {
+            if displayedMetaError != nil { errorMessage = nil }
+            return
+        }
+        // A channel retry must not replace an unrelated error the user still needs.
+        guard errorMessage == nil || displayedMetaError != nil else { return }
+        errorMessage = "Meta voice launch: \(message)"
+        displayedMetaError = errorMessage
+    }
+
+    func updateRegistrationState(_ state: RegistrationState) {
+        registrationStateRaw = state.rawValue
+        if state == .registered {
+            UserDefaults.standard.set(true, forKey: "hasRegisteredWithMeta")
+        }
     }
 
     private func setupServiceCallbacks() {
@@ -372,10 +404,6 @@ class AppState: ObservableObject {
                 guard let self else { return }
                 print("Devices changed: \(deviceIds)")
                 self.addDebugEvent("Devices changed: \(deviceIds.count)")
-                if !deviceIds.isEmpty {
-                    self.hasEverRegistered = true
-                    self.isConnected = true
-                }
             }
         }
         cancellables.append(deviceToken)
@@ -385,12 +413,7 @@ class AppState: ObservableObject {
                 guard let self else { return }
                 print("Registration state changed: \(newState.rawValue)")
                 self.addDebugEvent("Registration state -> \(newState.rawValue)")
-                self.registrationStateRaw = newState.rawValue
-                if newState.rawValue >= 3 {
-                    self.hasEverRegistered = true
-                    self.isConnected = true
-                    UserDefaults.standard.set(true, forKey: "hasRegisteredWithMeta")
-                }
+                self.updateRegistrationState(newState)
             }
         }
         cancellables.append(regToken)
@@ -398,10 +421,8 @@ class AppState: ObservableObject {
         let initialState = Wearables.shared.registrationState
         print("Initial registration state: \(initialState.rawValue)")
         addDebugEvent("Initial registration state: \(initialState.rawValue)")
-        registrationStateRaw = initialState.rawValue
-        if initialState.rawValue >= 3 {
-            hasEverRegistered = true
-            isConnected = true
+        updateRegistrationState(initialState)
+        if initialState == .registered {
             print("Already registered on launch")
         }
     }
@@ -410,29 +431,23 @@ class AppState: ObservableObject {
         Task {
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard WearablesRuntime.isConfigured else {
-                self.isConnected = false
                 self.addDebugEvent("Wearables SDK unconfigured — skipping launch state check")
                 return
             }
             let state = Wearables.shared.registrationState
-            self.registrationStateRaw = state.rawValue
+            self.updateRegistrationState(state)
             print("Launch state check: state=\(state.rawValue)")
             self.addDebugEvent("Launch state check: state=\(state.rawValue)")
 
             if state.rawValue >= 3 {
-                self.hasEverRegistered = true
-                self.isConnected = true
                 self.addDebugEvent("Already registered on launch")
             } else {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 let settledState = Wearables.shared.registrationState
-                self.registrationStateRaw = settledState.rawValue
+                self.updateRegistrationState(settledState)
                 if settledState.rawValue >= 3 {
-                    self.hasEverRegistered = true
-                    self.isConnected = true
                     self.addDebugEvent("SDK auto-reconnected to state \(settledState.rawValue)")
                 } else {
-                    self.isConnected = false
                     self.addDebugEvent("State \(settledState.rawValue) — tap Connect to register")
                 }
             }

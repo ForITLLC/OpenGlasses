@@ -7,7 +7,9 @@ import MWDATCore
 /// Voice Invocations is currently available in Meta development/beta channels.
 @MainActor
 final class MetaVoiceInvocationService: ObservableObject {
-    @Published private(set) var lastError: String?
+    @Published private(set) var lastError: String? {
+        didSet { errorRevision = UUID() }
+    }
 
     private var onLaunch: (@MainActor () async throws -> Void)?
     private var stream: VoiceInvocationsStream?
@@ -19,6 +21,7 @@ final class MetaVoiceInvocationService: ObservableObject {
     private var retryTask: Task<Void, Never>?
     private var listeningOn: DeviceIdentifier?
     private var generation = UUID()
+    private var errorRevision = UUID()
     private var enabled = false
     private var handlingLaunch: UUID?
     private var retryDelay: UInt64 = 500_000_000
@@ -31,6 +34,7 @@ final class MetaVoiceInvocationService: ObservableObject {
             return
         }
         enabled = true
+        lastError = nil
         let lifecycle = generation
         rosterToken = Wearables.shared.addDevicesListener { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -65,6 +69,7 @@ final class MetaVoiceInvocationService: ObservableObject {
         deviceTokens = []
         Task { for token in tokens { await token.cancel() } }
         onLaunch = nil
+        lastError = nil
     }
 
     /// DAT has no public `isDATUrl` helper in 1.0.1. Route only the configured
@@ -198,6 +203,7 @@ final class MetaVoiceInvocationService: ObservableObject {
             return
         }
         let lifecycle = generation
+        let previousErrorRevision = errorRevision
         let invocation = UUID()
         handlingLaunch = invocation
         defer {
@@ -213,15 +219,17 @@ final class MetaVoiceInvocationService: ObservableObject {
             }
             let delivered = await launch.responseHandle.sendSuccess(actionOutput: nil)
             guard generation == lifecycle else { return }
-            if !delivered { lastError = "The launch reply did not reach Meta." }
+            guard errorRevision == previousErrorRevision else { return }
+            lastError = delivered ? nil : "The launch reply did not reach Meta."
         } catch {
             guard generation == lifecycle else {
                 _ = await launch.responseHandle.sendFailure(actionOutput: nil)
                 return
             }
             lastError = error.localizedDescription
+            let failureRevision = errorRevision
             let delivered = await launch.responseHandle.sendFailure(actionOutput: nil)
-            guard generation == lifecycle else { return }
+            guard generation == lifecycle, errorRevision == failureRevision else { return }
             if !delivered { lastError = "The launch failed and its reply did not reach Meta." }
         }
     }
