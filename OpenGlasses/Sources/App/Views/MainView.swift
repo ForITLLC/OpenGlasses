@@ -63,6 +63,8 @@ struct MainView: View {
                                 )
                         )
                     }
+                    .accessibilityLabel(appState.listeningEnabled ? "Turn listening off" : "Turn listening on")
+                    .accessibilityValue(appState.listeningEnabled ? "On" : "Off")
                 }
                 .padding(.top, 4)
                 .padding(.horizontal, 8)

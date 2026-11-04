@@ -1,0 +1,123 @@
+{
+  "schema": "openglasses.shared-controls.platform-audit.v1",
+  "task": "8EDA0A3E-3D2D-4704-B348-5F2E0D883105",
+  "base": "45b52531d64f8673429bf7131653b53b65f31470",
+  "status": "SOURCE_ONLY_PARTIAL_MIGRATION",
+  "common": {
+    "exact_pin": "0.17.1",
+    "commit": "8e2063a94cac21721ffc525cc9beb989c1f7dd2d",
+    "release_candidate_adopted": false
+  },
+  "platforms": [
+    {
+      "platform": "iPhone",
+      "source": "project.yml:OpenGlasses",
+      "configured": "iOS26.0; OpenGlasses/Sources",
+      "compile_inputs": 26,
+      "guard": "always-run XcodeGen phase wired; candidate UNEVALUABLE optional resource parser defect",
+      "native_evidence": "not run"
+    },
+    {
+      "platform": "iPad",
+      "source": "project.yml:OpenGlasses.settings",
+      "configured": "same iOS source; baseline has no explicit TARGETED_DEVICE_FAMILY",
+      "gap": "generated target/device compatibility and real layout unverified; do not inherit frozen logo branch family1,2",
+      "native_evidence": "not run"
+    },
+    {
+      "platform": "Watch",
+      "source": "project.yml:DoloresWatch",
+      "configured": "watchOS11.0 source target; no Common dependency",
+      "compile_inputs": 3,
+      "guard": "always-run phase wired; candidate FAIL3 legacy chrome",
+      "migration": "requires tested compatible shared roles/immutable canonical bridge",
+      "native_evidence": "not run; distribution not claimed"
+    },
+    {
+      "platform": "Live Activity extension",
+      "source": "project.yml:GlassesActivityWidget",
+      "configured": "iOS26.0 ActivityConfiguration; no regular Widget or ControlWidget configuration",
+      "compile_inputs": 5,
+      "guard": "always-run phase wired; candidate FAIL3 legacy icon chrome/style",
+      "test_preparation": {
+        "fixed_states": 6,
+        "presentations": 4,
+        "preview_combinations": 24,
+        "declared_system_capture_cases": 96,
+        "executed_cases": 0
+      },
+      "native_evidence": "not run"
+    },
+    {
+      "platform": "Mac",
+      "configured": "no native target in project.yml",
+      "gap": "baseline platform gap; no compatibility shipment claim"
+    },
+    {
+      "platform": "Vision Pro",
+      "configured": "no native target in project.yml",
+      "gap": "baseline platform gap; no compatibility shipment claim"
+    },
+    {
+      "platform": "Web",
+      "configured": "census webCounterpart null; root index.html is not an established product UI",
+      "gap": "no web control migration claimed; any related source stays with actual owner"
+    }
+  ],
+  "safe_existing_role_changes": [
+    {
+      "path": "OpenGlasses/Sources/App/RootView.swift:76",
+      "api": ".forITPrimaryOnNavy",
+      "status": "adopted; original form margin retained, no full guard pass"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/SettingsView.swift:165",
+      "api": "ForITDoneButton",
+      "status": "adopted; save/dismiss callback retained"
+    }
+  ],
+  "remaining_custom_control_sites": [
+    {
+      "path": "OpenGlasses/Sources/App/Views/CircleButton.swift:26",
+      "role": "stateful microphone icon with badge"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/ConnectionBanner.swift:33",
+      "role": "microphone connection/status action"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/ConnectionBanner.swift:63",
+      "role": "camera permission/status action"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/MainView.swift:44",
+      "role": "selected listening ON/OFF action; present on main, unlike frozen logo branch"
+    },
+    {
+      "path": "OpenGlasses/Sources/App/Views/MainView.swift:118",
+      "role": "radial icon-caption quick action"
+    },
+    {
+      "path": "DoloresWatch/DoloresWatchView.swift:54",
+      "role": "Watch icon-caption quick action"
+    },
+    {
+      "path": "GlassesActivityWidget/GlassesActivityWidget.swift:45",
+      "role": "LiveActivityIntent stop-listening icon"
+    }
+  ],
+  "remaining_site_count": 7,
+  "system_and_decorative": "Native Form/List controls and alert roles retain system ownership. Status rings, avatars, transcript cards and non-action state glyphs are content, not alternate button styles. Existing shared Feedback/Sign-in retain package ownership.",
+  "blocked_until": [
+    "tested shared role release at supported deployment floors, including canonical Watch/widget integration",
+    "trusted frozen canonical guard provisioning and parser/schema support",
+    "supported SwiftPM precompile adapter; alternative Package.swift entry point currently unevaluable",
+    "fresh native owner admission for compilation, generated phases, real host captures/AX/intent checks"
+  ],
+  "preserved": [
+    "frozen logo PR9 head1efaec59",
+    "all baseline package pins/floors/device settings",
+    "all Mini/native/frozen holds"
+  ],
+  "runtime_pass": false
+}

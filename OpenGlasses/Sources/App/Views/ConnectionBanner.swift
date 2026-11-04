@@ -20,6 +20,7 @@ struct ConnectionBanner: View {
                     .font(.system(size: 16))
                     .foregroundColor(Color(hex: "8EDCEF").opacity(0.5))
             }
+            .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -47,6 +48,8 @@ struct ConnectionBanner: View {
             .background(Color(hex: "142F43").opacity(0.8), in: Capsule())
             .overlay(Capsule().strokeBorder((connected ? Color.green : Color(hex: "E1EFF3")).opacity(0.15), lineWidth: 0.5))
         }
+        .accessibilityLabel(connected ? "Glasses microphone" : "Connect glasses microphone")
+        .accessibilityValue(connected ? "Connected" : "Disconnected")
         .disabled(connected)
     }
 
@@ -86,6 +89,8 @@ struct ConnectionBanner: View {
             .background(Color(hex: "142F43").opacity(0.8), in: Capsule())
             .overlay(Capsule().strokeBorder((cameraGranted ? Color.green : Color(hex: "E1EFF3")).opacity(0.15), lineWidth: 0.5))
         }
+        .accessibilityLabel(cameraGranted ? "Glasses camera" : "Enable glasses camera")
+        .accessibilityValue(cameraPermissionChecking ? "Checking permission" : (cameraGranted ? "Permission granted" : "Permission not granted"))
         .disabled(!micConnected || cameraPermissionChecking || cameraGranted)
         .opacity(micConnected ? 1.0 : 0.4)
     }

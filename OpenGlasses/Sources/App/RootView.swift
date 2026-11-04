@@ -1,4 +1,5 @@
 import SwiftUI
+import ForITCommon
 
 struct RootView: View {
     @State private var showLaunchScreen = true
@@ -70,13 +71,9 @@ struct OnboardingView: View {
                     onComplete()
                 } label: {
                     Text("Continue")
-                        .font(.headline)
-                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(hex: "8EDCEF"))
-                        .cornerRadius(14)
                 }
+                .buttonStyle(.forITPrimaryOnNavy)
                 .padding(.horizontal, 40)
                 .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 

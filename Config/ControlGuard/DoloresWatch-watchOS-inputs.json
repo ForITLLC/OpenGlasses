@@ -1,0 +1,12 @@
+{
+  "schema": "forit.control-guard.inputs.v1",
+  "root": "../..",
+  "target": "DoloresWatch",
+  "platform": "watchOS",
+  "sources": [
+    "DoloresWatch/DoloresWatchApp.swift",
+    "DoloresWatch/DoloresWatchView.swift",
+    "DoloresWatch/WatchDoloresService.swift"
+  ],
+  "bridges": []
+}

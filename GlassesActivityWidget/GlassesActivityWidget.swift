@@ -50,6 +50,7 @@ struct GlassesActivityWidget: Widget {
                                 .background(Circle().fill(.black.opacity(0.1)))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Turn listening off")
 
                         Image(systemName: statusIconName(state: context.state))
                             .font(.system(size: 20))

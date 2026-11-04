@@ -1,4 +1,5 @@
 import SwiftUI
+import ForITCommon
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -161,13 +162,12 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
+                    ForITDoneButton {
                         // Save on dismiss
                         if !apiKey.isEmpty { Config.setAPIKey(apiKey) }
                         Config.setUserEmail(userEmail)
                         dismiss()
                     }
-                    .foregroundColor(Color(hex: "8EDCEF"))
                 }
             }
         }
