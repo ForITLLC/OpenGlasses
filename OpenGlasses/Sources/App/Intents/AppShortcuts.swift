@@ -32,7 +32,7 @@ struct ActivateDoloresIntent: AppIntent {
 
 struct EnableListeningIntent: AppIntent {
     static var title: LocalizedStringResource = "Turn On Bernard"
-    static var description = IntentDescription("Enable wake word listening and Live Activity")
+    static var description = IntentDescription("Allow Meta voice launch")
 
     static var isDiscoverable: Bool { true }
 
@@ -41,17 +41,17 @@ struct EnableListeningIntent: AppIntent {
         guard let appState = AppStateProvider.shared else {
             // App not running — just set the flag so it starts on next launch
             Config.setListeningEnabled(true)
-            return .result(value: "Bernard will start listening when you open the app.")
+            return .result(value: "Meta voice launch will be enabled when you open the app.")
         }
 
         appState.setListeningEnabled(true)
-        return .result(value: "Bernard is now listening.")
+        return .result(value: "Meta voice launch is enabled.")
     }
 }
 
 struct DisableListeningAppIntent: AppIntent {
     static var title: LocalizedStringResource = "Turn Off Bernard"
-    static var description = IntentDescription("Disable wake word listening and end Live Activity")
+    static var description = IntentDescription("Disable Meta voice launch and end Live Activity")
 
     static var isDiscoverable: Bool { true }
 

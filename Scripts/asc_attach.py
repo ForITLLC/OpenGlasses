@@ -16,9 +16,9 @@ internal group WITH access to all builds: it sees every build once processing fi
 Store Connect refuses the attach for such a group with HTTP 422. So the group is looked up first
 and the attach is skipped when there is nothing to attach.
 
---require-valid makes a build that is not VALID in time a red step instead of a warning (the
-workflow failed the same way), and prints the VALID build's internal TestFlight state
-(buildBetaDetail.internalBuildState, IN_BETA_TESTING once internal testers have it).
+--require-valid requires readback of VALID processing, the no-non-exempt-encryption
+answer, internal group access and IN_BETA_TESTING within the bounded processing wait.
+An attachment response, including HTTP 422, does not establish tester availability.
 
 --whats-new sets the build's "What to Test" text once it is VALID. Internal testing only: nothing
 here makes an external group or a public link, or submits anything for review.
@@ -84,11 +84,17 @@ def ensure_compliance(api: Api, build_id: str) -> str:
     return f"export compliance set on build {build_id}: usesNonExemptEncryption=false"
 
 
+def internal_group_attributes(api: Api, group_id: str) -> dict:
+    attrs = api("GET", f"/betaGroups/{group_id}").get("data", {}).get("attributes", {})
+    if attrs.get("isInternalGroup") is not True:
+        raise ValueError(f"beta group {group_id} is not confirmed internal; refusing distribution")
+    return attrs
+
+
 def group_sees_all_builds(api: Api, group_id: str) -> bool:
     """True for an internal group with access to all builds: every build is visible to
     it already, and App Store Connect refuses the attach POST for it (422)."""
-    attrs = api("GET", f"/betaGroups/{group_id}").get("data", {}).get("attributes", {})
-    return bool(attrs.get("isInternalGroup") and attrs.get("hasAccessToAllBuilds"))
+    return internal_group_attributes(api, group_id).get("hasAccessToAllBuilds") is True
 
 
 def attach(api: Api, group_id: str, build_id: str) -> str:
@@ -126,16 +132,67 @@ def internal_state(api: Api, build_id: str) -> str:
     return attrs.get("internalBuildState") or "unknown"
 
 
+def group_has_build(api: Api, group_id: str, build_id: str) -> bool:
+    """Read actual group access, including explicit paginated build relationships."""
+    if group_sees_all_builds(api, group_id):
+        return True
+    path = f"/betaGroups/{group_id}/relationships/builds?limit=200"
+    seen = set()
+    while path:
+        if path in seen or len(seen) >= 100:
+            raise ValueError("could not verify the complete beta group build relationship")
+        seen.add(path)
+        page = api("GET", path)
+        if any(row.get("type") == "builds" and row.get("id") == build_id
+               for row in page.get("data", [])):
+            return True
+        next_url = (page.get("links") or {}).get("next")
+        if next_url:
+            prefix = asc_resolve.ASC_BASE + f"/betaGroups/{group_id}/relationships/builds?"
+            if not next_url.startswith(prefix):
+                raise ValueError("unexpected beta group relationship pagination URL")
+            path = next_url[len(asc_resolve.ASC_BASE):]
+        else:
+            path = None
+    return False
+
+
+def wait_for_internal_distribution(api: Api, group_id: str, build_id: str, *,
+                                   now: Callable[[], float], sleep: Callable[[float], None],
+                                   poll: float = 30, timeout: float = 1200) -> bool:
+    deadline = now() + max(0, timeout)
+    while True:
+        attrs = api("GET", f"/builds/{build_id}?fields[builds]=processingState,usesNonExemptEncryption").get(
+            "data", {}).get("attributes", {})
+        valid = attrs.get("processingState") == "VALID"
+        compliant = attrs.get("usesNonExemptEncryption") is False
+        visible = group_has_build(api, group_id, build_id)
+        state = internal_state(api, build_id)
+        print(f"build {build_id}: VALID={valid} export-compliance-confirmed={compliant} "
+              f"internal-group-access={visible} internal-testing={state}")
+        if valid and compliant and visible and state == "IN_BETA_TESTING":
+            return True
+        if attrs.get("processingState") == "INVALID" or now() + poll >= deadline:
+            return False
+        sleep(poll)
+
+
 def run(api: Api, app_id: str, group_id: str, version: str, *,
         now: Callable[[], float], sleep: Callable[[float], None], whats_new: str = "",
-        require_valid: bool = False) -> int:
-    build_id = wait_for_build(api, app_id, version, now=now, sleep=sleep)
+        require_valid: bool = False, poll: float = 30, timeout: float = 1200) -> int:
+    deadline = now() + timeout
+    build_id = wait_for_build(api, app_id, version, now=now, sleep=sleep, poll=poll, timeout=timeout)
     if not build_id:
         if require_valid:
             print(f"::error title=Build not VALID::build {version} ({PLATFORM}) is not VALID in App Store Connect")
             return 1
         print("::warning::could not attach build to TestFlight group (not VALID within timeout) — attach manually")
         return 0
+    try:
+        internal_group_attributes(api, group_id)
+    except ValueError as error:
+        print(f"::error title=Internal group not confirmed::{error}")
+        return 1
     try:
         print(ensure_compliance(api, build_id))
     except asc_resolve.AscError as e:
@@ -152,12 +209,25 @@ def run(api: Api, app_id: str, group_id: str, version: str, *,
     except asc_resolve.AscError as e:
         if e.status != 422:
             raise  # auth, transport, Apple outage: fail the step so someone looks
-        # 422 is App Store Connect saying this link is not allowed for this group.
-        # The build is not lost — it is in ASC, VALID — so warn and keep the run green.
+        # A rejected attach is not proof of access. Strict completion below must
+        # independently confirm the actual group relationship and tester state.
         print(f"::warning::App Store Connect refused to attach build {build_id} to beta group "
               f"{group_id} (HTTP 422): {e.detail}")
     if require_valid:
-        print(f"build {build_id} ({PLATFORM}) internal testing: {internal_state(api, build_id)}")
+        try:
+            ready = wait_for_internal_distribution(
+                api, group_id, build_id, now=now, sleep=sleep, poll=poll,
+                timeout=max(0, deadline - now()))
+        except (ValueError, asc_resolve.AscError) as error:
+            print(f"::error title=Internal distribution not confirmed::{error}")
+            return 1
+        if not ready:
+            print(f"::error title=Internal distribution not confirmed::build {build_id} ({PLATFORM}) "
+                  f"did not confirm VALID, export compliance, internal group {group_id} access "
+                  "and IN_BETA_TESTING before the deadline; no re-upload attempted")
+            return 1
+        print(f"confirmed build {build_id} version={version} ({PLATFORM}) VALID, "
+              f"export compliant and available to internal group {group_id}: IN_BETA_TESTING")
     return 0
 
 
@@ -168,7 +238,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--version", required=True)
     ap.add_argument("--whats-new", default="", help="the build's What to Test text (en-US)")
     ap.add_argument("--require-valid", action="store_true",
-                    help="fail when the build is not VALID in time, and print its internal TestFlight state")
+                    help="require VALID, confirmed export compliance, internal group access and IN_BETA_TESTING")
     args = ap.parse_args(argv)
 
     private_key = base64.b64decode(os.environ["ASC_KEY_BASE64"]).decode()

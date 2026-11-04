@@ -1,9 +1,10 @@
+import Combine
 import Foundation
 import AVFoundation
 import Speech
 
-/// Handles wake word detection using iOS Speech Recognition
-/// Listens for "Hey Claude" to trigger voice queries
+/// Shares speech/audio plumbing and listens for Stop during a response.
+/// Meta owns idle activation; this service never runs its old wake phrases.
 @MainActor
 class WakeWordService: NSObject, ObservableObject {
     @Published var isListening: Bool = false
@@ -25,6 +26,7 @@ class WakeWordService: NSObject, ObservableObject {
     private var stopFired: Bool = false
     /// Track whether wake word already fired for this recognition session (prevent double-fire)
     private var wakeWordFired: Bool = false
+    private var listeningGeneration = UUID()
 
     /// Optional callback to forward audio buffers to TranscriptionService
     private var audioBufferForwarder: (@Sendable (AVAudioPCMBuffer) -> Void)?
@@ -103,6 +105,7 @@ class WakeWordService: NSObject, ObservableObject {
             print("🎤 Audio interrupted (phone call, Siri, etc.)")
             stopListening()
         case .ended:
+            guard listenForStop else { return }
             print("🎤 Audio interruption ended — restarting listener")
             // Re-activate audio session and restart
             try? AVAudioSession.sharedInstance().setActive(true)
@@ -129,6 +132,7 @@ class WakeWordService: NSObject, ObservableObject {
             cleanupAudioEngine()
             isListening = false
         case .newDeviceAvailable:
+            guard listenForStop else { return }
             // New device connected (glasses back on) — restart with fresh engine
             print("🎤 New audio device available — restarting with fresh engine")
             cleanupAudioEngine()
@@ -157,11 +161,15 @@ class WakeWordService: NSObject, ObservableObject {
     }
 
     func startListening() async throws {
+        guard listenForStop else { return }
         guard !isListening else { return }
+        listeningGeneration = UUID()
+        let generation = listeningGeneration
         stopFired = false
         wakeWordFired = false
 
         let hasPermission = await requestPermissions()
+        guard listenForStop, listeningGeneration == generation, !Task.isCancelled else { return }
         guard hasPermission else {
             errorMessage = "Speech recognition permission denied"
             throw WakeWordError.microphonePermissionDenied
@@ -178,6 +186,7 @@ class WakeWordService: NSObject, ObservableObject {
         // Retry up to 3 times with increasing delay if audio engine fails
         var lastError: Error?
         for attempt in 1...3 {
+            guard listenForStop, listeningGeneration == generation, !Task.isCancelled else { return }
             do {
                 try startRecognition()
                 isListening = true
@@ -188,13 +197,14 @@ class WakeWordService: NSObject, ObservableObject {
                 print("🎤 WakeWord: attempt \(attempt) failed: \(error.localizedDescription)")
                 cleanupAudioEngine()
                 let delay = UInt64(attempt) * 500_000_000
-                try? await Task.sleep(nanoseconds: delay)
+                try await Task.sleep(nanoseconds: delay)
             }
         }
         throw lastError ?? WakeWordError.configurationError("Failed to start after 3 attempts")
     }
 
     func stopListening() {
+        listeningGeneration = UUID()
         cleanupAudioEngine()
         isListening = false
     }
@@ -329,12 +339,6 @@ class WakeWordService: NSObject, ObservableObject {
             return
         }
 
-        if !wakeWordFired && containsWakePhrase(transcript) {
-            print("🎤 Wake word detected in: '\(transcript)'")
-            wakeWordFired = true
-            handleWakeWordDetected()
-        }
-
         if result.isFinal { restartRecognition() }
     }
 
@@ -430,6 +434,9 @@ class WakeWordService: NSObject, ObservableObject {
 
     /// Public version of pauseRecognition — stops recognition but keeps engine alive
     func pauseRecognitionPublic() {
+        // A permission request or retry may still be awaiting. It must not
+        // restart Stop recognition after transcription has taken the engine.
+        listeningGeneration = UUID()
         pauseRecognition()
     }
 
@@ -470,7 +477,8 @@ class WakeWordService: NSObject, ObservableObject {
         }
     }
 
-    private func requestPermissions() async -> Bool {
+    /// Called only after an explicit microphone action or a Meta invocation.
+    func requestPermissions() async -> Bool {
         let micPermission = await AVAudioApplication.requestRecordPermission()
         guard micPermission else { return false }
 

@@ -1,5 +1,7 @@
+import Foundation
 import SwiftUI
 import AVFoundation
+import Speech
 import MWDATCore
 import AppIntents
 import UIKit
@@ -20,37 +22,18 @@ private func processWearablesCallbackURL(_ url: URL, source: String) {
     #if DEBUG
     guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
     #endif
-    // The ForIT Sign-in redirect is the feedback account's, never the Meta SDK's. It can arrive
-    // through SwiftUI and the scene delegate both; the second is ignored.
-    if FeedbackAccount.isSignInLink(url) {
-        Task { @MainActor in
-            _ = FeedbackAccount.shared.handle(url)
-        }
-        return
-    }
-    NSLog("[OpenGlasses] [\(source)] Received URL callback: \(url.absoluteString)")
     Task { @MainActor in
-        AppStateProvider.shared?.recordCallback(url: url, source: source)
-    }
-    Task {
-        // A callback URL can be delivered by Meta AI at any time, including when
-        // configure() failed at launch — handleUrl would then trap instead of throw.
-        guard await WearablesRuntime.isConfigured else {
-            NSLog("[OpenGlasses] [\(source)] Wearables SDK unconfigured — dropping URL callback")
+        if FeedbackAccount.isSignInLink(url) {
+            _ = FeedbackAccount.shared.handle(url)
             return
         }
-        do {
-            let result = try await Wearables.shared.handleUrl(url)
-            NSLog("[OpenGlasses] [\(source)] handleUrl result: \(String(describing: result))")
-            Task { @MainActor in
-                AppStateProvider.shared?.addDebugEvent("handleUrl success from \(source): \(String(describing: result))")
-            }
-        } catch {
-            NSLog("[OpenGlasses] [\(source)] handleUrl failed: \(error.localizedDescription)")
-            Task { @MainActor in
-                AppStateProvider.shared?.addDebugEvent("handleUrl failed from \(source): \(error.localizedDescription)")
-            }
+        guard MetaVoiceInvocationService.isDATURL(url) else { return }
+        guard let state = AppStateProvider.shared else {
+            // A cold scene callback can precede creation of the SwiftUI state.
+            AppStateProvider.pendingMetaURLs.append((url, source))
+            return
         }
+        await state.handleMetaURL(url, source: source)
     }
 }
 
@@ -102,6 +85,7 @@ final class OpenGlassesSceneDelegate: NSObject, UIWindowSceneDelegate {
 @MainActor
 enum AppStateProvider {
     static weak var shared: AppState?
+    static var pendingMetaURLs: [(URL, String)] = []
 }
 
 @main
@@ -147,25 +131,8 @@ struct OpenGlassesApp: App {
                         print("Registration dropped to \(state.rawValue) after background — waiting for natural reconnect...")
                     }
                 }
-                // Restart wake word listener on foreground (only if enabled)
-                Task {
-                    guard appState.listeningEnabled else {
-                        appState.addDebugEvent("Listening disabled — skipping wake word restart")
-                        return
-                    }
-                    let regState = appState.registrationStateRaw
-                    guard regState >= 3 else {
-                        appState.addDebugEvent("Skipping wake word restart on foreground: registration state=\(regState)")
-                        return
-                    }
+                appState.startMetaVoiceLaunch()
 
-                    if !appState.wakeWordService.isListening && !appState.isListening {
-                        print("Restarting wake word listener after foreground...")
-                        appState.wakeWordService.reconfigureAudioSessionIfNeeded()
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        try? await appState.wakeWordService.startListening()
-                    }
-                }
             case .inactive:
                 break
             @unknown default:
@@ -196,18 +163,7 @@ struct OpenGlassesApp: App {
             NSLog("[OpenGlasses] AppLinkURLScheme (Universal Link): \(appLinkURL ?? "nil")")
             NSLog("[OpenGlasses] MetaAppID: \(metaAppID ?? "nil")")
 
-            do {
-                let parsed = try Configuration(bundle: .main)
-                let app = parsed.appConfiguration
-                NSLog("[OpenGlasses] Parsed config bundleIdentifier=\(app.bundleIdentifier)")
-                NSLog("[OpenGlasses] Parsed config appLinkURLScheme=\(app.appLinkURLScheme ?? "nil")")
-                NSLog("[OpenGlasses] Parsed config metaAppId=\(app.metaAppId ?? "nil")")
-                NSLog("[OpenGlasses] Parsed config clientTokenPresent=\(app.clientToken != nil)")
-                NSLog("[OpenGlasses] Parsed config teamID=\(app.teamID ?? "nil")")
-                NSLog("[OpenGlasses] Parsed attestation hasCompleteData=\(parsed.attestationConfiguration.hasCompleteData)")
-            } catch {
-                NSLog("[OpenGlasses] Configuration(bundle:) parse failed: \(error.localizedDescription)")
-            }
+
         } catch {
             NSLog("[OpenGlasses] Failed to configure Wearables SDK: \(error.localizedDescription)")
         }
@@ -226,26 +182,40 @@ class AppState: ObservableObject {
     @Published var isListening: Bool = false
     @Published var currentTranscription: String = ""
     @Published var lastResponse: String = ""
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        // Any other error writer takes ownership, even if its text happens to match.
+        didSet { displayedMetaError = nil }
+    }
     @Published var showSettings: Bool = false
     @Published var listeningEnabled: Bool = Config.listeningEnabled
 
     /// Toggle listening on/off — single source of truth for all UI
     func setListeningEnabled(_ enabled: Bool) {
+        activationGeneration = UUID()
         listeningEnabled = enabled
         Config.setListeningEnabled(enabled)
         if !enabled {
+            metaVoiceService.stop()
+            llmService.cancelPendingRequest()
+            cameraService.cancelPendingCapture()
+            wakeWordService.listenForStop = false
             wakeWordService.stopListening()
+            transcriptionService.cancelRecording()
+            speechService.stopSpeaking()
+            isListening = false
+            isProcessing = false
+            inConversation = false
             liveActivity.end()
             addDebugEvent("Listening DISABLED by user")
         } else {
             addDebugEvent("Listening ENABLED by user")
-            Task { try? await wakeWordService.startListening() }
+            startMetaVoiceLaunch()
             syncLiveActivity()
         }
     }
 
     let glassesService = GlassesConnectionService()
+    let metaVoiceService = MetaVoiceInvocationService()
     let wakeWordService = WakeWordService()
     let transcriptionService = TranscriptionService()
     let llmService = LLMService()
@@ -255,8 +225,10 @@ class AppState: ObservableObject {
     let liveActivity = LiveActivityManager()
 
     private var cancellables: [Any] = []
+    private var lastMetaURL: (url: URL, at: Date)?
+    private var activationGeneration = UUID()
     @Published var isProcessing: Bool = false
-    private var hasEverRegistered: Bool = false
+    private var displayedMetaError: String?
     @Published var inConversation: Bool = false
 
     func addDebugEvent(_ message: String) {
@@ -324,6 +296,7 @@ class AppState: ObservableObject {
     }
 
     init() {
+        observeServiceState()
         #if DEBUG
         if OpenGlassesScreenshotFixture.suppressesExternalEffects {
             AppStateProvider.shared = self
@@ -337,35 +310,66 @@ class AppState: ObservableObject {
         AppStateProvider.shared = self  // Set immediately so callbacks can record
         transcriptionService.sharedAudioEngineProvider = wakeWordService
         llmService.speechService = speechService
+        cancellables.append(speechService.$playbackNotice.sink { [weak self] notice in
+            guard let notice else { return }
+            self?.errorMessage = notice
+        })
         setupServiceCallbacks()
         observeGlassesConnection()
         autoConnectGlasses()
-        autoStartListening()
+        startMetaVoiceLaunch()
+        let pending = AppStateProvider.pendingMetaURLs
+        AppStateProvider.pendingMetaURLs.removeAll()
+        Task { @MainActor [weak self] in
+            for (url, source) in pending { await self?.handleMetaURL(url, source: source) }
+        }
         locationService.startTracking()
         observeLiveActivityState()
     }
 
-    private func setupServiceCallbacks() {
-        wakeWordService.onWakeWordDetected = { [weak self] in
-            Task { @MainActor in
-                guard let self = self else { return }
-                guard !self.inConversation && !self.isProcessing else {
-                    print("Wake word ignored - already in conversation")
-                    return
-                }
-                await self.handleWakeWordDetected()
-            }
-        }
+    private func observeServiceState() {
+        // Registration permits a connection; only the actual device link proves one.
+        cancellables.append(glassesService.$isConnected.removeDuplicates().sink { [weak self] connected in
+            self?.isConnected = connected
+        })
+        cancellables.append(metaVoiceService.$lastError.sink { [weak self] message in
+            self?.presentMetaVoiceError(message)
+        })
+    }
 
+    private func presentMetaVoiceError(_ message: String?) {
+        guard listeningEnabled, let message else {
+            if displayedMetaError != nil { errorMessage = nil }
+            return
+        }
+        // A channel retry must not replace an unrelated error the user still needs.
+        guard errorMessage == nil || displayedMetaError != nil else { return }
+        errorMessage = "Meta voice launch: \(message)"
+        displayedMetaError = errorMessage
+    }
+
+    func updateRegistrationState(_ state: RegistrationState) {
+        registrationStateRaw = state.rawValue
+        if state == .registered {
+            UserDefaults.standard.set(true, forKey: "hasRegisteredWithMeta")
+        }
+    }
+
+    private func setupServiceCallbacks() {
         wakeWordService.onStopCommand = { [weak self] in
+            guard let self else { return }
+            let generation = self.activationGeneration
             Task { @MainActor in
-                self?.stopSpeakingAndResume()
+                guard self.listeningEnabled, self.activationGeneration == generation else { return }
+                self.stopSpeakingAndResume()
             }
         }
 
         transcriptionService.onTranscriptionComplete = { [weak self] text in
+            guard let self else { return }
+            let generation = self.activationGeneration
             Task { @MainActor in
-                guard let self = self else { return }
+                guard self.listeningEnabled, self.activationGeneration == generation else { return }
                 guard !self.isProcessing else {
                     print("Transcription ignored - already processing")
                     return
@@ -375,8 +379,10 @@ class AppState: ObservableObject {
         }
 
         transcriptionService.onSilenceTimeout = { [weak self] in
+            guard let self else { return }
+            let generation = self.activationGeneration
             Task { @MainActor in
-                guard let self else { return }
+                guard self.listeningEnabled, self.activationGeneration == generation else { return }
                 print("[MIC] User silent - ending conversation, back to wake word")
                 await self.safeReturnToWakeWord()
             }
@@ -398,10 +404,6 @@ class AppState: ObservableObject {
                 guard let self else { return }
                 print("Devices changed: \(deviceIds)")
                 self.addDebugEvent("Devices changed: \(deviceIds.count)")
-                if !deviceIds.isEmpty {
-                    self.hasEverRegistered = true
-                    self.isConnected = true
-                }
             }
         }
         cancellables.append(deviceToken)
@@ -411,12 +413,7 @@ class AppState: ObservableObject {
                 guard let self else { return }
                 print("Registration state changed: \(newState.rawValue)")
                 self.addDebugEvent("Registration state -> \(newState.rawValue)")
-                self.registrationStateRaw = newState.rawValue
-                if newState.rawValue >= 3 {
-                    self.hasEverRegistered = true
-                    self.isConnected = true
-                    UserDefaults.standard.set(true, forKey: "hasRegisteredWithMeta")
-                }
+                self.updateRegistrationState(newState)
             }
         }
         cancellables.append(regToken)
@@ -424,10 +421,8 @@ class AppState: ObservableObject {
         let initialState = Wearables.shared.registrationState
         print("Initial registration state: \(initialState.rawValue)")
         addDebugEvent("Initial registration state: \(initialState.rawValue)")
-        registrationStateRaw = initialState.rawValue
-        if initialState.rawValue >= 3 {
-            hasEverRegistered = true
-            isConnected = true
+        updateRegistrationState(initialState)
+        if initialState == .registered {
             print("Already registered on launch")
         }
     }
@@ -436,29 +431,23 @@ class AppState: ObservableObject {
         Task {
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard WearablesRuntime.isConfigured else {
-                self.isConnected = false
                 self.addDebugEvent("Wearables SDK unconfigured — skipping launch state check")
                 return
             }
             let state = Wearables.shared.registrationState
-            self.registrationStateRaw = state.rawValue
+            self.updateRegistrationState(state)
             print("Launch state check: state=\(state.rawValue)")
             self.addDebugEvent("Launch state check: state=\(state.rawValue)")
 
             if state.rawValue >= 3 {
-                self.hasEverRegistered = true
-                self.isConnected = true
                 self.addDebugEvent("Already registered on launch")
             } else {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 let settledState = Wearables.shared.registrationState
-                self.registrationStateRaw = settledState.rawValue
+                self.updateRegistrationState(settledState)
                 if settledState.rawValue >= 3 {
-                    self.hasEverRegistered = true
-                    self.isConnected = true
                     self.addDebugEvent("SDK auto-reconnected to state \(settledState.rawValue)")
                 } else {
-                    self.isConnected = false
                     self.addDebugEvent("State \(settledState.rawValue) — tap Connect to register")
                 }
             }
@@ -520,35 +509,44 @@ class AppState: ObservableObject {
         }
     }
 
-    private func autoStartListening() {
-        Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+    /// Register Meta's launch channel without opening our microphone or running
+    /// an app-specific wake recognizer. Meta's beta app name owns activation.
+    func startMetaVoiceLaunch() {
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
+        #endif
+        guard listeningEnabled else { return }
+        metaVoiceService.start { [weak self] in
+            guard let self else { throw MetaLaunchError.unavailable }
+            guard self.listeningEnabled else { throw MetaLaunchError.disabled }
+            guard !self.isProcessing && !self.isListening else { throw MetaLaunchError.busy }
+            await self.handleWakeWordDetected(manualActivation: true)
+            guard self.transcriptionService.isRecording else { throw MetaLaunchError.microphone }
+        }
+    }
 
-            if registrationStateRaw < 3 {
-                addDebugEvent("Wake word auto-start deferred: registration state=\(registrationStateRaw)")
-                let settled = await waitForRegistration(minState: 3, timeoutSeconds: 20)
-                registrationStateRaw = settled
-                addDebugEvent("Wake word auto-start registration wait result: state=\(settled)")
-                guard settled >= 3 else {
-                    addDebugEvent("Skipping wake word auto-start: registration did not reach state 3")
-                    return
-                }
-            }
-
-            if !wakeWordService.isListening {
-                print("Auto-starting wake word listener...")
-                do {
-                    try await wakeWordService.startListening()
-                    print("Wake word listener auto-started")
-                } catch {
-                    print("Auto-start failed: \(error.localizedDescription)")
-                }
-            }
+    func handleMetaURL(_ url: URL, source: String) async {
+        guard WearablesRuntime.isConfigured else {
+            addDebugEvent("Meta callback ignored: SDK is unavailable")
+            return
+        }
+        if let previous = lastMetaURL, previous.url == url, Date().timeIntervalSince(previous.at) < 2 {
+            return // SceneDelegate and SwiftUI may deliver the same callback.
+        }
+        lastMetaURL = (url, Date())
+        recordCallback(url: url, source: source)
+        startMetaVoiceLaunch()
+        do {
+            _ = try await metaVoiceService.handleURL(url)
+        } catch {
+            errorMessage = "Meta connection failed: \(error.localizedDescription)"
         }
     }
 
     /// Cancel current processing or speaking — called by mic button tap during active response
     func cancelCurrentResponse() {
+        activationGeneration = UUID()
+        llmService.cancelPendingRequest()
         print("[MIC] cancelCurrentResponse called. isProcessing=\(isProcessing) isSpeaking=\(speechService.isSpeaking)")
         speechService.stopSpeaking()
         isProcessing = false
@@ -559,13 +557,24 @@ class AppState: ObservableObject {
     }
 
     func stopSpeakingAndResume() {
+        guard listeningEnabled else { return }
         print("[MIC] stopSpeakingAndResume called. inConversation=\(inConversation) isListening=\(isListening)")
+        // Stopping speech resumes its awaiting reply task. Retire that task
+        // before it can tear down the engine now used for follow-up recording.
+        activationGeneration = UUID()
+        wakeWordService.listenForStop = false
+        wakeWordService.pauseRecognitionPublic()
         speechService.stopSpeaking()
         isProcessing = false
         if inConversation {
             print("Listening for follow-up after stop...")
-            isListening = true
             transcriptionService.startRecording()
+            isListening = transcriptionService.isRecording
+            if !isListening {
+                inConversation = false
+                wakeWordService.stopListening()
+                errorMessage = transcriptionService.errorMessage ?? "The microphone could not resume."
+            }
         } else {
             Task { await safeReturnToWakeWord() }
         }
@@ -601,6 +610,9 @@ class AppState: ObservableObject {
 
     /// Capture photo and send to LLM with a prompt (e.g. "Turn this photo into a task")
     func capturePhotoAndSend(prompt: String) async {
+        guard listeningEnabled else { return }
+        let generation = activationGeneration
+
         print("[CAMERA] capturePhotoAndSend called. prompt=\(prompt.prefix(50))")
         guard isConnected else {
             errorMessage = "Connect glasses first"
@@ -610,18 +622,23 @@ class AppState: ObservableObject {
         speechService.playAcknowledgmentTone()  // Tone instead of spoken "Taking a picture" (avoids iOS voice)
         do {
             let photoData = try await cameraService.capturePhoto()
+            guard listeningEnabled, activationGeneration == generation else { return }
             cameraService.saveToPhotoLibrary(photoData)
             print("[CAMERA] Photo captured, sending to LLM: \(prompt)")
             let response = try await llmService.sendMessage(prompt, locationContext: locationService.locationContext, imageData: photoData)
+            guard listeningEnabled, activationGeneration == generation else { return }
             lastResponse = response
             startStopListener()
             await speechService.speak(response)
+            guard listeningEnabled, activationGeneration == generation else { return }
             stopStopListener()
         } catch {
+            guard listeningEnabled, activationGeneration == generation else { return }
             print("[CAMERA] Photo+send failed: \(error.localizedDescription)")
             errorMessage = "Photo failed: \(error.localizedDescription)"
             ErrorReporter.shared.report("capturePhotoAndSend failed: \(error.localizedDescription)", source: "camera", level: "error")
             await speechService.speak("Sorry, I couldn't take a photo. \(error.localizedDescription)")
+            guard listeningEnabled, activationGeneration == generation else { return }
         }
         isProcessing = false
         if inConversation {
@@ -637,6 +654,19 @@ class AppState: ObservableObject {
     func handleWakeWordDetected(manualActivation: Bool = false) async {
         print("[MIC] handleWakeWordDetected called. manual=\(manualActivation) isListening=\(isListening) inConversation=\(inConversation) isProcessing=\(isProcessing)")
 
+        guard listeningEnabled else {
+            errorMessage = "Enable Meta voice launch in Settings first."
+            return
+        }
+        let activation = UUID()
+        activationGeneration = activation
+        guard await wakeWordService.requestPermissions() else {
+            errorMessage = "Allow microphone and speech access to talk to Bernard."
+            return
+        }
+        guard listeningEnabled, activationGeneration == activation else { return }
+        wakeWordService.configureAudioSession()
+        // Pause the response Stop recognizer before starting transcription.
         // Pause wake word recognition BEFORE starting transcription.
         // Two speech recognizers cannot share the same audio engine —
         // the wake word task steals buffers and can cause the transcription
@@ -654,7 +684,9 @@ class AppState: ObservableObject {
 
         // Small delay to let the wake word recognition task fully release
         // the speech recognizer before we start a new one
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        do { try await Task.sleep(nanoseconds: 100_000_000) }
+        catch { return }
+        guard listeningEnabled, activationGeneration == activation else { return }
 
         // Manual mic button press gets 15s to start speaking (user may need time)
         // Wake word trigger gets 5s (user already spoke, so they're ready)
@@ -670,13 +702,9 @@ class AppState: ObservableObject {
             isListening = false
             inConversation = false
             print("[MIC] Reset isListening=false, inConversation=false due to recording failure")
-            // Try to restart wake word listener since we paused it
-            do {
-                try await wakeWordService.startListening()
-                print("[MIC] Wake word listener restarted after recording failure")
-            } catch {
-                print("[MIC] Failed to restart wake word after recording failure: \(error)")
-            }
+            wakeWordService.stopListening()
+            errorMessage = transcriptionService.errorMessage ?? "The microphone could not start."
+
         }
     }
 
@@ -688,6 +716,9 @@ class AppState: ObservableObject {
     // lists, so "say your goodbyes to the crew" ended the conversation.
 
     func handleTranscription(_ text: String) async {
+        guard listeningEnabled else { return }
+        let generation = activationGeneration
+
         guard !isProcessing else {
             // Dropping an utterance outright is the failure nobody can debug afterwards:
             // the user spoke, nothing happened, and only a local print said why. Counts
@@ -729,6 +760,7 @@ class AppState: ObservableObject {
             inConversation = false
             lastResponse = "Goodbye!"
             await speechService.speak("Goodbye!")
+            guard listeningEnabled, activationGeneration == generation else { return }
             await safeReturnToWakeWord()
             return
         }
@@ -740,23 +772,28 @@ class AppState: ObservableObject {
             speechService.playAcknowledgmentTone()  // Tone instead of spoken "Taking a picture" (avoids iOS voice)
             do {
                 let photoData = try await cameraService.capturePhoto()
+                guard listeningEnabled, activationGeneration == generation else { return }
                 cameraService.saveToPhotoLibrary(photoData)
                 print("Photo saved, sending to LLM with prompt: \(text)")
                 ErrorReporter.shared.report("Photo captured via voice: \(photoData.count) bytes, sending to LLM", source: "camera", level: "info")
 
                 let response = try await llmService.sendMessage(text, locationContext: locationService.locationContext, imageData: photoData)
+                guard listeningEnabled, activationGeneration == generation else { return }
                 lastResponse = response
                 print("Bernard (vision): \(response)")
 
                 startStopListener()
                 await speechService.speak(response)
+                guard listeningEnabled, activationGeneration == generation else { return }
                 stopStopListener()
 
             } catch {
+                guard listeningEnabled, activationGeneration == generation else { return }
                 print("Photo capture failed: \(error)")
                 ErrorReporter.shared.report("Photo voice command failed: \(error.localizedDescription)", source: "camera", level: "error")
                 lastResponse = "Photo failed: \(error.localizedDescription)"
                 await speechService.speak("Sorry, I couldn't take a photo or process the image. \(error.localizedDescription)")
+                guard listeningEnabled, activationGeneration == generation else { return }
             }
             isProcessing = false
             if inConversation {
@@ -773,17 +810,21 @@ class AppState: ObservableObject {
 
         do {
             let response = try await llmService.sendMessage(text, locationContext: locationService.locationContext)
+            guard listeningEnabled, activationGeneration == generation else { return }
             lastResponse = response
             print("Bernard: \(response)")
 
             startStopListener()
             await speechService.speak(response)
+            guard listeningEnabled, activationGeneration == generation else { return }
             stopStopListener()
         } catch {
+            guard listeningEnabled, activationGeneration == generation else { return }
             print("[CRASH] LLM request failed: \(error)")
             ErrorReporter.shared.report("[CRASH] LLM failed: \(error.localizedDescription)", source: "llm")
             errorMessage = "Failed to get response: \(error.localizedDescription)"
             await speechService.speak("Sorry, I encountered an error.")
+            guard listeningEnabled, activationGeneration == generation else { return }
         }
 
         isProcessing = false
@@ -796,29 +837,32 @@ class AppState: ObservableObject {
                 await safeReturnToWakeWord()
             }
         } catch {
+            guard listeningEnabled, activationGeneration == generation else { return }
             print("[CRASH] Post-speech flow failed: \(error)")
             ErrorReporter.shared.report("[CRASH] Post-speech flow: \(error.localizedDescription)", source: "voice")
         }
     }
 
     private func startStopListener() {
+        guard listeningEnabled else { return }
+        let generation = activationGeneration
         wakeWordService.listenForStop = true
-        if wakeWordService.getAudioEngine()?.isRunning == true {
-            Task {
-                do {
-                    try await wakeWordService.startListening()
-                    print("Stop listener active during TTS")
-                } catch {
-                    print("Could not start stop listener: \(error)")
-                }
+        Task { @MainActor [weak self] in
+            guard let self, self.listeningEnabled,
+                  self.activationGeneration == generation,
+                  self.wakeWordService.listenForStop else { return }
+            do { try await self.wakeWordService.startListening() }
+            catch {
+                guard self.activationGeneration == generation else { return }
+                self.addDebugEvent("Stop listener unavailable: \(error.localizedDescription)")
             }
-        } else {
-            print("No running engine for stop listener — skipping")
         }
     }
 
     private func stopStopListener() {
         wakeWordService.listenForStop = false
+        // Follow-up transcription can keep using this engine in the background.
+        // Ending the conversation owns the eventual engine teardown.
         wakeWordService.pauseRecognitionPublic()
     }
 
@@ -845,40 +889,20 @@ class AppState: ObservableObject {
     }
 
     private func returnToWakeWord() async {
-        print("[MIC] returnToWakeWord called")
-        isListening = false
-        inConversation = false
-        wakeWordService.listenForStop = false
-        speechService.playDisconnectTone()
-        do {
-            // Small delay to let audio session settle after TTS playback
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            try await wakeWordService.startListening()
-            print("[MIC] Wake word restarted")
-        } catch {
-            print("[CRASH] Failed to restart wake word listener: \(error)")
-            ErrorReporter.shared.report("[CRASH] returnToWakeWord failed: \(error.localizedDescription)", source: "mic")
-            errorMessage = "Tap mic button to restart"
-        }
+        await safeReturnToWakeWord()
     }
 
-    /// Crash-safe wrapper for returnToWakeWord - catches all errors
+    /// Return to Meta activation. No open microphone or custom wake phrase is
+    /// needed while Bernard is idle.
     private func safeReturnToWakeWord() async {
-        print("[MIC] safeReturnToWakeWord called")
+        activationGeneration = UUID()
         isListening = false
         inConversation = false
         wakeWordService.listenForStop = false
+        wakeWordService.stopListening()
+        transcriptionService.cancelRecording()
         speechService.playDisconnectTone()
-        // Small delay to let audio session settle after TTS playback
-        try? await Task.sleep(nanoseconds: 200_000_000)
-        do {
-            try await wakeWordService.startListening()
-            print("[MIC] Wake word restarted successfully")
-        } catch {
-            print("[CRASH] safeReturnToWakeWord - wake word restart failed: \(error)")
-            ErrorReporter.shared.report("[CRASH] safeReturnToWakeWord failed: \(error.localizedDescription)", source: "mic")
-            errorMessage = "Tap mic button to restart"
-        }
+        startMetaVoiceLaunch()
     }
 
     // MARK: - Live Activity
@@ -897,6 +921,18 @@ class AppState: ObservableObject {
                     syncLiveActivity()
                 }
             }
+        }
+    }
+}
+
+private enum MetaLaunchError: LocalizedError {
+    case unavailable, disabled, busy, microphone
+    var errorDescription: String? {
+        switch self {
+        case .unavailable: "The app is not ready."
+        case .disabled: "Meta voice launch is disabled."
+        case .busy: "Bernard is already listening or responding."
+        case .microphone: "The microphone could not start."
         }
     }
 }

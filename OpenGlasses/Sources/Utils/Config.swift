@@ -39,7 +39,24 @@ struct Config {
         UserDefaults.standard.string(forKey: "doloresBaseURL") ?? "https://forit-ai-engine.azurewebsites.net/api/voice"
     }
 
-    // MARK: - Wake Word
+    // MARK: - Bernard voice
+
+    /// Empty means the engine's default. This is separate from the legacy
+    /// phone-side ElevenLabs fallback and contains no provider credentials.
+    static var bernardVoiceID: String {
+        UserDefaults.standard.string(forKey: "bernardVoiceID") ?? ""
+    }
+
+    static func setBernardVoiceID(_ id: String) {
+        let id = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        if id.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "bernardVoiceID")
+        } else {
+            UserDefaults.standard.set(id, forKey: "bernardVoiceID")
+        }
+    }
+
+    // MARK: - Legacy wake phrase preferences
 
     /// All available wake phrases the user can enable
     static let availableWakePhrases = [

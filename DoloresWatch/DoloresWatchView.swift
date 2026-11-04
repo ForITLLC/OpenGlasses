@@ -15,9 +15,12 @@ struct DoloresWatchView: View {
                     .frame(width: 40, height: 40)
                     .clipShape(Circle())
 
-                Text("Bernard")
-                    .font(.headline)
-                    .foregroundColor(Color(red: 0.56, green: 0.86, blue: 0.94))
+                HStack(spacing: 6) {
+                    ForITMark(size: 20, surface: .dark)
+                    Text("Bernard")
+                        .font(.headline)
+                        .foregroundColor(Color(red: 0.56, green: 0.86, blue: 0.94))
+                }
 
                 // Last response
                 Text(lastResponse)
@@ -61,13 +64,8 @@ struct DoloresWatchView: View {
                 Text(label)
                     .font(.system(size: 9))
             }
-            .foregroundColor(Color(red: 0.56, green: 0.86, blue: 0.94))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(Color.black)
-            .cornerRadius(8)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.forITTile())
     }
 
     func sendCommand(_ text: String) async {

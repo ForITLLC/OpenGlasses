@@ -8,9 +8,9 @@ let package = Package(
     ],
     dependencies: [
         // Meta Wearables Device Access Toolkit
-        .package(url: "https://github.com/facebook/meta-wearables-dat-ios.git", exact: "0.5.0"),
+        .package(url: "https://github.com/facebook/meta-wearables-dat-ios.git", exact: "1.0.1"),
         // ForIT Sign-in and Send feedback (private: needs read access to ForITLLC/for-iCommon)
-        .package(url: "https://github.com/ForITLLC/for-iCommon.git", exact: "0.30.0"),
+        .package(url: "https://github.com/ForITLLC/for-iCommon.git", exact: "0.31.9"),
     ],
     targets: [
         .target(

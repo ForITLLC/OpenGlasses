@@ -43,13 +43,11 @@ struct GlassesActivityWidget: Widget {
                     // Right: Disable button + status icon
                     HStack(spacing: 8) {
                         Button(intent: DisableListeningIntent()) {
-                            Image(systemName: "power")
+                            Label("Disable listening", systemImage: "power")
                                 .font(.system(size: 14))
-                                .foregroundStyle(.black.opacity(0.5))
-                                .padding(6)
-                                .background(Circle().fill(.black.opacity(0.1)))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.forITIcon(palette: ForITControlPalette(
+                            fill: .cyan, ink: .black, outline: .black)))
 
                         Image(systemName: statusIconName(state: context.state))
                             .font(.system(size: 20))
