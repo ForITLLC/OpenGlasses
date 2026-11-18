@@ -121,7 +121,7 @@ struct SettingsView: View {
                 }
                 .toggleStyle(.forITToggle(on: .navy))
             } footer: {
-                Text("Say “Hey Meta, start ForIT Glasses.” Requires Meta beta setup.")
+                Text("Say “Hey Meta, start Bernard.” Requires Meta beta setup.")
                     .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
             }
 
