@@ -145,7 +145,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores
-        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: "NO"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        TARGETED_DEVICE_FAMILY: "1"
         DEVELOPMENT_TEAM: UUSSWWML2A
         MARKETING_VERSION: "1.3.1"
         # Local/base value only — CI overrides via CURRENT_PROJECT_VERSION=<ASC latest + 1>
@@ -186,6 +189,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores.tests
+        TARGETED_DEVICE_FAMILY: "1"
         DEVELOPMENT_TEAM: UUSSWWML2A
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: "Automatic"
@@ -204,7 +208,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores.uitests
         TEST_TARGET_NAME: OpenGlasses
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
         DEVELOPMENT_TEAM: UUSSWWML2A
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: "Automatic"
@@ -295,6 +299,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores.activity-widget
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: "NO"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: "NO"
         DEVELOPMENT_TEAM: UUSSWWML2A
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"

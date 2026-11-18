@@ -32,6 +32,12 @@ final class ConfigTests: XCTestCase {
         super.tearDown()
     }
 
+    /// Inspect the generated host app metadata, not the project source text.
+    func testInstalledAppDeclaresOnlyIPhoneDeviceFamily() {
+        let families = Bundle.main.object(forInfoDictionaryKey: "UIDeviceFamily") as? [Int]
+        XCTAssertEqual(families, [1], "The glasses phone app must not declare iPad support")
+    }
+
     // MARK: - Dolores Config (hardcoded)
 
     func testDoloresAPIKeyCanBeConfigured() {
