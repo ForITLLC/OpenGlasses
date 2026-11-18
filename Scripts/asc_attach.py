@@ -29,6 +29,7 @@ Usage (env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_BASE64):
   asc_attach.py --app-id <id> --group-id <id> --version <CFBundleVersion>
                 [--whats-new "<text>"] [--require-valid]
 """
+# This app is iPhone-only; distribution also disables Mac/Vision beta compatibility.
 from __future__ import annotations
 
 import argparse
@@ -89,6 +90,22 @@ def internal_group_attributes(api: Api, group_id: str) -> dict:
     if attrs.get("isInternalGroup") is not True:
         raise ValueError(f"beta group {group_id} is not confirmed internal; refusing distribution")
     return attrs
+
+
+def ensure_phone_only_group(api: Api, group_id: str) -> str:
+    """Keep this iPhone client's builds off Mac and Vision in TestFlight."""
+    desired = {"iosBuildsAvailableForAppleSiliconMac": False,
+               "iosBuildsAvailableForAppleVision": False}
+    attrs = internal_group_attributes(api, group_id)
+    if all(attrs.get(key) is False for key in desired):
+        return "internal beta group already excludes Mac and Vision"
+    api("PATCH", f"/betaGroups/{group_id}", body={"data": {
+        "type": "betaGroups", "id": group_id, "attributes": desired,
+    }})
+    confirmed = internal_group_attributes(api, group_id)
+    if not all(confirmed.get(key) is False for key in desired):
+        raise ValueError("internal beta group Mac/Vision availability did not read back as disabled")
+    return "internal beta group Mac and Vision availability disabled and verified"
 
 
 def group_sees_all_builds(api: Api, group_id: str) -> bool:
@@ -189,7 +206,7 @@ def run(api: Api, app_id: str, group_id: str, version: str, *,
         print("::warning::could not attach build to TestFlight group (not VALID within timeout) — attach manually")
         return 0
     try:
-        internal_group_attributes(api, group_id)
+        print(ensure_phone_only_group(api, group_id))
     except ValueError as error:
         print(f"::error title=Internal group not confirmed::{error}")
         return 1
