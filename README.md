@@ -34,7 +34,7 @@ OpenGlasses transforms your Ray-Ban Meta smart glasses into a hands-free AI assi
 
 ## Current ForIT requirements
 
-The November 18 source declares the iOS app and activity extension for iPhone only. iPad support and Mac/Vision compatibility are disabled; the separate Watch companion remains. This change still needs native qualification and distribution verification. Earlier cross-platform descriptions below are historical, not current availability claims.
+The November 18 source declares the iOS app and activity extension for iPhone only. iPad support and Mac/Vision compatibility are disabled; the separate Watch companion remains. Native simulator qualification passed 117 tests on November 18. Signing and distribution remain blocked by the Apple account agreement; current availability has not changed. Earlier cross-platform descriptions below are historical, not current availability claims.
 
 - **The installed client:** A current ForIT Glasses iPhone build using the existing `com.forit.openglasses.dolores` bundle and ForIT profile. Actual glasses behavior still needs device acceptance.
 - **The Bernard key:** Use the existing onboarding screen’s **Bernard API Key** field and Continue, or the existing Settings account field. This is a key for Bernard’s ForIT engine; do not obtain or enter a direct Anthropic/provider key or edit `Config.swift` for setup.
