@@ -135,12 +135,14 @@ final class AppAccount: ObservableObject {
             center.close()
             retireAccountWork()
             defer {
-                isChangingCredentials = false
-                if let rejected = rejectedWhileChanging {
-                    rejectedWhileChanging = nil
-                    invalidate(key: rejected)
+                if generation == attempt {
+                    isChangingCredentials = false
+                    if let rejected = rejectedWhileChanging {
+                        rejectedWhileChanging = nil
+                        invalidate(key: rejected)
+                    }
+                    if signedIn { resumeAccountWork() }
                 }
-                if signedIn { resumeAccountWork() }
             }
             let minted = try await engineMint(identity.idToken, identity.email, label)
             guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
@@ -197,6 +199,8 @@ final class AppAccount: ObservableObject {
         guard !OpenGlassesScreenshotFixture.isActive else { return }
         #endif
         generation = UUID()
+        isChangingCredentials = false
+        rejectedWhileChanging = nil
         signInTask?.cancel()
         signIn.cancel()
         center.close()

@@ -197,4 +197,34 @@ final class ForITAccountSessionTests: XCTestCase {
     func testNativeAppDoesNotEmbedTheFormerSecretsResource() {
         XCTAssertNil(Bundle.main.path(forResource: "Secrets", ofType: "plist"))
     }
+
+    func testAnOldCompletionCannotReleaseANewerAccountTransition() async throws {
+        let store = TasksFeedbackKey.Store.memory()
+        let started = AsyncStream<Int>.makeStream()
+        var first: CheckedContinuation<ForITAccountSession, Error>?
+        var second: CheckedContinuation<ForITAccountSession, Error>?
+        var calls = 0
+        let account = account(store: store, engine: { _, _, _ in
+            calls += 1
+            let call = calls
+            return try await withCheckedThrowingContinuation { continuation in
+                if call == 1 { first = continuation } else { second = continuation }
+                started.continuation.yield(call)
+            }
+        })
+        var ready = started.stream.makeAsyncIterator()
+        let oldTask = Task { try await account.completeSignIn(identity) }
+        _ = await ready.next()
+        account.signOut()
+        let newTask = Task { try await account.completeSignIn(identity) }
+        _ = await ready.next()
+        try XCTUnwrap(first).resume(returning: credential)
+        do { try await oldTask.value; XCTFail("old login must remain cancelled") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(account.isChangingCredentials, "the new login still owns its transition")
+        try XCTUnwrap(second).resume(returning: credential)
+        try await newTask.value
+        XCTAssertTrue(account.signedIn)
+        XCTAssertFalse(account.isChangingCredentials)
+    }
 }
