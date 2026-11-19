@@ -37,6 +37,35 @@ final class ForITAccountSessionTests: XCTestCase {
         XCTAssertThrowsError(try ForITAccountSession.decodeMint(blank, status: 201, expectedEmail: identity.email))
     }
 
+    func testCentralAuthCodeUsesOnlyTheEngineRelyingAppRoute() throws {
+        let request = try ForITAccountSession.appSessionRequest(
+            code: "fixture-code", codeVerifier: "fixture-verifier", nonce: "fixture-nonce", label: "Fixture iPhone")
+        XCTAssertEqual(request.url?.absoluteString,
+                       "https://forit-ai-engine.azurewebsites.net/api/api-keys/app-session")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertNil(request.value(forHTTPHeaderField: "X-API-Key"))
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: String])
+        XCTAssertEqual(body, ["app": "openglasses", "code": "fixture-code",
+                              "codeVerifier": "fixture-verifier", "nonce": "fixture-nonce", "label": "Fixture iPhone"])
+    }
+
+    func testCentralAuthRefusalNeverCreatesALocalSession() throws {
+        let response = Data(#"{"key":"dol_fixture","email":"person@example.test"}"#.utf8)
+        for status in [400, 401, 502, 503] {
+            XCTAssertThrowsError(try ForITAccountSession.decodeMint(response, status: status, expectedEmail: nil))
+        }
+        let session = try ForITAccountSession.decodeMint(response, status: 201, expectedEmail: nil)
+        let store = TasksFeedbackKey.Store.memory()
+        try session.save(to: store)
+        let persisted = try XCTUnwrap(store.load())
+        for forbidden in ["fixture-code", "fixture-verifier", "fixture-nonce", "idToken"] {
+            XCTAssertFalse(persisted.contains(forbidden))
+        }
+        XCTAssertEqual(ForITAccountSession.load(from: store), session)
+    }
+
     func testAcceptedIdentityIsPersistedWithoutTheIdentityToken() async throws {
         let store = TasksFeedbackKey.Store.memory()
         let account = account(store: store)

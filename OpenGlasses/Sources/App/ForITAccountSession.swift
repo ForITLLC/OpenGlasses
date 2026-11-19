@@ -40,6 +40,26 @@ struct ForITAccountSession: Codable, Equatable, Sendable {
         return request
     }
 
+    /// Central Auth's one-time code goes only to the existing engine's relying-app route.
+    /// PKCE/state validation and browser ownership belong to the shared native Auth client.
+    static func appSessionRequest(code: String, codeVerifier: String, nonce: String,
+                                  label: String) throws -> URLRequest {
+        struct Body: Encodable {
+            let app = "openglasses"
+            let code: String
+            let codeVerifier: String
+            let nonce: String
+            let label: String
+        }
+        var request = URLRequest(url: engineOrigin.appendingPathComponent("api/api-keys/app-session"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(Body(code: code, codeVerifier: codeVerifier,
+                                                       nonce: nonce, label: label))
+        request.timeoutInterval = 30
+        return request
+    }
+
     /// The shared store erases Keychain error statuses; sign-out needs checked deletion.
     static func deletePersistedSession() throws {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
@@ -68,6 +88,26 @@ struct ForITAccountSession: Codable, Equatable, Sendable {
         let (data, response) = try await URLSession.shared.data(for: mintRequest(idToken: idToken, label: label))
         return try decodeMint(data, status: (response as? HTTPURLResponse)?.statusCode ?? 0,
                               expectedEmail: email)
+    }
+
+    /// Send once. A spent or uncertain code requires a fresh browser sign-in, never a retry.
+    static func mintAppSession(code: String, codeVerifier: String, nonce: String,
+                               label: String) async throws -> Self {
+        let request = try appSessionRequest(code: code, codeVerifier: codeVerifier, nonce: nonce, label: label)
+        let transport = URLSession(configuration: .ephemeral, delegate: AppSessionRedirectPolicy(), delegateQueue: nil)
+        defer { transport.invalidateAndCancel() }
+        let (data, response) = try await transport.data(for: request)
+        return try decodeMint(data, status: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                              expectedEmail: nil)
+    }
+}
+
+/// A redirect must never forward a one-time code or PKCE verifier away from the pinned exchange.
+private final class AppSessionRedirectPolicy: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
     }
 }
 
