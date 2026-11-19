@@ -25,8 +25,8 @@ final class AppAccount: ObservableObject {
     private let forgetLegacyFeedback: () -> Void
     private let forgetLegacyCredentials: () -> Void
     private let deleteSession: () throws -> Void
-    private let retireAccountWork: () -> Void
-    private let resumeAccountWork: () -> Void
+    private let retireAccountWork: @MainActor () -> Void
+    private let resumeAccountWork: @MainActor () -> Void
     private var rejectedWhileChanging: String?
     private var generation = UUID()
     private var signInTask: Task<Void, Never>?
@@ -59,11 +59,8 @@ final class AppAccount: ObservableObject {
                  UserDefaults.standard.removeObject(forKey: key)
              }
          }, deleteSession: (() throws -> Void)? = nil,
-         retireAccountWork: @escaping () -> Void = { AppStateProvider.shared?.suspendForSignOut() },
-         resumeAccountWork: @escaping () -> Void = {
-             AppStateProvider.shared?.locationService.startTracking()
-             AppStateProvider.shared?.startMetaVoiceLaunch()
-         }) {
+         retireAccountWork: (@MainActor () -> Void)? = nil,
+         resumeAccountWork: (@MainActor () -> Void)? = nil) {
         self.store = store
         self.installationStore = installationStore
         self.engineMint = engineMint
@@ -74,8 +71,11 @@ final class AppAccount: ObservableObject {
             store.save(nil)
             guard store.load() == nil else { throw ForITAccountError.storage }
         }
-        self.retireAccountWork = retireAccountWork
-        self.resumeAccountWork = resumeAccountWork
+        self.retireAccountWork = retireAccountWork ?? { AppStateProvider.shared?.suspendForSignOut() }
+        self.resumeAccountWork = resumeAccountWork ?? {
+            AppStateProvider.shared?.locationService.startTracking()
+            AppStateProvider.shared?.startMetaVoiceLaunch()
+        }
         #if DEBUG
         let restored = OpenGlassesScreenshotFixture.isActive ? nil : ForITAccountSession.load(from: store)
         #else
