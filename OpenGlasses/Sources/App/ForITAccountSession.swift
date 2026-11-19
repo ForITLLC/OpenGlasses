@@ -2,7 +2,8 @@ import Foundation
 import ForITCommon
 import Security
 
-/// Product credentials obtained by exchanging a fresh shared ForAuth sign-in.
+/// Product credentials obtained by exchanging a verified native identity.
+/// The current Entra exchange is provisional pending the central for-Auth contract.
 /// The identity token is never persisted. Both app keys belong to this account.
 struct ForITAccountSession: Codable, Equatable, Sendable {
     let key: String

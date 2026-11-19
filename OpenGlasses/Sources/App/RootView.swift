@@ -61,7 +61,7 @@ struct RootView: View {
     #endif
 }
 
-/// The same published ForAuth gate used by the other native ForIT clients.
+/// The shared native gate; its current provider is direct Entra, not central for-Auth.
 struct OnboardingView: View {
     let onComplete: () -> Void
     @ObservedObject private var account = AppAccount.shared

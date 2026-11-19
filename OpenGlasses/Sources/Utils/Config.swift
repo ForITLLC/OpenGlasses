@@ -5,7 +5,7 @@ struct Config {
 
     // MARK: - Dolores API
 
-    /// The credential obtained by shared ForAuth sign-in, held only in Keychain.
+    /// The credential obtained by the native identity exchange, held only in Keychain.
     /// Old manual defaults and build-time keys never establish an app session.
     static var doloresAPIKey: String {
         ForITAccountSession.load()?.key ?? ""

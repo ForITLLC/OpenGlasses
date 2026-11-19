@@ -2,7 +2,8 @@ import ForITCommon
 import SwiftUI
 import UIKit
 
-/// One shared ForAuth sign-in for Bernard, the profile and feedback.
+/// One native account for Bernard, the profile and feedback.
+/// Central for-Auth adoption still needs its owned native consumer/session contract.
 /// The short-lived identity token is exchanged using the published product contracts.
 @MainActor
 final class AppAccount: ObservableObject {
