@@ -139,6 +139,7 @@ targets:
       properties:
         com.apple.developer.associated-domains:
           - "applinks:ai.forit.io"
+          - "webcredentials:ai.forit.io"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.forit.openglasses.dolores
