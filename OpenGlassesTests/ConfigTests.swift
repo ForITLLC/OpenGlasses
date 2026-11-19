@@ -40,14 +40,26 @@ final class ConfigTests: XCTestCase {
 
     // MARK: - Dolores Config (hardcoded)
 
-    func testDoloresAPIKeyCanBeConfigured() {
-        Config.setAPIKey("test-key")
-        XCTAssertEqual(Config.doloresAPIKey, "test-key")
+    func testManualDefaultsCannotReplaceTheForAuthAccount() {
+        let initial = Config.doloresAPIKey
+        UserDefaults.standard.set("legacy-fixture", forKey: "doloresAPIKey")
+        XCTAssertTrue(Config.doloresAPIKey == initial)
+        XCTAssertFalse(Config.doloresAPIKey == "legacy-fixture")
     }
 
     func testDoloresBaseURLIsValid() {
         XCTAssertTrue(Config.doloresBaseURL.hasPrefix("https://"))
         XCTAssertNotNil(URL(string: Config.doloresBaseURL))
+    }
+
+    func testSavedAddressOverrideCannotReceiveAccountCredentials() {
+        let old = UserDefaults.standard.object(forKey: "doloresBaseURL")
+        defer {
+            if let old { UserDefaults.standard.set(old, forKey: "doloresBaseURL") }
+            else { UserDefaults.standard.removeObject(forKey: "doloresBaseURL") }
+        }
+        UserDefaults.standard.set("https://untrusted.example/api/voice", forKey: "doloresBaseURL")
+        XCTAssertEqual(Config.doloresBaseURL, "https://forit-ai-engine.azurewebsites.net/api/voice")
     }
 
     func testBernardVoiceUsesEngineDefaultUntilSelected() {

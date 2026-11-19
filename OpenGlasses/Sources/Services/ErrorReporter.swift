@@ -6,7 +6,6 @@ class ErrorReporter {
     static let shared = ErrorReporter()
     
     private let endpoint = Config.doloresBaseURL.replacingOccurrences(of: "/voice", with: "/log")
-    private let apiKey = Config.doloresAPIKey
 
     /// True when running inside an XCTest bundle. Test runs exercise failure paths
     /// deliberately (see WearablesRuntimeGuardTests), and those synthetic errors must
@@ -47,6 +46,8 @@ class ErrorReporter {
             captureLock.unlock()
             return
         }
+        let apiKey = Config.doloresAPIKey
+        guard !apiKey.isEmpty else { return }
         var body: [String: Any] = [
             "source": "dolores-ios",
             "component": source,

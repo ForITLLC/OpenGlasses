@@ -18,9 +18,7 @@
 # The legacy mode below retains historical slot/proof code; it creates no current capture authority or release gate.
 # Each step prints "step <name> rc=<rc> <seconds>s"; its log is build/testflight-<UTC time>/<name>.log.
 #
-# 1. OpenGlasses/Secrets.plist: DOLORES_API_KEY from the environment, written as the workflow wrote it. With no key
-#    the plist holds an empty dict and the app asks each person for their own key at onboarding. The key is never
-#    printed.
+# 1. The app signs in through shared ForAuth. No engine key is embedded in the app bundle.
 # 2. Both routes: xcodegen, genuine package resolution, then unit tests (OpenGlassesTests) on the lane's own
 #    iPhone simulator, through the Mini's route /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses (checklist
 #    CI-2): the iPhone ci-sim-lanes.conf gives the lane, else ci-OpenGlasses-iPhone, which the route creates and
@@ -51,7 +49,7 @@
 #    testFlightInternalTestingOnly, and nothing here makes an external group or a public link or submits anything
 #    for review (docs/access-control.md).
 #
-# Env (defaults are the team's): ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH, CERT_DIR, DOLORES_API_KEY, WHATS_NEW (the
+# Env (defaults are the team's): ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH, CERT_DIR, WHATS_NEW (the
 # build's What to Test text; none by default), BETA_GROUP_NAME.
 set -uo pipefail
 # Mini job roots may be linked to the external SSD. Normalize once so the Git
@@ -782,29 +780,7 @@ if [ -n "${FORIT_GATE_RUN:-}" ] && [ -f "$FORIT_GATE_RUN/lane" ] &&
   exit 1
 fi
 
-# --- 1. Secrets.plist ---------------------------------------------------------------------------------------------
-if [ -n "${DOLORES_API_KEY:-}" ]; then
-  cat > OpenGlasses/Secrets.plist << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>DOLORES_API_KEY</key>
-  <string>${DOLORES_API_KEY}</string>
-</dict>
-</plist>
-PLIST
-  echo "Secrets.plist: DOLORES_API_KEY from the environment"
-else
-  cat > OpenGlasses/Secrets.plist << 'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict/>
-</plist>
-PLIST
-  echo "Secrets.plist: no DOLORES_API_KEY set, so the app has no built-in key and asks each person for their own at onboarding"
-fi
+# --- 1. Account credentials are obtained at runtime, never injected into the app bundle ------------------------
 
 # --- 2. project and unit tests (CI-1: a red test stops the run here) ----------------------------------------------
 step common-source prepare_common_source
@@ -841,7 +817,7 @@ if [ -z "$MATRIX_PR" ]; then
   SIM_UDID=$(tail -1 "$OUT/sim.log")
   [[ $SIM_UDID =~ ^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$ ]] ||
     { echo "no lane iPhone UDID (see $OUT/sim.log)"; exit 1; }
-  step tests nice -n 10 "${LANE_SIM[@]}" xcodebuild test -jobs 2 -project OpenGlasses.xcodeproj -scheme OpenGlasses \
+  step tests env TEST_RUNNER_OPENGLASSES_RENDER_EVIDENCE="$PWD/$OUT" nice -n 10 "${LANE_SIM[@]}" xcodebuild test -jobs 2 -project OpenGlasses.xcodeproj -scheme OpenGlasses \
     -destination "id=$SIM_UDID" -only-testing:OpenGlassesTests -parallel-testing-enabled NO \
     -derivedDataPath build/dd-sim -clonedSourcePackagesDirPath build/spm -scmProvider system \
     -onlyUsePackageVersionsFromResolvedFile -disableAutomaticPackageResolution \

@@ -23,8 +23,8 @@ private func processWearablesCallbackURL(_ url: URL, source: String) {
     guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
     #endif
     Task { @MainActor in
-        if FeedbackAccount.isSignInLink(url) {
-            _ = FeedbackAccount.shared.handle(url)
+        if AppAccount.isSignInLink(url) {
+            _ = AppAccount.shared.handle(url)
             return
         }
         guard MetaVoiceInvocationService.isDATURL(url) else { return }
@@ -106,7 +106,7 @@ struct OpenGlassesApp: App {
             RootView()
                 .environmentObject(appState)
                 .forITTint()
-                .forITFeedback(FeedbackAccount.shared.center)
+                .forITFeedback(AppAccount.shared.center)
                 .onAppear { AppStateProvider.shared = appState }
                 .onOpenURL { url in
                     processWearablesCallbackURL(url, source: "SwiftUI")
@@ -195,23 +195,36 @@ class AppState: ObservableObject {
         listeningEnabled = enabled
         Config.setListeningEnabled(enabled)
         if !enabled {
-            metaVoiceService.stop()
-            llmService.cancelPendingRequest()
-            cameraService.cancelPendingCapture()
-            wakeWordService.listenForStop = false
-            wakeWordService.stopListening()
-            transcriptionService.cancelRecording()
-            speechService.stopSpeaking()
-            isListening = false
-            isProcessing = false
-            inConversation = false
-            liveActivity.end()
+            stopListeningSession()
             addDebugEvent("Listening DISABLED by user")
         } else {
             addDebugEvent("Listening ENABLED by user")
             startMetaVoiceLaunch()
             syncLiveActivity()
         }
+    }
+
+    /// Stop account work without changing the person's saved listening preference.
+    func suspendForSignOut() {
+        stopListeningSession()
+        locationService.stopTracking()
+        currentTranscription = ""
+        lastResponse = ""
+    }
+
+    private func stopListeningSession() {
+        activationGeneration = UUID()
+        metaVoiceService.stop()
+        llmService.cancelPendingRequest()
+        cameraService.cancelPendingCapture()
+        wakeWordService.listenForStop = false
+        wakeWordService.stopListening()
+        transcriptionService.cancelRecording()
+        speechService.stopSpeaking()
+        isListening = false
+        isProcessing = false
+        inConversation = false
+        liveActivity.end()
     }
 
     let glassesService = GlassesConnectionService()
@@ -248,7 +261,7 @@ class AppState: ObservableObject {
     /// Only ends when app goes to background (handled in scenePhase onChange).
     func syncLiveActivity() {
         // Don't start or update Live Activity if listening is disabled
-        guard listeningEnabled else {
+        guard listeningEnabled, !Config.doloresAPIKey.isEmpty else {
             if liveActivity.isActive {
                 liveActivity.end()
             }
@@ -323,7 +336,7 @@ class AppState: ObservableObject {
         Task { @MainActor [weak self] in
             for (url, source) in pending { await self?.handleMetaURL(url, source: source) }
         }
-        locationService.startTracking()
+        if !Config.doloresAPIKey.isEmpty { locationService.startTracking() }
         observeLiveActivityState()
     }
 
@@ -515,10 +528,12 @@ class AppState: ObservableObject {
         #if DEBUG
         guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
         #endif
-        guard listeningEnabled else { return }
+        guard listeningEnabled, !Config.doloresAPIKey.isEmpty,
+              !AppAccount.shared.isChangingCredentials else { return }
         metaVoiceService.start { [weak self] in
             guard let self else { throw MetaLaunchError.unavailable }
             guard self.listeningEnabled else { throw MetaLaunchError.disabled }
+            guard !Config.doloresAPIKey.isEmpty else { throw MetaLaunchError.signIn }
             guard !self.isProcessing && !self.isListening else { throw MetaLaunchError.busy }
             await self.handleWakeWordDetected(manualActivation: true)
             guard self.transcriptionService.isRecording else { throw MetaLaunchError.microphone }
@@ -654,6 +669,10 @@ class AppState: ObservableObject {
     func handleWakeWordDetected(manualActivation: Bool = false) async {
         print("[MIC] handleWakeWordDetected called. manual=\(manualActivation) isListening=\(isListening) inConversation=\(inConversation) isProcessing=\(isProcessing)")
 
+        guard !Config.doloresAPIKey.isEmpty else {
+            errorMessage = "Sign in with your ForIT account to talk to Bernard."
+            return
+        }
         guard listeningEnabled else {
             errorMessage = "Enable Meta voice launch in Settings first."
             return
@@ -926,13 +945,14 @@ class AppState: ObservableObject {
 }
 
 private enum MetaLaunchError: LocalizedError {
-    case unavailable, disabled, busy, microphone
+    case unavailable, disabled, busy, microphone, signIn
     var errorDescription: String? {
         switch self {
         case .unavailable: "The app is not ready."
         case .disabled: "Meta voice launch is disabled."
         case .busy: "Bernard is already listening or responding."
         case .microphone: "The microphone could not start."
+        case .signIn: "Sign in with your ForIT account first."
         }
     }
 }

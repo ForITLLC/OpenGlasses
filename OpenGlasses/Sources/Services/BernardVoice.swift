@@ -22,13 +22,16 @@ struct BernardVoiceCatalog: Equatable {
 
     @MainActor
     static func load() async throws -> BernardVoiceCatalog {
+        let key = Config.doloresAPIKey
         let request = try makeRequest(baseURL: Config.doloresBaseURL,
-                                      apiKey: Config.doloresAPIKey, userEmail: Config.userEmail)
+                                      apiKey: key, userEmail: Config.userEmail)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse else { throw BernardVoiceError.invalidResponse }
         switch response.statusCode {
         case 200: return try parse(data)
-        case 401: throw BernardVoiceError.unauthorized
+        case 401:
+            AppAccount.shared.invalidate(key: key)
+            throw BernardVoiceError.unauthorized
         case 403: throw BernardVoiceError.forbidden
         default: throw BernardVoiceError.unavailable
         }
@@ -80,10 +83,10 @@ enum BernardVoiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .missingAPIKey: return "Add your Bernard API key to load voices."
+        case .missingAPIKey: return "Sign in with your ForIT account to load voices."
         case .invalidURL: return "Bernard's address could not be used to load voices."
         case .invalidResponse: return "Bernard returned an unreadable voice list. Your saved choice is unchanged."
-        case .unauthorized: return "Your Bernard API key wasn't accepted. Check it and try again."
+        case .unauthorized: return "Your sign-in expired. Sign in with your ForIT account again."
         case .forbidden: return "This account cannot load Bernard's voices."
         case .unavailable: return "Bernard's voices couldn't be loaded. Your saved choice is unchanged."
         }

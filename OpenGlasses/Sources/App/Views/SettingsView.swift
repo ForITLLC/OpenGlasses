@@ -5,13 +5,13 @@ struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     // listeningEnabled is driven by appState.listeningEnabled (observable)
     @State private var speedMode: String
-    @State private var apiKey: String
-    @State private var userEmail: String
+    @ObservedObject private var account = AppAccount.shared
     @State private var selectedVoiceID: String
     @State private var voiceCatalog: BernardVoiceCatalog?
     @State private var isLoadingVoices = false
     @State private var voiceError: String?
     @State private var voiceUndo: VoiceSelectionUndo?
+    @State private var voiceLoadGeneration = UUID()
 
     private var isScreenshot: Bool {
         #if DEBUG
@@ -28,8 +28,6 @@ struct SettingsView: View {
         let screenshot = false
         #endif
         _speedMode = State(initialValue: screenshot ? "fast" : UserDefaults.standard.string(forKey: "speedMode") ?? "fast")
-        _apiKey = State(initialValue: screenshot ? "" : UserDefaults.standard.string(forKey: "doloresAPIKey") ?? "")
-        _userEmail = State(initialValue: screenshot ? "" : Config.userEmail)
         _selectedVoiceID = State(initialValue: screenshot ? "" : Config.bernardVoiceID)
     }
 
@@ -37,35 +35,11 @@ struct SettingsView: View {
         List {
             // Account
             Section {
-                HStack {
-                    Image(systemName: "person.circle")
-                        .foregroundColor(Color(hex: "8EDCEF"))
-                    TextField("Email", text: $userEmail)
-                        .forITField(on: .navy)
-                        .keyboardType(.emailAddress)
-                        .textContentType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .onSubmit { if !isScreenshot { Config.setUserEmail(userEmail) } }
-                }
-                HStack {
-                    Image(systemName: "key")
-                        .foregroundColor(Color(hex: "8EDCEF"))
-                    SecureField("API Key", text: $apiKey)
-                        .forITField(on: .navy)
-                        .onSubmit { if !isScreenshot { Config.setAPIKey(apiKey) } }
-                }
-                if isScreenshot || (apiKey.isEmpty && Config.doloresAPIKey.isEmpty) {
-                    Text("No API key configured. Get one from your admin.")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                } else if !apiKey.isEmpty {
-                    Text("Using custom API key")
-                        .font(.caption)
-                        .foregroundColor(.green)
+                LabeledContent("ForIT account", value: isScreenshot ? "ForIT account" : account.email ?? "Signed out")
+                if account.signedIn {
+                    Button("Sign out") { account.confirmingSignOut = true }
                 } else {
-                    Text("Using default API key")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: "8EDCEF").opacity(0.6))
+                    Button { if !isScreenshot { account.signInAccount() } } label: { ForITSignInLabel() }
                 }
             } header: {
                 Text("Account")
@@ -149,8 +123,11 @@ struct SettingsView: View {
         .forITScreenBackground()
         .feedbackDialogs()
         .preferredColorScheme(.dark)
-        .onDisappear(perform: saveAccount)
-        .task { await loadVoices() }
+        .task(id: account.email) {
+            voiceCatalog = nil
+            voiceUndo = nil
+            await loadVoices()
+        }
         .forITUndoBanner(voiceUndo) { change in
             ForITUndoBanner("Voice saved for your next reply.", undoHint: "Restores the previous voice", undo: {
                 guard !isScreenshot else { return }
@@ -209,7 +186,7 @@ struct SettingsView: View {
             if let voiceError {
                 Text(voiceError)
                     .font(.caption)
-                Button("Try again") { saveAccount(); Task { await loadVoices() } }
+                Button("Try again") { Task { await loadVoices() } }
                     .buttonStyle(.forITText(on: .navy))
                     .disabled(isLoadingVoices)
             } else if let voiceCatalog, !voiceCatalog.contains(selectedVoiceID) {
@@ -225,24 +202,22 @@ struct SettingsView: View {
 
     @MainActor
     private func loadVoices() async {
-        guard !isScreenshot, !isLoadingVoices else { return }
+        guard !isScreenshot else { return }
+        let generation = UUID()
+        voiceLoadGeneration = generation
         isLoadingVoices = true
         voiceError = nil
-        defer { isLoadingVoices = false }
+        defer { if voiceLoadGeneration == generation { isLoadingVoices = false } }
         do {
-            voiceCatalog = try await BernardVoiceCatalog.load()
+            let catalog = try await BernardVoiceCatalog.load()
+            guard !Task.isCancelled, voiceLoadGeneration == generation else { return }
+            voiceCatalog = catalog
         } catch is CancellationError {
             // Closing Settings doesn't invalidate its saved preference.
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, voiceLoadGeneration == generation else { return }
             voiceError = error.localizedDescription
         }
     }
 
-    /// The shared Settings sheet owns Done; save account edits when it closes.
-    private func saveAccount() {
-        guard !isScreenshot else { return }
-        if !apiKey.isEmpty { Config.setAPIKey(apiKey) }
-        Config.setUserEmail(userEmail)
-    }
 }

@@ -34,10 +34,10 @@ OpenGlasses transforms your Ray-Ban Meta smart glasses into a hands-free AI assi
 
 ## Current ForIT requirements
 
-The November 18 source declares the iOS app and activity extension for iPhone only. iPad support and Mac/Vision compatibility are disabled; the separate Watch companion remains. Native simulator qualification passed 117 tests on November 18. Signing and distribution remain blocked by the Apple account agreement; current availability has not changed. Earlier cross-platform descriptions below are historical, not current availability claims.
+The iOS app and activity extension target iPhone only. iPad support and Mac/Vision compatibility are disabled; the separate Watch companion remains. TestFlight build36 shipped November18 after117 native tests, signing and upload. Apple independently confirmed internal beta availability with Mac/Vision distribution disabled. The current source adds shared ForAuth login; its own native qualification and replacement release must be recorded separately. Earlier cross-platform descriptions below are historical, not current availability claims.
 
 - **The installed client:** A current ForIT Glasses iPhone build using the existing `com.forit.openglasses.dolores` bundle and ForIT profile. Actual glasses behavior still needs device acceptance.
-- **The Bernard key:** Use the existing onboarding screen’s **Bernard API Key** field and Continue, or the existing Settings account field. This is a key for Bernard’s ForIT engine; do not obtain or enter a direct Anthropic/provider key or edit `Config.swift` for setup.
+- **The ForIT account:** Current source uses the shared ForAuth sign-in gate. It exchanges the verified identity for the engine's per-user app credential and stores it in this iPhone's Keychain; the normal flow has no API-key entry. Build36 predates this login change. No direct model-provider credential or source edit is needed.
 - **The paired glasses:** Meta glasses connected to the Meta AI companion app on the iPhone, with the actual consumer Meta account accepted into the correct existing private beta. A managed developer-console account is not proof of that membership.
 - **The build access:** For developers, existing read access to private ForITCommon and the maintained Mini build route below. The pinned SDK and current native evidence determine toolchain compatibility; the old upstream Xcode/iOS requirements are not release instructions.
 

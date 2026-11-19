@@ -4,7 +4,7 @@ import ForITCommon
 struct RootView: View {
     @EnvironmentObject private var appState: AppState
     @State private var showLaunchScreen = true
-    @State private var needsOnboarding = Config.doloresAPIKey.isEmpty
+    @ObservedObject private var account = AppAccount.shared
 
     var body: some View {
         Group {
@@ -25,10 +25,8 @@ struct RootView: View {
 
     private var liveContent: some View {
         ZStack {
-            if needsOnboarding {
-                OnboardingView(onComplete: {
-                    withAnimation { needsOnboarding = false }
-                })
+            if !account.signedIn {
+                OnboardingView(onComplete: {})
             } else {
                 MainView()
             }
@@ -63,66 +61,17 @@ struct RootView: View {
     #endif
 }
 
-/// First-launch onboarding — just API key
+/// The same published ForAuth gate used by the other native ForIT clients.
 struct OnboardingView: View {
     let onComplete: () -> Void
-    @State private var apiKey = ""
+    @ObservedObject private var account = AppAccount.shared
 
     var body: some View {
-        GeometryReader { viewport in
-            ScrollView {
-                onboardingContent
-                    .frame(minHeight: viewport.size.height)
-            }
+        ForITSignInGate(signIn: account.signIn,
+                        subtitle: "Sign in to talk to Bernard on your glasses.",
+                        error: account.problem, isBusy: account.isSigningIn) {
+            account.signInAccount()
         }
-        .forITScreenBackground()
-    }
-
-    private var onboardingContent: some View {
-        ZStack {
-            VStack(spacing: 32) {
-                Spacer()
-
-                Image("DoloresAvatar")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 80, height: 80)
-                    .clipShape(Circle())
-
-                Text("Welcome to ForIT Glasses")
-                    .font(.title2.bold())
-                    .foregroundStyle(.primary)
-
-                Text("Ask Bernard in Teams for your API key.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                TextField("Bernard API Key", text: $apiKey)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .forITField(on: .navy)
-
-                Button {
-                    #if DEBUG
-                    guard !OpenGlassesScreenshotFixture.isActive else { return }
-                    #endif
-                    let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
-                    Config.setAPIKey(trimmed)
-                    onComplete()
-                } label: {
-                    Text("Continue")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.forITPrimaryOnNavy)
-                .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                Spacer()
-                Spacer()
-            }
-            .padding(.horizontal, 40)
-        }
+        .onChange(of: account.signedIn) { _, signedIn in if signedIn { onComplete() } }
     }
 }

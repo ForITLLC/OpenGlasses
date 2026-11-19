@@ -39,7 +39,7 @@ class LLMService: ObservableObject {
 
         let apiKey = Config.doloresAPIKey
         guard !apiKey.isEmpty else {
-            throw LLMError.missingAPIKey("Bernard API key not configured")
+            throw LLMError.missingAPIKey("Sign in with your ForIT account to talk to Bernard.")
         }
 
         guard let url = URL(string: Config.doloresBaseURL) else {
@@ -68,6 +68,7 @@ class LLMService: ObservableObject {
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if statusCode == 401 { AppAccount.shared.invalidate(key: apiKey) }
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorMsg = errorJson["error"] as? String {
                 print("❌ Bernard error \(statusCode): \(errorMsg)")
@@ -102,9 +103,8 @@ class LLMService: ObservableObject {
     /// Parse a voice-endpoint reply.
     ///
     /// Split out of `sendMessage` so the unhappy paths are reachable from tests without
-    /// any network egress — the request itself cannot be exercised in CI, because the
-    /// API key falls back to the Secrets.plist that CI writes, so a test that reached
-    /// the transport would POST at the production endpoint. A test send is a send.
+    /// any network egress. Transport tests need an injected fixture; a request using
+    /// the device's signed-in account would POST at production. A test send is a send.
     ///
     /// An unrecognised shape is never silently dropped: anything we cannot use comes
     /// back in `warnings` for the caller to surface.

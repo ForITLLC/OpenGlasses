@@ -2,29 +2,39 @@ import ForITCommon
 import SwiftUI
 import UIKit
 
-/// Send feedback (FB-1, task 942E1773; for-iCommon docs/feedback.md).
-///
-/// A report is a tasks.forit.io task under the app's feedback epic, authored by the person who
-/// sent it, so sending needs a ForIT account. Bernard doesn't: the app runs on its engine API key,
-/// and ForIT Sign-in is asked for only the first time someone taps Send feedback. The id_token it
-/// hands back lives about an hour; while it is fresh, TasksFeedbackKey mints the board key the
-/// sender uses from then on and keeps it in the Keychain. Sign out forgets it.
+/// One shared ForAuth sign-in for Bernard, the profile and feedback.
+/// The short-lived identity token is exchanged using the published product contracts.
 @MainActor
-final class FeedbackAccount: ObservableObject {
-    static let shared = FeedbackAccount()
+final class AppAccount: ObservableObject {
+    static let shared = AppAccount(deleteSession: ForITAccountSession.deletePersistedSession)
 
     /// ForIT Glasses' feedback epic; the task-feedback rail takes what lands under it to OpenGlasses.
     nonisolated static let epicId = "08106FD9-AFFA-4041-90B5-F50B4BBD308F"
     /// Must be in CFBundleURLTypes (project.yml) and enrolled on the ForIT Sign-in registration.
     nonisolated static let redirectURI = URL(string: "io.forit.glasses://oauth/callback")!
-    private static let emailKey = "feedbackAccountEmail"
-
-    let signIn = BrowserSignIn(configuration: .forIT(redirectURI: FeedbackAccount.redirectURI))
+    let signIn = BrowserSignIn(configuration: .forIT(redirectURI: AppAccount.redirectURI))
     let center: FeedbackCenter
-    @Published private(set) var signedIn: Bool
-    @Published private(set) var email: String?
+    @Published private(set) var session: ForITAccountSession?
+    @Published private(set) var isSigningIn = false
+    @Published private(set) var isChangingCredentials = false
+    @Published var feedbackProblem: String?
+    private let store: TasksFeedbackKey.Store
+    private let installationStore: TasksFeedbackKey.Store
+    private let engineMint: (String, String?, String) async throws -> ForITAccountSession
+    private let feedbackMint: (String) async throws -> String
+    private let forgetLegacyFeedback: () -> Void
+    private let forgetLegacyCredentials: () -> Void
+    private let deleteSession: () throws -> Void
+    private let retireAccountWork: () -> Void
+    private let resumeAccountWork: () -> Void
+    private var rejectedWhileChanging: String?
+    private var generation = UUID()
+    private var signInTask: Task<Void, Never>?
 
-    /// The feedback identity only; the engine account in Settings is independent.
+    var signedIn: Bool { session != nil }
+    var email: String? { session?.email }
+    var feedbackSignedIn: Bool { session?.feedbackKey != nil }
+
     var profileAccount: ForITProfileAccount? {
         guard signedIn else { return nil }
         return ForITProfileAccount(id: email ?? "forit-feedback", name: email ?? "ForIT account")
@@ -35,47 +45,143 @@ final class FeedbackAccount: ObservableObject {
     @Published var askingSignIn = false
     @Published var confirmingSignOut = false
 
-    private init() {
-        let key = TasksFeedbackKey.shared
+    init(store: TasksFeedbackKey.Store = ForITAccountSession.store,
+         installationStore: TasksFeedbackKey.Store = ForITAccountSession.installationStore,
+         engineMint: @escaping (String, String?, String) async throws -> ForITAccountSession = ForITAccountSession.mint,
+         feedbackMint: @escaping (String) async throws -> String = { token in
+             // Stage in memory so a late completion cannot restore a signed-out account.
+             try await TasksFeedbackKey(store: .memory()).mint(idToken: token, appLabel: "ForIT Glasses (feedback)")
+         }, forgetLegacyFeedback: @escaping () -> Void = {
+             TasksFeedbackKey.shared.forget()
+             UserDefaults.standard.removeObject(forKey: "feedbackAccountEmail")
+         }, forgetLegacyCredentials: @escaping () -> Void = {
+             for key in ["doloresAPIKey", "userEmail", "doloresBaseURL"] {
+                 UserDefaults.standard.removeObject(forKey: key)
+             }
+         }, deleteSession: (() throws -> Void)? = nil,
+         retireAccountWork: @escaping () -> Void = { AppStateProvider.shared?.suspendForSignOut() },
+         resumeAccountWork: @escaping () -> Void = {
+             AppStateProvider.shared?.locationService.startTracking()
+             AppStateProvider.shared?.startMetaVoiceLaunch()
+         }) {
+        self.store = store
+        self.installationStore = installationStore
+        self.engineMint = engineMint
+        self.feedbackMint = feedbackMint
+        self.forgetLegacyFeedback = forgetLegacyFeedback
+        self.forgetLegacyCredentials = forgetLegacyCredentials
+        self.deleteSession = deleteSession ?? {
+            store.save(nil)
+            guard store.load() == nil else { throw ForITAccountError.storage }
+        }
+        self.retireAccountWork = retireAccountWork
+        self.resumeAccountWork = resumeAccountWork
         #if DEBUG
-        let signedIn = !OpenGlassesScreenshotFixture.isActive && key.current != nil
+        let restored = OpenGlassesScreenshotFixture.isActive ? nil : ForITAccountSession.load(from: store)
         #else
-        let signedIn = key.current != nil
+        let restored = ForITAccountSession.load(from: store)
         #endif
         center = FeedbackCenter(
             sender: TasksFeedbackSender(epicId: Self.epicId, laneName: "OpenGlasses", credential: {
                 #if DEBUG
                 guard !OpenGlassesScreenshotFixture.isActive else { return nil }
                 #endif
-                return key.credential
+                return ForITAccountSession.load(from: store)?.feedbackKey.map(TasksCredential.apiKey)
             }),
-            shakeToReport: signedIn)
-        self.signedIn = signedIn
-        email = signedIn ? UserDefaults.standard.string(forKey: Self.emailKey) : nil
+            shakeToReport: restored?.feedbackKey != nil)
+        session = restored
     }
 
-    /// Sign in in the browser, mint the board key, then open the feedback sheet. Tapping again
-    /// while the browser is still open starts over (BrowserSignIn cancels the waiting attempt).
-    func signInForFeedback() {
+    func signInAccount(presentFeedback: Bool = false) {
         #if DEBUG
         guard !OpenGlassesScreenshotFixture.isActive else { return }
         #endif
-        Task {
+        guard !isSigningIn else { return }
+        problem = nil
+        isSigningIn = true
+        let attempt = UUID()
+        generation = attempt
+        signInTask = Task {
+            defer { if generation == attempt { isSigningIn = false } }
             do {
                 let identity = try await signIn.signIn { url in await UIApplication.shared.open(url) }
-                try await TasksFeedbackKey.shared.mint(idToken: identity.idToken, appLabel: "ForIT Glasses (feedback)")
-                UserDefaults.standard.set(identity.email, forKey: Self.emailKey)
-                email = identity.email
-                signedIn = true
-                center.shakeToReport = true
-                center.present()
+                try await completeSignIn(identity, attempt: attempt, presentFeedback: presentFeedback)
             } catch SignInError.cancelled {
-            } catch FeedbackError.unauthorized {
-                problem = "Feedback from the app is for ForIT accounts."
+            } catch is CancellationError {
             } catch {
-                problem = "Couldn't sign in (\(error.localizedDescription))."
+                guard generation == attempt else { return }
+                problem = error.localizedDescription
             }
         }
+    }
+
+    /// Separate from the browser to test account transitions without live sign-ins or mints.
+    func completeSignIn(_ identity: SignInIdentity, attempt: UUID? = nil,
+                        presentFeedback: Bool = false) async throws {
+        let attempt = attempt ?? generation
+        let label: String
+        if let existing = installationStore.load(), !existing.isEmpty { label = existing }
+        else {
+            label = "ForIT Glasses iPhone " + UUID().uuidString
+            installationStore.save(label)
+            guard installationStore.load() == label else { throw ForITAccountError.storage }
+        }
+        let credential: ForITAccountSession
+        if presentFeedback, let current = session,
+           identity.email.map({ current.email.caseInsensitiveCompare($0) == .orderedSame }) == true {
+            credential = current
+        } else {
+            isChangingCredentials = true
+            center.close()
+            retireAccountWork()
+            defer {
+                isChangingCredentials = false
+                if let rejected = rejectedWhileChanging {
+                    rejectedWhileChanging = nil
+                    invalidate(key: rejected)
+                }
+                if signedIn { resumeAccountWork() }
+            }
+            let minted = try await engineMint(identity.idToken, identity.email, label)
+            guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
+            try minted.save(to: store)
+            session = minted
+            credential = minted
+            forgetLegacyCredentials()
+        }
+        guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
+        // A successful engine login must survive an unrelated feedback service failure.
+        feedbackProblem = nil
+        center.shakeToReport = false
+        do {
+            let key = try await feedbackMint(identity.idToken)
+            guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
+            guard !key.isEmpty else { throw ForITAccountError.unavailable }
+            var connected = credential
+            connected.feedbackKey = key
+            try connected.save(to: store)
+            session = connected
+            center.shakeToReport = true
+            if presentFeedback { center.present() }
+        } catch is CancellationError { throw CancellationError() }
+        catch {
+            guard generation == attempt else { throw CancellationError() }
+            if ForITAccountSession.load(from: store) != credential {
+                do { try credential.save(to: store) }
+                catch { session = nil; throw ForITAccountError.storage }
+            }
+            feedbackProblem = "You're signed in. Feedback couldn't connect; sign in again to retry."
+        }
+    }
+
+    func signInForFeedback() { signInAccount(presentFeedback: true) }
+
+    /// An old request must never sign out a newer account that has replaced its key.
+    func invalidate(key: String) {
+        guard session?.key == key else { return }
+        if isChangingCredentials { rejectedWhileChanging = key; return }
+        signOut()
+        if !signedIn { problem = "Please sign in with your ForIT account again." }
     }
 
     /// The sign-in redirect; false for any other link.
@@ -90,10 +196,23 @@ final class FeedbackAccount: ObservableObject {
         #if DEBUG
         guard !OpenGlassesScreenshotFixture.isActive else { return }
         #endif
-        TasksFeedbackKey.shared.forget()
-        UserDefaults.standard.removeObject(forKey: Self.emailKey)
-        email = nil
-        signedIn = false
+        generation = UUID()
+        signInTask?.cancel()
+        signIn.cancel()
+        center.close()
+        retireAccountWork()
+        do { try deleteSession() }
+        catch {
+            problem = "Couldn't clear your saved sign-in. Try signing out again."
+            isSigningIn = false
+            return
+        }
+        forgetLegacyFeedback()
+        session = nil
+        isSigningIn = false
+        problem = nil
+        feedbackProblem = nil
+        rejectedWhileChanging = nil
         center.shakeToReport = false
     }
 
@@ -106,20 +225,14 @@ final class FeedbackAccount: ObservableObject {
 /// Settings' Feedback section: Send feedback, and Sign out of ForIT once signed in. The list that
 /// holds it carries `feedbackDialogs()`.
 struct FeedbackSection: View {
-    @ObservedObject private var account = FeedbackAccount.shared
+    @ObservedObject private var account = AppAccount.shared
 
     var body: some View {
         Section {
-            if account.signedIn {
+            if account.feedbackSignedIn {
                 ForITFeedbackButton()
                     .environment(\.forITFeedback, account.center)
                     .foregroundColor(Color(hex: "E1EFF3"))
-                Button {
-                    account.confirmingSignOut = true
-                } label: {
-                    Label("Sign out of ForIT", systemImage: "rectangle.portrait.and.arrow.right")
-                        .foregroundColor(Color(hex: "E1EFF3"))
-                }
             } else {
                 Button {
                     account.askingSignIn = true
@@ -132,7 +245,7 @@ struct FeedbackSection: View {
             Text("Feedback")
         } footer: {
             Text(account.signedIn
-                ? "\(account.email.map { "Signed in as \($0). " } ?? "")Shake your phone to send feedback from any screen."
+                ? account.feedbackProblem ?? "Shake your phone to send feedback from any screen."
                 : "Feedback goes to ForIT's board under your name, so it needs your ForIT account.")
                 .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
         }
@@ -142,7 +255,7 @@ struct FeedbackSection: View {
 /// The dialogs FeedbackSection opens. On the List that holds the section, not on its rows.
 private struct FeedbackDialogs: ViewModifier {
     let isEnabled: Bool
-    @ObservedObject private var account = FeedbackAccount.shared
+    @ObservedObject private var account = AppAccount.shared
 
     func body(content: Content) -> some View {
         content
@@ -150,14 +263,14 @@ private struct FeedbackDialogs: ViewModifier {
                 Button("Sign in with ForIT") { account.signInForFeedback() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Feedback goes to ForIT's board under your name, so it needs your ForIT account. Bernard works without one.")
+                Text("Sign in with your ForIT account to reconnect feedback under your name.")
             }
             .confirmationDialog("Sign out of ForIT?", isPresented: presentation($account.confirmingSignOut), titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { account.signOut() }
             } message: {
-                Text("Sending feedback will ask you to sign in again. Bernard keeps working.")
+                Text("This iPhone will stop listening and ask you to sign in again.")
             }
-            .alert("Send feedback", isPresented: Binding(get: { isEnabled && account.problem != nil },
+            .alert("ForIT account", isPresented: Binding(get: { isEnabled && account.problem != nil },
                                                          set: { if isEnabled && !$0 { account.problem = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: {

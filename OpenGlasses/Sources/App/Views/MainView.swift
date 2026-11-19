@@ -10,7 +10,7 @@ import SwiftUI
 ///   5. Mic button (bottom center)
 struct MainView: View {
     @EnvironmentObject var appState: AppState
-    @ObservedObject private var feedbackAccount = FeedbackAccount.shared
+    @ObservedObject private var feedbackAccount = AppAccount.shared
 
     // Six quick actions arranged around the avatar.
     // Quick actions — voice-first starting prompts around the ring
@@ -81,7 +81,7 @@ struct MainView: View {
                     account: feedbackAccount.profileAccount,
                     isSettingsPresented: $appState.showSettings,
                     items: {
-                        if !feedbackAccount.signedIn {
+                        if !feedbackAccount.feedbackSignedIn {
                             Button {
                                 feedbackAccount.askingSignIn = true
                             } label: {
@@ -93,7 +93,7 @@ struct MainView: View {
                             .environmentObject(appState)
                     })
                 // Signed-out feedback follows the existing ForIT sign-in flow.
-                .environment(\.forITFeedback, feedbackAccount.signedIn ? feedbackAccount.center : nil)
+                .environment(\.forITFeedback, feedbackAccount.feedbackSignedIn ? feedbackAccount.center : nil)
                 .feedbackDialogs(isEnabled: !appState.showSettings)
                 .toolbar {
                     ToolbarItem(placement: .forITBarTrailing) {

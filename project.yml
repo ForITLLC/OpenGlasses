@@ -93,9 +93,6 @@ targets:
     platform: iOS
     sources:
       - path: OpenGlasses/Sources
-      - path: OpenGlasses/Secrets.plist
-        buildPhase: resources
-        optional: true
     resources:
       - path: OpenGlasses/Sources/Resources
     info:
