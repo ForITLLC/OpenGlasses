@@ -314,6 +314,12 @@ targets:
 
 # Deliberate UI proof entry point; not used by mini-testflight.sh's unit-test route.
 schemes:
+  DoloresWatch:
+    build:
+      targets:
+        DoloresWatch: all
+    management:
+      shared: true
   OpenGlasses-VisualProof:
     build:
       targets:
