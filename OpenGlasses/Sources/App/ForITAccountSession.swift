@@ -103,7 +103,7 @@ struct ForITAccountSession: Codable, Equatable, Sendable {
 }
 
 /// A redirect must never forward a one-time code or PKCE verifier away from the pinned exchange.
-private final class AppSessionRedirectPolicy: NSObject, URLSessionTaskDelegate {
+final class AppSessionRedirectPolicy: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
                     completionHandler: @escaping (URLRequest?) -> Void) {
