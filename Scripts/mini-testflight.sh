@@ -146,11 +146,9 @@ LANE_SIM=("$CI_SIM/ci-sim-lane.sh" --lane OpenGlasses)  # this lane's simulator,
 MINI_GATE=/Users/Shared/forit-gate/mini-gate.sh
 ASC_PROVISION=build/spm/checkouts/for-iCommon/Scripts/asc/asc_provision.py  # ForITCommon's, resolved by the tests
 COMMON_REPOSITORY=https://github.com/ForITLLC/for-iCommon.git
-COMMON_VERSION=0.32.0
+COMMON_VERSION=0.32.1
 COMMON_REVISION=970255ddd540fc1a6a5876aff6d7cdfac11b67df
-BRIDGE_VERSION=0.31.9
-BRIDGE_REVISION=352f567e839b8faf61b6df5840c5275b016addce
-BRIDGE_TAG_OBJECT=9050f4a1ce99d023e3a550ffc74f338a135d1d6c
+COMMON_TAG_OBJECT=7a4667f84610f096641a4cb6809d609ca91f0728
 COMMON_JOB_TEMP=""
 PACKAGE_RESOLUTION=OpenGlasses.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 OUT=build/testflight-$(date -u +%Y%m%dT%H%M%SZ)
@@ -315,26 +313,16 @@ prepare_common_source() {
   case "$COMMON_JOB_TEMP/" in
     "$PWD/"*) echo "Common tool checkout must be outside the app repository"; return 1 ;;
   esac
-  # The app uses Common with Central Auth. Watch and the activity widget retain their
-  # independently authenticated, package-free bridge until an annotated Auth release exists.
-  export FORIT_COMMON_ROOT="$COMMON_JOB_TEMP/for-iCommon-bridge"
-  export FORIT_APP_COMMON_ROOT="$COMMON_JOB_TEMP/for-iCommon-app"
-  # Use the runner's existing Git credentials. Keep the official stored origin;
-  # suppress transport diagnostics rather than risk logging credential rewrites.
+  export FORIT_COMMON_ROOT="$COMMON_JOB_TEMP/for-iCommon"
+  # Use the runner's existing Git access. Authenticate the published tag and its
+  # commit before the same checkout supplies both bridge export and guard tools.
   GIT_TERMINAL_PROMPT=0 git clone -q --no-checkout "$COMMON_REPOSITORY" "$FORIT_COMMON_ROOT" > /dev/null 2>&1 ||
     { echo "official Common clone failed using the runner's existing Git credentials"; return 1; }
-  GIT_TERMINAL_PROMPT=0 git clone -q --no-checkout "$COMMON_REPOSITORY" "$FORIT_APP_COMMON_ROOT" > /dev/null 2>&1 ||
-    { echo "official app Common clone failed using the runner's existing Git credentials"; return 1; }
-  git -C "$FORIT_APP_COMMON_ROOT" checkout -q --detach "$COMMON_REVISION" || return 1
-  [ "$(git -C "$FORIT_APP_COMMON_ROOT" rev-parse HEAD)" = "$COMMON_REVISION" ] &&
-    [ "$(git -C "$FORIT_APP_COMMON_ROOT" rev-parse "refs/tags/$COMMON_VERSION^{commit}")" = "$COMMON_REVISION" ] &&
-    [ -z "$(git -C "$FORIT_APP_COMMON_ROOT" status --porcelain=v1 --untracked-files=all)" ] ||
-    { echo "app Common checkout or published tag differs from the bound release"; return 1; }
-  git -C "$FORIT_COMMON_ROOT" checkout -q --detach "$BRIDGE_REVISION" || return 1
-  [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse HEAD)" = "$BRIDGE_REVISION" ] &&
-    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$BRIDGE_VERSION")" = "$BRIDGE_TAG_OBJECT" ] &&
-    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$BRIDGE_VERSION^{commit}")" = "$BRIDGE_REVISION" ] ||
-    { echo "bridge Common checkout or published tag differs from the bound release"; return 1; }
+  git -C "$FORIT_COMMON_ROOT" checkout -q --detach "$COMMON_REVISION" || return 1
+  [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse HEAD)" = "$COMMON_REVISION" ] &&
+    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$COMMON_VERSION")" = "$COMMON_TAG_OBJECT" ] &&
+    [ "$(git -C "$FORIT_COMMON_ROOT" rev-parse "refs/tags/$COMMON_VERSION^{commit}")" = "$COMMON_REVISION" ] ||
+    { echo "Common checkout or published tag differs from the bound release"; return 1; }
   local status
   status=$(git -C "$FORIT_COMMON_ROOT" status --porcelain=v1 --untracked-files=all) || return 1
   [ -z "$status" ] || { echo "Common tool checkout is not clean"; return 1; }
@@ -393,7 +381,7 @@ verify_resolved_common() {
   hidden=$(git -C "$root" ls-files -v | LC_ALL=C awk '/^[a-zS]/ { n++ } END { print n + 0 }') || return 1
   [ -z "$status" ] && [ "$hidden" -eq 0 ] ||
     { echo "actual Xcode Common checkout has modified or hidden working bytes"; return 1; }
-  [ -f "$ASC_PROVISION" ] && cmp -s "$ASC_PROVISION" "$FORIT_APP_COMMON_ROOT/Scripts/asc/asc_provision.py" ||
+  [ -f "$ASC_PROVISION" ] && cmp -s "$ASC_PROVISION" "$FORIT_COMMON_ROOT/Scripts/asc/asc_provision.py" ||
     { echo "actual resolved provisioner differs from authenticated published source"; return 1; }
   echo "verified actual Xcode Common checkout $COMMON_REVISION, official origin and clean provisioning bytes"
 }
@@ -808,15 +796,15 @@ step resolved-common verify_resolved_common
 # genuine resolution. Source policy is advisory here; actual build/test/signing failures
 # remain hard failures. Unconditional Xcode phases retain their own warning reports.
 step br3-report-parents mkdir -p /tmp
-advisory_step br3-app /usr/bin/python3 -I "$FORIT_APP_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
+advisory_step br3-app /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
   --inputs "$PWD/Config/ControlGuard/OpenGlasses-iOS-inputs.json" \
   --report /tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json --common-revision "$COMMON_REVISION"
 advisory_step br3-watch /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
   --inputs "$PWD/Config/ControlGuard/DoloresWatch-watchOS-inputs.json" \
-  --report /tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json --common-revision "$BRIDGE_REVISION"
+  --report /tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json --common-revision "$COMMON_REVISION"
 advisory_step br3-activity /usr/bin/python3 -I "$FORIT_COMMON_ROOT/Scripts/control-guard/control_guard.py" \
   --inputs "$PWD/Config/ControlGuard/GlassesActivityWidget-iOS-inputs.json" \
-  --report /tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json --common-revision "$BRIDGE_REVISION"
+  --report /tmp/forit-openglasses-shared-mark-GlassesActivityWidget-iOS-br3.json --common-revision "$COMMON_REVISION"
 
 retain_advisory_report br3-app /tmp/forit-openglasses-shared-mark-OpenGlasses-iOS-br3.json
 retain_advisory_report br3-watch /tmp/forit-openglasses-shared-mark-DoloresWatch-watchOS-br3.json

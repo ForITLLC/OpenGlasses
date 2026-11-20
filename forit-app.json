@@ -1,5 +1,5 @@
 {
-  "comment": "Continuation for ask 52289 on Common 0.31.9, based on frozen PR9. TestFlight build 32 shipped from 0347d543; this later metadata and route documentation do not change that provenance. BR3/visual findings remain advisory; current visual and action acceptance is unverified.",
+  "comment": "ForIT Glasses iPhone and package-free Watch and Activity targets use annotated ForITCommon 0.32.1 in source. TestFlight build 37 retains its original archive and dependency evidence. Device acceptance remains open.",
   "name": "ForIT Glasses",
   "bundleId": "com.forit.openglasses.dolores",
   "textScreens": [],
@@ -59,7 +59,7 @@
     "PL-2..5": "Native Mac and Vision Pro targets and Watch distribution were already missing on baseline 45b52531. Dispatch 2026-10-14 directs those existing gaps to open task 5BBB3471-E5DA-48AD-B1BB-2A83A5B0D4E2 under epic 73E7B446, without an invented future due date. This mark release updates and compiles the Watch source but claims delivery only on the existing iOS channel; Dispatch is starting the platform worker."
   },
   "controlGuard": {
-    "commonRevision": "352f567e839b8faf61b6df5840c5275b016addce",
+    "commonRevision": "970255ddd540fc1a6a5876aff6d7cdfac11b67df",
     "targets": {
       "OpenGlasses": [
         {
