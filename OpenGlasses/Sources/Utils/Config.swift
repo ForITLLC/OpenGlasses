@@ -5,41 +5,40 @@ struct Config {
 
     // MARK: - Dolores API
 
-    /// API key for the ForIT AI Engine voice endpoint.
-    /// Priority: UserDefaults (Settings) > Secrets.plist (build-time)
+    /// The credential obtained by the native identity exchange, held only in Keychain.
+    /// Old manual defaults and build-time keys never establish an app session.
     static var doloresAPIKey: String {
-        // User-configured key takes priority (for multi-user support)
-        if let userKey = UserDefaults.standard.string(forKey: "doloresAPIKey"), !userKey.isEmpty {
-            return userKey
-        }
-        // Fall back to Secrets.plist
-        guard let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
-              let dict = NSDictionary(contentsOfFile: path),
-              let key = dict["DOLORES_API_KEY"] as? String, !key.isEmpty else {
-            return ""
-        }
-        return key
-    }
-
-    static func setAPIKey(_ key: String) {
-        UserDefaults.standard.set(key, forKey: "doloresAPIKey")
+        ForITAccountSession.load()?.key ?? ""
     }
 
     /// User email for the ForIT AI Engine (identifies the user)
     static var userEmail: String {
-        UserDefaults.standard.string(forKey: "userEmail") ?? ""
-    }
-
-    static func setUserEmail(_ email: String) {
-        UserDefaults.standard.set(email, forKey: "userEmail")
+        ForITAccountSession.load()?.email ?? ""
     }
 
     /// Base URL for the ForIT AI Engine voice endpoint
     static var doloresBaseURL: String {
-        UserDefaults.standard.string(forKey: "doloresBaseURL") ?? "https://forit-ai-engine.azurewebsites.net/api/voice"
+        ForITAccountSession.engineOrigin.appendingPathComponent("api/voice").absoluteString
     }
 
-    // MARK: - Wake Word
+    // MARK: - Bernard voice
+
+    /// Empty means the engine's default. This is separate from the legacy
+    /// phone-side ElevenLabs fallback and contains no provider credentials.
+    static var bernardVoiceID: String {
+        UserDefaults.standard.string(forKey: "bernardVoiceID") ?? ""
+    }
+
+    static func setBernardVoiceID(_ id: String) {
+        let id = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        if id.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "bernardVoiceID")
+        } else {
+            UserDefaults.standard.set(id, forKey: "bernardVoiceID")
+        }
+    }
+
+    // MARK: - Legacy wake phrase preferences
 
     /// All available wake phrases the user can enable
     static let availableWakePhrases = [

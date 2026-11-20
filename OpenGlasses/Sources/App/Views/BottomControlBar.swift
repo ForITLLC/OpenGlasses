@@ -10,7 +10,8 @@ struct BottomControlBar: View {
             // Mic button — the ONLY bottom control
             CircleButton(
                 icon: micIcon,
-                size: 64,
+                actionLabel: micActionLabel,
+                status: micStatus,
                 isActive: appState.isListening || appState.isProcessing || appState.speechService.isSpeaking
             ) {
                 if appState.isProcessing || appState.speechService.isSpeaking {
@@ -45,6 +46,21 @@ struct BottomControlBar: View {
         if appState.isProcessing { return "Tap to cancel" }
         if appState.speechService.isSpeaking { return "Tap to stop" }
         if appState.isListening { return "Listening" }
+        return "Ready"
+    }
+
+    private var micActionLabel: String {
+        if appState.isProcessing { return "Cancel response" }
+        if appState.speechService.isSpeaking { return "Stop speaking" }
+        if appState.isListening || appState.inConversation { return "Stop listening" }
+        return "Start listening"
+    }
+
+    private var micStatus: String {
+        if appState.isProcessing { return "Processing" }
+        if appState.speechService.isSpeaking { return "Speaking" }
+        if appState.isListening { return "Listening" }
+        if appState.inConversation { return "In conversation" }
         return "Ready"
     }
 

@@ -23,12 +23,6 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>mwdat-688603774243722</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
 				<string>io.forit.glasses</string>
 			</array>
 		</dict>
@@ -44,11 +38,11 @@
 	<key>MWDAT</key>
 	<dict>
 		<key>AppLinkURLScheme</key>
-		<string>mwdat-688603774243722://</string>
+		<string>https://ai.forit.io/glasses/meta</string>
 		<key>ClientToken</key>
-		<string>AR|688603774243722|906db0d1b28450fdb718401ca16b9d60</string>
+		<string>AR|25955189420829430|00e2a3f7bb9d50605a464a5503cc528e</string>
 		<key>MetaAppID</key>
-		<string>688603774243722</string>
+		<string>25955189420829430</string>
 		<key>TeamID</key>
 		<string>$(DEVELOPMENT_TEAM)</string>
 	</dict>
@@ -61,13 +55,13 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Bernard uses your location to provide contextually relevant answers based on where you are.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Bernard needs microphone access to listen for wake words and transcribe your voice commands.</string>
+	<string>Bernard needs microphone access to transcribe your questions after you open it.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Glasses saves photos taken with your Ray-Ban Meta glasses to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Glasses saves photos to a dedicated album in your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Bernard uses speech recognition to detect the wake word and transcribe your questions.</string>
+	<string>Bernard uses speech recognition to transcribe your questions and hear Stop while replying.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

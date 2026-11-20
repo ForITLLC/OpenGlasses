@@ -4,7 +4,7 @@ import AppIntents
 /// Also accessible from app context via AppStateProvider.
 struct DisableListeningIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Disable Listening"
-    static var description = IntentDescription("Stop wake word detection and end Live Activity")
+    static var description = IntentDescription("Disable Meta voice launch and end Live Activity")
 
     @MainActor
     func perform() async throws -> some IntentResult {

@@ -1,8 +1,9 @@
+import ForITCommon
 import SwiftUI
 
-/// Two separate connection status pills — Mic and Camera.
-///   - Mic pill: tapping when disconnected triggers device pairing
-///   - Camera pill: tapping when not granted triggers camera permission (one-time)
+/// Separate microphone and camera status actions using shared control targets.
+///   - Microphone: tapping when disconnected triggers device pairing
+///   - Camera: tapping when not granted triggers camera permission (one-time)
 /// Uses CameraService.isCameraPermissionGranted (published) so the green state persists.
 struct ConnectionBanner: View {
     @EnvironmentObject var appState: AppState
@@ -29,17 +30,14 @@ struct ConnectionBanner: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: connected ? "mic.fill" : "mic.slash")
-                    .font(.system(size: 10))
-                    .foregroundColor(connected ? .green : Color(hex: "E1EFF3").opacity(0.5))
-                Circle()
-                    .fill(connected ? Color.green : Color.gray)
-                    .frame(width: 6, height: 6)
+                Image(systemName: "circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(connected ? Color.green : Color.gray)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(hex: "142F43").opacity(0.8), in: Capsule())
-            .overlay(Capsule().strokeBorder((connected ? Color.green : Color(hex: "E1EFF3")).opacity(0.15), lineWidth: 0.5))
         }
+        .buttonStyle(.forITIntrinsic(on: .navy))
+        .accessibilityLabel(connected ? "Microphone connected" : "Connect glasses microphone")
+        .accessibilityValue(connected ? "Connected" : "Disconnected")
         .disabled(connected)
     }
 
@@ -64,22 +62,18 @@ struct ConnectionBanner: View {
         } label: {
             HStack(spacing: 5) {
                 if cameraPermissionChecking {
-                    ProgressView().scaleEffect(0.5).tint(Color(hex: "E1EFF3"))
+                    ProgressView()
                 } else {
                     Image(systemName: cameraGranted ? "camera.fill" : "camera")
-                        .font(.system(size: 10))
-                        .foregroundColor(cameraGranted ? .green : Color(hex: "E1EFF3").opacity(0.5))
                 }
-                Circle()
-                    .fill(cameraGranted ? Color.green : Color.gray)
-                    .frame(width: 6, height: 6)
+                Image(systemName: "circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(cameraGranted ? Color.green : Color.gray)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(hex: "142F43").opacity(0.8), in: Capsule())
-            .overlay(Capsule().strokeBorder((cameraGranted ? Color.green : Color(hex: "E1EFF3")).opacity(0.15), lineWidth: 0.5))
         }
+        .buttonStyle(.forITIntrinsic(on: .navy))
+        .accessibilityLabel(cameraGranted ? "Camera permission granted" : "Enable glasses camera")
+        .accessibilityValue(cameraPermissionChecking ? "Checking permission" : (cameraGranted ? "Permission granted" : (micConnected ? "Permission required" : "Connect glasses first")))
         .disabled(!micConnected || cameraPermissionChecking || cameraGranted)
-        .opacity(micConnected ? 1.0 : 0.4)
     }
 }

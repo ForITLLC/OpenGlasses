@@ -1,13 +1,19 @@
 import ForITCommon
 import SwiftUI
 
+@MainActor
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     // listeningEnabled is driven by appState.listeningEnabled (observable)
     @State private var speedMode: String
-    @State private var enabledWakePhrases: Set<String>
-    @State private var apiKey: String
-    @State private var userEmail: String
+    @ObservedObject private var account = AppAccount.shared
+    @State private var windowSource = AuthWindowReader.WindowSource()
+    @State private var selectedVoiceID: String
+    @State private var voiceCatalog: BernardVoiceCatalog?
+    @State private var isLoadingVoices = false
+    @State private var voiceError: String?
+    @State private var voiceUndo: VoiceSelectionUndo?
+    @State private var voiceLoadGeneration = UUID()
 
     private var isScreenshot: Bool {
         #if DEBUG
@@ -24,44 +30,18 @@ struct SettingsView: View {
         let screenshot = false
         #endif
         _speedMode = State(initialValue: screenshot ? "fast" : UserDefaults.standard.string(forKey: "speedMode") ?? "fast")
-        _enabledWakePhrases = State(initialValue: screenshot ? ["hey bernard", "hey dolores"] : Set(Config.enabledWakePhrases))
-        _apiKey = State(initialValue: screenshot ? "" : UserDefaults.standard.string(forKey: "doloresAPIKey") ?? "")
-        _userEmail = State(initialValue: screenshot ? "" : Config.userEmail)
+        _selectedVoiceID = State(initialValue: screenshot ? "" : Config.bernardVoiceID)
     }
 
     var body: some View {
         List {
             // Account
             Section {
-                HStack {
-                    Image(systemName: "person.circle")
-                        .foregroundColor(Color(hex: "8EDCEF"))
-                    TextField("Email", text: $userEmail)
-                        .foregroundColor(Color(hex: "E1EFF3"))
-                        .keyboardType(.emailAddress)
-                        .textContentType(.emailAddress)
-                        .autocapitalization(.none)
-                        .onSubmit { if !isScreenshot { Config.setUserEmail(userEmail) } }
-                }
-                HStack {
-                    Image(systemName: "key")
-                        .foregroundColor(Color(hex: "8EDCEF"))
-                    SecureField("API Key", text: $apiKey)
-                        .foregroundColor(Color(hex: "E1EFF3"))
-                        .onSubmit { if !isScreenshot { Config.setAPIKey(apiKey) } }
-                }
-                if isScreenshot || (apiKey.isEmpty && Config.doloresAPIKey.isEmpty) {
-                    Text("No API key configured. Get one from your admin.")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                } else if !apiKey.isEmpty {
-                    Text("Using custom API key")
-                        .font(.caption)
-                        .foregroundColor(.green)
+                LabeledContent("ForIT account", value: isScreenshot ? "ForIT account" : account.email ?? "Signed out")
+                if account.signedIn {
+                    Button("Sign out") { account.confirmingSignOut = true }
                 } else {
-                    Text("Using default API key")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: "8EDCEF").opacity(0.6))
+                    Button { if !isScreenshot { account.signInAccount(from: windowSource.window) } } label: { ForITSignInLabel() }
                 }
             } header: {
                 Text("Account")
@@ -83,6 +63,11 @@ struct SettingsView: View {
                             .foregroundColor(Color(hex: "E1EFF3"))
                     }
                 }
+            }
+
+            voiceSection
+            if account.signedIn && !isScreenshot {
+                MuseConnectionSection(windowSource: windowSource)
             }
 
             // Response Speed
@@ -110,47 +95,12 @@ struct SettingsView: View {
                 )) {
                     HStack {
                         Image(systemName: appState.listeningEnabled ? "ear.fill" : "ear.badge.waveform")
-                            .foregroundColor(appState.listeningEnabled ? Color(hex: "8EDCEF") : .red)
-                        Text(appState.listeningEnabled ? "Listening Active" : "Listening Disabled")
-                            .foregroundColor(Color(hex: "E1EFF3"))
+                        Text("Allow Meta voice launch")
                     }
                 }
-                .tint(Color(hex: "8EDCEF"))
+                .toggleStyle(.forITToggle(on: .navy))
             } footer: {
-                Text(appState.listeningEnabled
-                    ? "Wake word detection is running. Disable to save battery."
-                    : "All listening stopped. Wake word, mic, and Live Activity are off.")
-                    .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
-            }
-
-            // Wake Words (multi-select)
-            Section {
-                ForEach(Config.availableWakePhrases, id: \.self) { phrase in
-                    Button {
-                        if enabledWakePhrases.contains(phrase) {
-                            if enabledWakePhrases.count > 1 {
-                                enabledWakePhrases.remove(phrase)
-                            }
-                        } else {
-                            enabledWakePhrases.insert(phrase)
-                        }
-                        if !isScreenshot { Config.setEnabledWakePhrases(Array(enabledWakePhrases)) }
-                    } label: {
-                        HStack {
-                            Text(phrase.split(separator: " ").map { $0.capitalized }.joined(separator: " "))
-                                .foregroundColor(Color(hex: "E1EFF3"))
-                            Spacer()
-                            if enabledWakePhrases.contains(phrase) {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(Color(hex: "8EDCEF"))
-                            }
-                        }
-                    }
-                }
-            } header: {
-                Text("Wake Words")
-            } footer: {
-                Text("Select one or more. The app listens for all enabled phrases simultaneously.")
+                Text("Say “Hey Meta, start Bernard.” Requires Meta beta setup.")
                     .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
             }
 
@@ -174,17 +124,106 @@ struct SettingsView: View {
                 }
             }
         }
+        .background(AuthWindowReader(source: windowSource))
         .scrollContentBackground(.hidden)
         .forITScreenBackground()
         .feedbackDialogs()
         .preferredColorScheme(.dark)
-        .onDisappear(perform: saveAccount)
+        .task(id: account.email) {
+            voiceCatalog = nil
+            voiceUndo = nil
+            await loadVoices()
+        }
+        .forITUndoBanner(voiceUndo) { change in
+            ForITUndoBanner("Voice saved for your next reply.", undoHint: "Restores the previous voice", undo: {
+                guard !isScreenshot else { return }
+                // Another Settings window may already have changed this preference.
+                guard Config.bernardVoiceID == change.after else {
+                    voiceUndo = nil
+                    return
+                }
+                Config.setBernardVoiceID(change.before)
+                selectedVoiceID = change.before
+                voiceUndo = nil
+            }, dismiss: { voiceUndo = nil })
+        }
     }
 
-    /// The shared Settings sheet owns Done; save account edits when it closes.
-    private func saveAccount() {
-        guard !isScreenshot else { return }
-        if !apiKey.isEmpty { Config.setAPIKey(apiKey) }
-        Config.setUserEmail(userEmail)
+    private struct VoiceSelectionUndo: Equatable {
+        let before: String
+        let after: String
     }
+
+    private var voiceChoices: [ForITChoiceOption<String>] {
+        var choices = [ForITChoiceOption("", title: voiceCatalog.map { "Default — \($0.defaultVoiceName)" } ?? "Bernard's default",
+                                         accessibilityIdentifier: "voice.default")]
+        if let voiceCatalog {
+            choices += voiceCatalog.voices.map {
+                ForITChoiceOption($0.id, title: $0.name, accessibilityIdentifier: "voice.\($0.id)")
+            }
+            if !voiceCatalog.contains(selectedVoiceID) {
+                choices.append(ForITChoiceOption(selectedVoiceID, title: "Saved voice (unavailable)",
+                                                accessibilityIdentifier: "voice.unavailable"))
+            }
+        }
+        return choices
+    }
+
+    private var voiceSelection: Binding<String> {
+        Binding(get: { selectedVoiceID }, set: { newValue in
+            guard !isScreenshot, let voiceCatalog, voiceCatalog.contains(newValue), newValue != selectedVoiceID else { return }
+            let before = Config.bernardVoiceID
+            Config.setBernardVoiceID(newValue)
+            selectedVoiceID = newValue
+            voiceUndo = VoiceSelectionUndo(before: before, after: newValue)
+        })
+    }
+
+    private var voiceSection: some View {
+        Section {
+            if voiceCatalog != nil || isScreenshot {
+                ForITChoicePicker("Voice", selection: voiceSelection, choices: voiceChoices, on: .navy,
+                                  forceMenu: true, identifier: "voice.selection")
+                    .disabled(isScreenshot)
+            }
+            if isLoadingVoices {
+                ProgressView("Loading voices…")
+            }
+            if let voiceError {
+                Text(voiceError)
+                    .font(.caption)
+                Button("Try again") { Task { await loadVoices() } }
+                    .buttonStyle(.forITText(on: .navy))
+                    .disabled(isLoadingVoices)
+            } else if let voiceCatalog, !voiceCatalog.contains(selectedVoiceID) {
+                Text("Your saved voice is no longer available. Choose a voice for your next reply.")
+                    .font(.caption)
+            }
+        } header: {
+            Text("Bernard's Voice")
+        } footer: {
+            Text("Changes apply to the next spoken reply. Your choice is saved on this device.")
+        }
+    }
+
+    @MainActor
+    private func loadVoices() async {
+        guard !isScreenshot else { return }
+        let generation = UUID()
+        voiceLoadGeneration = generation
+        isLoadingVoices = true
+        voiceError = nil
+        defer { if voiceLoadGeneration == generation { isLoadingVoices = false } }
+        do {
+            let catalog = try await BernardVoiceCatalog.load()
+            guard !Task.isCancelled, voiceLoadGeneration == generation else { return }
+            voiceCatalog = catalog
+        } catch is CancellationError {
+            // Closing Settings doesn't invalidate its saved preference.
+        } catch {
+            guard !Task.isCancelled, voiceLoadGeneration == generation else { return }
+            voiceError = error.localizedDescription
+        }
+    }
+
 }

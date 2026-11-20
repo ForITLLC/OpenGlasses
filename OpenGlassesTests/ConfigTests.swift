@@ -15,6 +15,7 @@ final class ConfigTests: XCTestCase {
         "elevenLabsAPIKey",
         "elevenLabsVoiceId",
         "listeningEnabled",
+        "bernardVoiceID",
     ]
 
     override func setUp() {
@@ -31,16 +32,49 @@ final class ConfigTests: XCTestCase {
         super.tearDown()
     }
 
+    /// Inspect the generated host app metadata, not the project source text.
+    func testInstalledAppDeclaresOnlyIPhoneDeviceFamily() {
+        let families = Bundle.main.object(forInfoDictionaryKey: "UIDeviceFamily") as? [Int]
+        XCTAssertEqual(families, [1], "The glasses phone app must not declare iPad support")
+    }
+
     // MARK: - Dolores Config (hardcoded)
 
-    func testDoloresAPIKeyCanBeConfigured() {
-        Config.setAPIKey("test-key")
-        XCTAssertEqual(Config.doloresAPIKey, "test-key")
+    func testManualDefaultsCannotReplaceTheForAuthAccount() {
+        let initial = Config.doloresAPIKey
+        UserDefaults.standard.set("legacy-fixture", forKey: "doloresAPIKey")
+        XCTAssertTrue(Config.doloresAPIKey == initial)
+        XCTAssertFalse(Config.doloresAPIKey == "legacy-fixture")
     }
 
     func testDoloresBaseURLIsValid() {
         XCTAssertTrue(Config.doloresBaseURL.hasPrefix("https://"))
         XCTAssertNotNil(URL(string: Config.doloresBaseURL))
+    }
+
+    func testSavedAddressOverrideCannotReceiveAccountCredentials() {
+        let old = UserDefaults.standard.object(forKey: "doloresBaseURL")
+        defer {
+            if let old { UserDefaults.standard.set(old, forKey: "doloresBaseURL") }
+            else { UserDefaults.standard.removeObject(forKey: "doloresBaseURL") }
+        }
+        UserDefaults.standard.set("https://untrusted.example/api/voice", forKey: "doloresBaseURL")
+        XCTAssertEqual(Config.doloresBaseURL, "https://forit-ai-engine.azurewebsites.net/api/voice")
+    }
+
+    func testBernardVoiceUsesEngineDefaultUntilSelected() {
+        XCTAssertEqual(Config.bernardVoiceID, "")
+        Config.setElevenLabsVoiceId("legacy-fallback")
+        XCTAssertEqual(Config.bernardVoiceID, "")
+    }
+
+    func testBernardVoicePersistsSeparatelyAndCanReturnToDefault() {
+        Config.setBernardVoiceID("  account-voice  ")
+        XCTAssertEqual(Config.bernardVoiceID, "account-voice")
+        XCTAssertNotEqual(Config.elevenLabsVoiceId, "account-voice")
+        Config.setBernardVoiceID(" ")
+        XCTAssertEqual(Config.bernardVoiceID, "")
+        XCTAssertNil(UserDefaults.standard.object(forKey: "bernardVoiceID"))
     }
 
     // MARK: - Wake Word

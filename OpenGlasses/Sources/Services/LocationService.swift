@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import CoreLocation
 
@@ -10,6 +11,7 @@ class LocationService: NSObject, ObservableObject {
     @Published var isAuthorized: Bool = false
 
     private let locationManager = CLLocationManager()
+    private var trackingRequested = false
     // private let geocoder = CLGeocoder() // Deprecated in iOS 26
 
     override init() {
@@ -27,6 +29,7 @@ class LocationService: NSObject, ObservableObject {
         #if DEBUG
         guard !OpenGlassesScreenshotFixture.suppressesExternalEffects else { return }
         #endif
+        trackingRequested = true
         let status = locationManager.authorizationStatus
         switch status {
         case .notDetermined:
@@ -40,6 +43,13 @@ class LocationService: NSObject, ObservableObject {
         @unknown default:
             break
         }
+    }
+
+    func stopTracking() {
+        trackingRequested = false
+        locationManager.stopUpdatingLocation()
+        currentLocation = nil
+        currentPlacemark = nil
     }
 
     /// Returns a human-readable location string for LLM context
@@ -93,6 +103,7 @@ extension LocationService: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         Task { @MainActor in
+            guard self.trackingRequested else { return }
             self.currentLocation = location
             self.reverseGeocode(location)
         }
@@ -107,7 +118,7 @@ extension LocationService: CLLocationManagerDelegate {
             switch status {
             case .authorizedWhenInUse, .authorizedAlways:
                 self.isAuthorized = true
-                manager.startUpdatingLocation()
+                if self.trackingRequested { manager.startUpdatingLocation() }
                 print("📍 Location authorized")
             case .denied, .restricted:
                 self.isAuthorized = false

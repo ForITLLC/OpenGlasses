@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// Dolores-only LLM service. All requests go to the ForIT AI Engine voice endpoint.
@@ -8,14 +9,37 @@ class LLMService: ObservableObject {
     @Published var isProcessing: Bool = false
     @Published var activeModelName: String = "Bernard"
     @Published var toolCallStatus: ToolCallStatus = .idle
+    private var requestGeneration = UUID()
+
+    func cancelPendingRequest() {
+        requestGeneration = UUID()
+        speechService?.preloadedAudio = nil
+        speechService?.requestedEngineVoiceID = nil
+        isProcessing = false
+    }
 
     func sendMessage(_ text: String, locationContext: String? = nil, imageData: Data? = nil) async throws -> String {
+        let generation = UUID()
+        requestGeneration = generation
+        let requestedVoiceID = Config.bernardVoiceID
+        // Drop queued audio from the preceding request before making another one.
+        speechService?.preloadedAudio = nil
+        speechService?.requestedEngineVoiceID = nil
         isProcessing = true
-        defer { isProcessing = false }
+        var completed = false
+        defer {
+            if requestGeneration == generation {
+                isProcessing = false
+                if !completed {
+                    speechService?.preloadedAudio = nil
+                    speechService?.requestedEngineVoiceID = nil
+                }
+            }
+        }
 
         let apiKey = Config.doloresAPIKey
         guard !apiKey.isEmpty else {
-            throw LLMError.missingAPIKey("Bernard API key not configured")
+            throw LLMError.missingAPIKey("Sign in with your ForIT account to talk to Bernard.")
         }
 
         guard let url = URL(string: Config.doloresBaseURL) else {
@@ -32,25 +56,19 @@ class LLMService: ObservableObject {
         let speedMode = UserDefaults.standard.string(forKey: "speedMode") ?? "fast"
         let fastValue: Any = speedMode == "opus" ? false : speedMode  // "fastest" or "fast" as string, false for Opus
 
-        var body: [String: Any] = [
-            "text": text,
-            "fast": fastValue
-        ]
-        // Include userEmail if set (legacy support), but per-user API keys don't need it
-        let email = Config.userEmail
-        if !email.isEmpty { body["userEmail"] = email }
-        if let imageData = imageData {
-            body["imageBase64"] = imageData.base64EncodedString()
-        }
+        let body = Self.requestBody(text: text, fastValue: fastValue, voiceID: requestedVoiceID,
+                                    userEmail: Config.userEmail, imageData: imageData)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         print("🤖 [Bernard] Sending: \(text.prefix(100))...")
         let (data, response) = try await URLSession.shared.data(for: request)
+        guard requestGeneration == generation, !Task.isCancelled else { throw CancellationError() }
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if statusCode == 401 { AppAccount.shared.invalidate(key: apiKey) }
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorMsg = errorJson["error"] as? String {
                 print("❌ Bernard error \(statusCode): \(errorMsg)")
@@ -59,7 +77,7 @@ class LLMService: ObservableObject {
             throw LLMError.apiError(provider: "Bernard", statusCode: statusCode, message: nil)
         }
 
-        let parsed = try Self.parseResponse(data)
+        let parsed = try Self.parseResponse(data, requestedVoiceID: requestedVoiceID)
 
         // Shape problems used to be swallowed here. Surface them: a reply whose audio
         // failed to decode produced no voice and no explanation, which is precisely the
@@ -72,24 +90,25 @@ class LLMService: ObservableObject {
             print("🔧 [Bernard] Tools used: \(parsed.toolsUsed.joined(separator: ", "))")
         }
 
+        self.speechService?.requestedEngineVoiceID = requestedVoiceID.isEmpty ? nil : requestedVoiceID
+        self.speechService?.preloadedAudio = parsed.audio
         if let audioData = parsed.audio {
             print("🔊 [Bernard] Server provided TTS audio (\(audioData.count) bytes)")
-            self.speechService?.preloadedAudio = audioData
         }
 
+        completed = true
         return parsed.text
     }
 
     /// Parse a voice-endpoint reply.
     ///
     /// Split out of `sendMessage` so the unhappy paths are reachable from tests without
-    /// any network egress — the request itself cannot be exercised in CI, because the
-    /// API key falls back to the Secrets.plist that CI writes, so a test that reached
-    /// the transport would POST at the production endpoint. A test send is a send.
+    /// any network egress. Transport tests need an injected fixture; a request using
+    /// the device's signed-in account would POST at production. A test send is a send.
     ///
     /// An unrecognised shape is never silently dropped: anything we cannot use comes
     /// back in `warnings` for the caller to surface.
-    static func parseResponse(_ data: Data) throws -> DoloresResponse {
+    static func parseResponse(_ data: Data, requestedVoiceID: String = "") throws -> DoloresResponse {
         guard let object = try? JSONSerialization.jsonObject(with: data),
               let json = object as? [String: Any] else {
             throw LLMError.invalidResponse("Bernard")
@@ -122,7 +141,26 @@ class LLMService: ObservableObject {
             }
         }
 
+        // Older engines ignored unknown request fields. An explicit choice must be
+        // confirmed by this reply's generated audio before we play it. `voiceId`
+        // describes the selected configuration even if synthesis failed; only
+        // `effectiveVoiceId` confirms the actual synthesized voice.
+        if !requestedVoiceID.isEmpty, json["effectiveVoiceId"] as? String != requestedVoiceID {
+            audio = nil
+            warnings.append("Selected voice was not confirmed by Bernard — server audio was not used")
+        }
+
         return DoloresResponse(text: text, toolsUsed: toolsUsed, audio: audio, warnings: warnings)
+    }
+
+    static func requestBody(text: String, fastValue: Any, voiceID: String, userEmail: String,
+                            imageData: Data? = nil) -> [String: Any] {
+        var body: [String: Any] = ["text": text, "fast": fastValue]
+        if !voiceID.isEmpty { body["voiceId"] = voiceID }
+        // Per-user keys supply identity themselves; the email supports legacy shared keys.
+        if !userEmail.isEmpty { body["userEmail"] = userEmail }
+        if let imageData { body["imageBase64"] = imageData.base64EncodedString() }
+        return body
     }
 
     func clearHistory() { /* server manages history */ }

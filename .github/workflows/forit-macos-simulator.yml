@@ -1,0 +1,36 @@
+name: ForIT Mini simulator
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: [self-hosted, macOS, ARM64, mini]
+    timeout-minutes: 90
+    steps:
+      - name: Boot the working OpenGlasses phone
+        shell: bash
+        env:
+          CI_SIM_LANE_LIMIT_FIRSTBOOT: 1200
+        run: |
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses check A86BCF14-B009-4600-BB0B-B96341D39170
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses boot A86BCF14-B009-4600-BB0B-B96341D39170
+      - name: Record the boot result
+        if: always()
+        shell: bash
+        run: |
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses device iPhone
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses list
+      - name: Shut down the working OpenGlasses phone
+        if: always()
+        shell: bash
+        run: /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses simctl shutdown A86BCF14-B009-4600-BB0B-B96341D39170
+      - name: Record the final OpenGlasses device state
+        if: always()
+        shell: bash
+        run: |
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses device iPhone
+          /Users/Shared/ci-sim/ci-sim-lane.sh --lane OpenGlasses list

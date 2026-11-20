@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import AVFoundation
 import Speech
@@ -25,6 +26,7 @@ class TranscriptionService: ObservableObject {
     /// Override for the current recording session (reset on stop)
     private var currentNoSpeechTimeout: TimeInterval?
     private var didReceiveSpeech: Bool = false
+    private var recordingGeneration = UUID()
 
     /// Shared audio engine — set by AppState from WakeWordService
     weak var sharedAudioEngineProvider: WakeWordService?
@@ -42,6 +44,7 @@ class TranscriptionService: ObservableObject {
             return
         }
 
+        recordingGeneration = UUID()
         currentNoSpeechTimeout = noSpeechTimeout
         didReceiveSpeech = false
         currentTranscription = ""
@@ -52,6 +55,7 @@ class TranscriptionService: ObservableObject {
             startNoSpeechTimer()
         } catch {
             print("[MIC] Recording setup FAILED: \(error)")
+            cancelRecording()
             errorMessage = error.localizedDescription
         }
     }
@@ -63,6 +67,8 @@ class TranscriptionService: ObservableObject {
             return
         }
 
+        recordingGeneration = UUID()
+        cleanupEngine()
         silenceTimer?.invalidate()
         silenceTimer = nil
         noSpeechTimer?.invalidate()
@@ -85,6 +91,24 @@ class TranscriptionService: ObservableObject {
         }
     }
 
+    /// Discard an unfinished recording when listening is disabled or the session
+    /// closes. Unlike stopRecording, cancellation must never submit its text.
+    func cancelRecording() {
+        recordingGeneration = UUID()
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+        noSpeechTimer?.invalidate()
+        noSpeechTimer = nil
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest?.endAudio()
+        recognitionRequest = nil
+        cleanupEngine()
+        isRecording = false
+        currentTranscription = ""
+        currentNoSpeechTimeout = nil
+    }
+
     private var effectiveNoSpeechTimeout: TimeInterval {
         currentNoSpeechTimeout ?? defaultNoSpeechTimeout
     }
@@ -92,9 +116,11 @@ class TranscriptionService: ObservableObject {
     private func startNoSpeechTimer() {
         noSpeechTimer?.invalidate()
         let timeout = effectiveNoSpeechTimeout
+        let generation = recordingGeneration
         noSpeechTimer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.isRecording, !self.didReceiveSpeech else {
+                guard let self, self.recordingGeneration == generation,
+                      self.isRecording, !self.didReceiveSpeech else {
                     print("[MIC] No-speech timer fired but guard failed: isRecording=\(self?.isRecording ?? false) didReceiveSpeech=\(self?.didReceiveSpeech ?? false)")
                     return
                 }
@@ -105,6 +131,9 @@ class TranscriptionService: ObservableObject {
     }
 
     private func setupAndStartRecording() throws {
+        guard let speechRecognizer, speechRecognizer.isAvailable else {
+            throw TranscriptionError.setupFailed("Speech recognition is unavailable")
+        }
         recognitionTask?.cancel()
         recognitionTask = nil
 
@@ -116,8 +145,9 @@ class TranscriptionService: ObservableObject {
 
         // Try to reuse the shared audio engine from WakeWordService
         // This avoids stopping/starting the engine which fails in background
-        if let provider = sharedAudioEngineProvider, provider.getAudioEngine() != nil {
-            let engine = provider.getAudioEngine()!
+        if let provider = sharedAudioEngineProvider, let engine = provider.getAudioEngine(), engine.isRunning,
+           engine.inputNode.outputFormat(forBus: 0).sampleRate > 0,
+           engine.inputNode.outputFormat(forBus: 0).channelCount > 0 {
             print("[MIC] Reusing shared audio engine. engineRunning=\(engine.isRunning)")
             // Capture request directly — the closure is @Sendable so can't access @MainActor self
             let request = recognitionRequest
@@ -130,6 +160,9 @@ class TranscriptionService: ObservableObject {
             let audioEngine = AVAudioEngine()
             let inputNode = audioEngine.inputNode
             let recordingFormat = inputNode.outputFormat(forBus: 0)
+            guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
+                throw TranscriptionError.setupFailed("No microphone audio is available")
+            }
 
             inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
                 self?.recognitionRequest?.append(buffer)
@@ -140,9 +173,11 @@ class TranscriptionService: ObservableObject {
             self.fallbackAudioEngine = audioEngine
         }
 
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+        let generation = recordingGeneration
+        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             Task { @MainActor in
-                self?.handleRecognitionResult(result: result, error: error)
+                guard let self, self.recordingGeneration == generation, self.isRecording else { return }
+                self.handleRecognitionResult(result: result, error: error)
             }
         }
     }
@@ -185,9 +220,10 @@ class TranscriptionService: ObservableObject {
 
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
+        let generation = recordingGeneration
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceThreshold, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.recordingGeneration == generation, self.isRecording else { return }
                 self.cleanupEngine()
                 self.stopRecording()
             }
