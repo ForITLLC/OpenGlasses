@@ -1,11 +1,13 @@
 import ForITCommon
 import SwiftUI
 
+@MainActor
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     // listeningEnabled is driven by appState.listeningEnabled (observable)
     @State private var speedMode: String
     @ObservedObject private var account = AppAccount.shared
+    @State private var windowSource = AuthWindowReader.WindowSource()
     @State private var selectedVoiceID: String
     @State private var voiceCatalog: BernardVoiceCatalog?
     @State private var isLoadingVoices = false
@@ -39,7 +41,7 @@ struct SettingsView: View {
                 if account.signedIn {
                     Button("Sign out") { account.confirmingSignOut = true }
                 } else {
-                    Button { if !isScreenshot { account.signInAccount() } } label: { ForITSignInLabel() }
+                    Button { if !isScreenshot { account.signInAccount(from: windowSource.window) } } label: { ForITSignInLabel() }
                 }
             } header: {
                 Text("Account")
@@ -64,6 +66,9 @@ struct SettingsView: View {
             }
 
             voiceSection
+            if account.signedIn && !isScreenshot {
+                MuseConnectionSection(windowSource: windowSource)
+            }
 
             // Response Speed
             Section {
@@ -119,6 +124,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .background(AuthWindowReader(source: windowSource))
         .scrollContentBackground(.hidden)
         .forITScreenBackground()
         .feedbackDialogs()

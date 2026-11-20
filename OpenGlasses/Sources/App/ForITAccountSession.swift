@@ -2,9 +2,7 @@ import Foundation
 import ForITCommon
 import Security
 
-/// Product credentials obtained by exchanging a verified native identity.
-/// The current Entra exchange is provisional pending the central for-Auth contract.
-/// The identity token is never persisted. Both app keys belong to this account.
+/// Local product credentials for the verified Central Auth account and optional feedback.
 struct ForITAccountSession: Codable, Equatable, Sendable {
     let key: String
     let email: String
@@ -30,14 +28,6 @@ struct ForITAccountSession: Codable, Equatable, Sendable {
         store.save(raw)
         // The shared store's save has no OSStatus result. Verify before telling the UI.
         guard Self.load(from: store) == self else { throw ForITAccountError.storage }
-    }
-
-    static func mintRequest(idToken: String, label: String) throws -> URLRequest {
-        struct Body: Encodable { let label: String }
-        var request = try ForITKeyMint.request(baseURL: engineOrigin, idToken: idToken,
-                                               body: Body(label: label))
-        request.timeoutInterval = 30
-        return request
     }
 
     /// Central Auth's one-time code goes only to the existing engine's relying-app route.
@@ -69,25 +59,20 @@ struct ForITAccountSession: Codable, Equatable, Sendable {
         guard status == errSecSuccess || status == errSecItemNotFound else { throw ForITAccountError.storage }
     }
 
-    static func decodeMint(_ data: Data, status: Int, expectedEmail: String?) throws -> Self {
-        guard (200..<300).contains(status) else {
+    static func decodeMint(_ data: Data, status: Int, label: String) throws -> Self {
+        guard status == 201 else {
             if status == 401 || status == 403 { throw ForITAccountError.unauthorized }
             throw ForITAccountError.unavailable
         }
-        struct Answer: Decodable { let key: String; let email: String }
-        let answer = try ForITKeyMint.decode(Answer.self, from: data, key: \.key)
+        struct Answer: Decodable { let key: String; let email: String; let label: String }
+        guard let answer = try? JSONDecoder().decode(Answer.self, from: data),
+              answer.label == label, answer.key.utf8.count == 36, answer.key.hasPrefix("dol_"),
+              answer.key.utf8.dropFirst(4).allSatisfy({
+                  (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 95
+              }) else { throw ForITAccountError.unavailable }
         let email = answer.email.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !email.isEmpty,
-              expectedEmail.map({ email.caseInsensitiveCompare($0) == .orderedSame }) ?? true else {
-            throw ForITAccountError.identityMismatch
-        }
+        guard !email.isEmpty else { throw ForITAccountError.unavailable }
         return Self(key: answer.key, email: email, feedbackKey: nil)
-    }
-
-    static func mint(idToken: String, email: String?, label: String) async throws -> Self {
-        let (data, response) = try await URLSession.shared.data(for: mintRequest(idToken: idToken, label: label))
-        return try decodeMint(data, status: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                              expectedEmail: email)
     }
 
     /// Send once. A spent or uncertain code requires a fresh browser sign-in, never a retry.
@@ -98,7 +83,7 @@ struct ForITAccountSession: Codable, Equatable, Sendable {
         defer { transport.invalidateAndCancel() }
         let (data, response) = try await transport.data(for: request)
         return try decodeMint(data, status: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                              expectedEmail: nil)
+                              label: label)
     }
 }
 

@@ -61,17 +61,20 @@ struct RootView: View {
     #endif
 }
 
-/// The shared native gate; its current provider is direct Entra, not central for-Auth.
+/// The shared native Central Auth gate.
+@MainActor
 struct OnboardingView: View {
     let onComplete: () -> Void
     @ObservedObject private var account = AppAccount.shared
+    @State private var windowSource = AuthWindowReader.WindowSource()
 
     var body: some View {
-        ForITSignInGate(signIn: account.signIn,
+        ForITCentralAuthSignInGate(signIn: account.signIn,
                         subtitle: "Sign in to talk to Bernard on your glasses.",
                         error: account.problem, isBusy: account.isSigningIn) {
-            account.signInAccount()
+            account.signInAccount(from: windowSource.window)
         }
+        .background(AuthWindowReader(source: windowSource))
         .onChange(of: account.signedIn) { _, signedIn in if signedIn { onComplete() } }
     }
 }

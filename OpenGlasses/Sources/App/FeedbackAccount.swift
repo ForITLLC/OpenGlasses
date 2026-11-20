@@ -1,19 +1,21 @@
+import AuthenticationServices
 import ForITCommon
 import SwiftUI
 import UIKit
 
-/// One native account for Bernard, the profile and feedback.
-/// Central for-Auth adoption still needs its owned native consumer/session contract.
-/// The short-lived identity token is exchanged using the published product contracts.
+/// The Bernard account uses central Auth. Feedback has a separate Tasks credential.
 @MainActor
 final class AppAccount: ObservableObject {
     static let shared = AppAccount(deleteSession: ForITAccountSession.deletePersistedSession)
 
-    /// ForIT Glasses' feedback epic; the task-feedback rail takes what lands under it to OpenGlasses.
     nonisolated static let epicId = "08106FD9-AFFA-4041-90B5-F50B4BBD308F"
-    /// Must be in CFBundleURLTypes (project.yml) and enrolled on the ForIT Sign-in registration.
+    /// The existing Tasks feedback browser registration keeps this callback.
     nonisolated static let redirectURI = URL(string: "io.forit.glasses://oauth/callback")!
-    let signIn = BrowserSignIn(configuration: .forIT(redirectURI: AppAccount.redirectURI))
+    static let authConfiguration = try! CentralAuthConfiguration(
+        authority: URL(string: "https://auth.forit.io")!, app: "openglasses",
+        callback: URL(string: "https://ai.forit.io/glasses/auth/callback")!, provider: "microsoft")
+    let signIn = CentralAuthBrowserSignIn(configuration: authConfiguration)
+    private let feedbackSignIn = BrowserSignIn(configuration: .forIT(redirectURI: AppAccount.redirectURI))
     let center: FeedbackCenter
     @Published private(set) var session: ForITAccountSession?
     @Published private(set) var isSigningIn = false
@@ -21,7 +23,7 @@ final class AppAccount: ObservableObject {
     @Published var feedbackProblem: String?
     private let store: TasksFeedbackKey.Store
     private let installationStore: TasksFeedbackKey.Store
-    private let engineMint: (String, String?, String) async throws -> ForITAccountSession
+    private let engineMint: (String, String, String, String) async throws -> ForITAccountSession
     private let feedbackMint: (String) async throws -> String
     private let forgetLegacyFeedback: () -> Void
     private let forgetLegacyCredentials: () -> Void
@@ -48,7 +50,7 @@ final class AppAccount: ObservableObject {
 
     init(store: TasksFeedbackKey.Store = ForITAccountSession.store,
          installationStore: TasksFeedbackKey.Store = ForITAccountSession.installationStore,
-         engineMint: @escaping (String, String?, String) async throws -> ForITAccountSession = ForITAccountSession.mint,
+         engineMint: @escaping (String, String, String, String) async throws -> ForITAccountSession = ForITAccountSession.mintAppSession,
          feedbackMint: @escaping (String) async throws -> String = { token in
              // Stage in memory so a late completion cannot restore a signed-out account.
              try await TasksFeedbackKey(store: .memory()).mint(idToken: token, appLabel: "ForIT Glasses (feedback)")
@@ -93,91 +95,134 @@ final class AppAccount: ObservableObject {
         session = restored
     }
 
-    func signInAccount(presentFeedback: Bool = false) {
+    func signInAccount(from window: UIWindow?) {
         #if DEBUG
         guard !OpenGlassesScreenshotFixture.isActive else { return }
         #endif
         guard !isSigningIn else { return }
-        problem = nil
-        isSigningIn = true
-        let attempt = UUID()
-        generation = attempt
-        signInTask = Task {
-            defer { if generation == attempt { isSigningIn = false } }
-            do {
-                let identity = try await signIn.signIn { url in await UIApplication.shared.open(url) }
-                try await completeSignIn(identity, attempt: attempt, presentFeedback: presentFeedback)
-            } catch SignInError.cancelled {
-            } catch is CancellationError {
-            } catch {
-                guard generation == attempt else { return }
-                problem = error.localizedDescription
-            }
+        guard let window else {
+            problem = CentralAuthError.browserUnavailable.localizedDescription
+            return
+        }
+        let anchor = AuthWindowProvider(window: window)
+        startSignIn { attempt in
+            let grant = try await self.signIn.signIn(presentationContextProvider: anchor)
+            try await self.completeSignIn(code: grant.code, codeVerifier: grant.codeVerifier,
+                                                 nonce: grant.nonce, attempt: attempt)
         }
     }
 
-    /// Separate from the browser to test account transitions without live sign-ins or mints.
-    func completeSignIn(_ identity: SignInIdentity, attempt: UUID? = nil,
-                        presentFeedback: Bool = false) async throws {
+    /// The injected exchange lets tests exercise account transitions without a browser.
+    func completeSignIn(code: String, codeVerifier: String, nonce: String, attempt: UUID? = nil) async throws {
         let attempt = attempt ?? generation
+        guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
         let label: String
-        if let existing = installationStore.load(), !existing.isEmpty { label = existing }
-        else {
+        if let existing = installationStore.load(), !existing.isEmpty {
+            label = existing
+        } else {
             label = "ForIT Glasses iPhone " + UUID().uuidString
             installationStore.save(label)
             guard installationStore.load() == label else { throw ForITAccountError.storage }
         }
-        let credential: ForITAccountSession
-        if presentFeedback, let current = session,
-           identity.email.map({ current.email.caseInsensitiveCompare($0) == .orderedSame }) == true {
-            credential = current
-        } else {
-            isChangingCredentials = true
-            center.close()
-            retireAccountWork()
-            defer {
-                if generation == attempt {
-                    isChangingCredentials = false
-                    if let rejected = rejectedWhileChanging {
-                        rejectedWhileChanging = nil
-                        invalidate(key: rejected)
-                    }
-                    if signedIn { resumeAccountWork() }
+
+        isChangingCredentials = true
+        center.close()
+        retireAccountWork()
+        defer {
+            if generation == attempt {
+                isChangingCredentials = false
+                if let rejected = rejectedWhileChanging {
+                    rejectedWhileChanging = nil
+                    invalidate(key: rejected)
                 }
+                if signedIn { resumeAccountWork() }
             }
-            let minted = try await engineMint(identity.idToken, identity.email, label)
-            guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
-            try minted.save(to: store)
-            session = minted
-            credential = minted
-            forgetLegacyCredentials()
         }
+
+        var minted = try await engineMint(code, codeVerifier, nonce, label)
         guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
-        // A successful engine login must survive an unrelated feedback service failure.
+        if let current = session, Self.sameAccount(current.email, minted.email) {
+            minted.feedbackKey = current.feedbackKey
+        }
+        try minted.save(to: store)
+        session = minted
+        center.shakeToReport = minted.feedbackKey != nil
         feedbackProblem = nil
-        center.shakeToReport = false
+        forgetLegacyCredentials()
+    }
+
+    func signInForFeedback() {
+        #if DEBUG
+        guard !OpenGlassesScreenshotFixture.isActive else { return }
+        #endif
+        guard signedIn, !isSigningIn else { return }
+        startSignIn { attempt in
+            let identity = try await self.feedbackSignIn.signIn { url in await UIApplication.shared.open(url) }
+            try await self.connectFeedback(identity, attempt: attempt, presentFeedback: true)
+        }
+    }
+
+    func connectFeedback(_ identity: SignInIdentity, attempt: UUID? = nil, presentFeedback: Bool = false) async throws {
+        let attempt = attempt ?? generation
+        guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
+        guard let current = session, let email = identity.email, Self.sameAccount(email, current.email) else {
+            throw ForITAccountError.identityMismatch
+        }
+        feedbackProblem = nil
         do {
             let key = try await feedbackMint(identity.idToken)
-            guard generation == attempt, !Task.isCancelled else { throw CancellationError() }
+            guard generation == attempt, !Task.isCancelled, session?.key == current.key else {
+                throw CancellationError()
+            }
             guard !key.isEmpty else { throw ForITAccountError.unavailable }
-            var connected = credential
+            var connected = current
             connected.feedbackKey = key
             try connected.save(to: store)
             session = connected
             center.shakeToReport = true
             if presentFeedback { center.present() }
-        } catch is CancellationError { throw CancellationError() }
-        catch {
-            guard generation == attempt else { throw CancellationError() }
-            if ForITAccountSession.load(from: store) != credential {
-                do { try credential.save(to: store) }
-                catch { session = nil; throw ForITAccountError.storage }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            guard generation == attempt, session?.key == current.key else { throw CancellationError() }
+            if ForITAccountSession.load(from: store) != current {
+                do { try current.save(to: store) }
+                catch {
+                    session = nil
+                    center.shakeToReport = false
+                    retireAccountWork()
+                    throw ForITAccountError.storage
+                }
             }
-            feedbackProblem = "You're signed in. Feedback couldn't connect; sign in again to retry."
+            feedbackProblem = "Feedback couldn’t connect. Try signing in for feedback again."
         }
     }
 
-    func signInForFeedback() { signInAccount(presentFeedback: true) }
+    private func startSignIn(_ action: @escaping (UUID) async throws -> Void) {
+        problem = nil
+        isSigningIn = true
+        let attempt = UUID()
+        generation = attempt
+        signInTask = Task {
+            defer { if generation == attempt { isSigningIn = false; signInTask = nil } }
+            do {
+                try Task.checkCancellation()
+                try await action(attempt)
+            } catch CentralAuthError.cancelled {
+            } catch SignInError.cancelled {
+            } catch is CancellationError {
+            } catch {
+                guard generation == attempt else { return }
+                problem = (error as? ForITAccountError)?.localizedDescription
+                    ?? (error as? CentralAuthError)?.localizedDescription
+                    ?? "Couldn’t finish signing you in. Try again."
+            }
+        }
+    }
+
+    private static func sameAccount(_ first: String, _ second: String) -> Bool {
+        first.caseInsensitiveCompare(second) == .orderedSame
+    }
 
     /// An old request must never sign out a newer account that has replaced its key.
     func invalidate(key: String) {
@@ -192,7 +237,7 @@ final class AppAccount: ObservableObject {
         #if DEBUG
         guard !OpenGlassesScreenshotFixture.isActive else { return false }
         #endif
-        return signIn.handle(url)
+        return feedbackSignIn.handle(url)
     }
 
     func signOut() {
@@ -203,13 +248,16 @@ final class AppAccount: ObservableObject {
         isChangingCredentials = false
         rejectedWhileChanging = nil
         signInTask?.cancel()
+        signInTask = nil
         signIn.cancel()
+        feedbackSignIn.cancel()
         center.close()
         retireAccountWork()
         do { try deleteSession() }
         catch {
             problem = "Couldn't clear your saved sign-in. Try signing out again."
             isSigningIn = false
+            if signedIn { resumeAccountWork() }
             return
         }
         forgetLegacyFeedback()
@@ -250,7 +298,9 @@ struct FeedbackSection: View {
             Text("Feedback")
         } footer: {
             Text(account.signedIn
-                ? account.feedbackProblem ?? "Shake your phone to send feedback from any screen."
+                ? account.feedbackProblem ?? (account.feedbackSignedIn
+                    ? "Shake your phone to send feedback from any screen."
+                    : "Sign in for feedback to send it under your name.")
                 : "Feedback goes to ForIT's board under your name, so it needs your ForIT account.")
                 .foregroundColor(Color(hex: "E1EFF3").opacity(0.4))
         }
@@ -268,7 +318,7 @@ private struct FeedbackDialogs: ViewModifier {
                 Button("Sign in with ForIT") { account.signInForFeedback() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Sign in with your ForIT account to reconnect feedback under your name.")
+                Text("Use the same ForIT account to connect feedback.")
             }
             .confirmationDialog("Sign out of ForIT?", isPresented: presentation($account.confirmingSignOut), titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { account.signOut() }

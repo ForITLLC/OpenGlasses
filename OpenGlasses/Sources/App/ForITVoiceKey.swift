@@ -36,14 +36,7 @@ struct ForITVoiceKey: Sendable, CustomStringConvertible, CustomDebugStringConver
             if status == 401 || status == 403 { throw ForITAccountError.unauthorized }
             throw ForITAccountError.unavailable
         }
-        struct Answer: Decodable {
-            let key: String
-            let email: String
-            let label: String
-            let scope: String
-            let expiresAt: String
-        }
-        guard let answer = try? JSONDecoder().decode(Answer.self, from: data),
+        guard let answer = try? JSONDecoder().decode(IssuedAnswer.self, from: data),
               answer.scope == "voice", answer.label == label,
               answer.key.count == 37, answer.key.hasPrefix("dols_"),
               answer.key.dropFirst(5).utf8.allSatisfy({
@@ -71,8 +64,19 @@ struct ForITVoiceKey: Sendable, CustomStringConvertible, CustomDebugStringConver
         let transport = URLSession(configuration: .ephemeral, delegate: AppSessionRedirectPolicy(), delegateQueue: nil)
         defer { transport.invalidateAndCancel() }
         let (data, response) = try await transport.data(for: request)
-        return try decodeIssued(data, status: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                                expectedEmail: expectedEmail, label: label, expiresInDays: expiresInDays)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        do {
+            return try decodeIssued(data, status: status, expectedEmail: expectedEmail,
+                                    label: label, expiresInDays: expiresInDays)
+        } catch ForITAccountError.identityMismatch {
+            // A different person signed in. Use only the returned voice key to end that mint.
+            if let answer = try? JSONDecoder().decode(IssuedAnswer.self, from: data),
+               let other = try? decodeIssued(data, status: status, expectedEmail: answer.email,
+                                             label: label, expiresInDays: expiresInDays) {
+                _ = try? await transport.data(for: other.revokeRequest())
+            }
+            throw ForITAccountError.identityMismatch
+        }
     }
 
     /// Explicit user action only. Keep it off Universal Clipboard and expire it after one minute.
@@ -95,10 +99,38 @@ struct ForITVoiceKey: Sendable, CustomStringConvertible, CustomDebugStringConver
 
     /// Self-revocation cannot remove the phone key or another scoped credential.
     func revokeRequest() -> URLRequest {
+        Self.revokeRequest(key: value)
+    }
+
+    static func revoke(label: String, using accountKey: String) async throws {
+        struct Body: Encodable { let scope = "voice"; let label: String }
+        struct Answer: Decodable { let revoked: Int; let scope: String; let label: String }
+        var request = revokeRequest(key: accountKey)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(Body(label: label))
+        let transport = URLSession(configuration: .ephemeral, delegate: AppSessionRedirectPolicy(), delegateQueue: nil)
+        defer { transport.invalidateAndCancel() }
+        let (data, response) = try await transport.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              let answer = try? JSONDecoder().decode(Answer.self, from: data),
+              answer.scope == "voice", answer.label == label, (0...1).contains(answer.revoked) else {
+            throw ForITAccountError.unavailable
+        }
+    }
+
+    private static func revokeRequest(key: String) -> URLRequest {
         var request = URLRequest(url: ForITAccountSession.engineOrigin.appendingPathComponent("api/api-keys/revoke"))
         request.httpMethod = "POST"
         request.timeoutInterval = 30
-        request.setValue(value, forHTTPHeaderField: "X-API-Key")
+        request.setValue(key, forHTTPHeaderField: "X-API-Key")
         return request
+    }
+
+    private struct IssuedAnswer: Decodable {
+        let key: String
+        let email: String
+        let label: String
+        let scope: String
+        let expiresAt: String
     }
 }
