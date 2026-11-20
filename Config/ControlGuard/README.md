@@ -3,14 +3,21 @@
 Current policy (October 26, Ben's ship-all instruction, A0 handoff
 `ff155c9db230`): BR-3 and Dark/Light/VS-1 findings are advisory at this app's
 build/release boundary. A0 is retired; the owning lane uses its normal workflow
-and published Common 0.31.9, released October 26 at 02:44:30Z.
+and the exact published Common version pinned in the project.
 The three unconditional BR-3 phases keep the original JSON reports and write
 the guard's actual status beside each report as `.exit-code`; Xcode diagnostics
 are printed as warnings and the advisory phases return zero. Compiler, signing,
 export and upload command failures remain failures. This changes the app's
 handling of findings, not Common's checker, findings or historical results.
 
-Current source selects Common `0.31.9` at
+Current source uses the annotated Common `0.32.1` release for the iPhone package
+and both source bridges. The tag object is
+`7a4667f84610f096641a4cb6809d609ca91f0728`, and its commit is
+`970255ddd540fc1a6a5876aff6d7cdfac11b67df`. The exact Xcode lock retains Meta DAT
+1.0.1 and has SHA256 `31022a2c1fbfec13d21761ab802138ca36665252191c8f02a2d7433efc16d7ed`.
+TestFlight build 37 retains its separate 0.32.0 app and 0.31.9 bridge evidence.
+
+The build 35 source selected Common `0.31.9` at
 `352f567e839b8faf61b6df5840c5275b016addce`, annotated tag
 `9050f4a1ce99d023e3a550ffc74f338a135d1d6c`, and Meta DAT `1.0.1` at
 `0bd369298eef6a980ad0bdb6c8a5502f2c02a08c`. The genuine resolver lock's SHA256

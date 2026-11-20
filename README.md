@@ -34,7 +34,7 @@ OpenGlasses transforms your Ray-Ban Meta smart glasses into a hands-free AI assi
 
 ## Current ForIT requirements
 
-The iOS app and activity extension target iPhone only. The separate Watch companion uses its existing package-free bridge. The current iPhone source uses ForITCommon 0.32.0 for Central Auth, with genuine package resolution retained in the project lockfile. The Activity widget and Watch use the authenticated 0.31.9 mark and controls bridge. Earlier cross-platform descriptions below are historical.
+The iOS app and Activity widget target iPhone natively. Apple lists build 37 for compatible iPads in iPhone compatibility mode. Current source uses ForITCommon 0.32.1 for the iPhone package and for the authenticated mark and controls bridges in the Activity widget and standalone Watch target. The project retains the package lock resolved by Xcode.
 
 - **The installed client:** A current ForIT Glasses iPhone build using the existing `com.forit.openglasses.dolores` bundle and ForIT profile. Actual glasses behavior still needs device acceptance.
 - **The ForIT account.** Sign in through Central Auth to talk to Bernard. The phone exchanges a one-time code with the engine and saves its installation key in Keychain. Use the same ForIT account to connect feedback separately.
